@@ -1,0 +1,44 @@
+package org.wwz.ai.domain.agent.runtime.tool.workspace;
+
+import org.springframework.stereotype.Component;
+
+import java.nio.file.Path;
+import java.util.Collection;
+import java.util.List;
+
+/**
+ * 保证候选路径落在允许的根目录内，防止 path traversal。
+ * 可读根：workspace + skill；可写根：仅 workspace。
+ */
+@Component
+public class WorkspacePathGuard {
+
+    public Path ensureUnderRoot(Path root, Path candidatePath) {
+        if (root == null) {
+            throw new WorkspaceAccessException("workspace root is not configured");
+        }
+        return ensureUnderAnyRoot(List.of(root), candidatePath);
+    }
+
+    public Path ensureUnderAnyRoot(Collection<Path> roots, Path candidatePath) {
+        if (roots == null || roots.isEmpty()) {
+            throw new WorkspaceAccessException("no allowed path roots configured");
+        }
+        if (candidatePath == null) {
+            throw new WorkspaceAccessException("path is required");
+        }
+        Path normalizedCandidate = candidatePath.toAbsolutePath().normalize();
+        // 统一绝对化并归一化后再比较，既处理 .. 路径，也避免相对路径绕过根目录校验。
+        for (Path root : roots) {
+            if (root == null) {
+                continue;
+            }
+            Path normalizedRoot = root.toAbsolutePath().normalize();
+            if (normalizedCandidate.startsWith(normalizedRoot)) {
+                return normalizedCandidate;
+            }
+        }
+        // 不对 Agent 暴露宿主绝对路径细节
+        throw new WorkspaceAccessException("path is outside allowed roots");
+    }
+}

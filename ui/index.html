@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>research</title>
+    <script>
+      // Apply the persisted theme before the first paint.
+      try {
+        var savedTheme = localStorage.getItem('research.theme');
+        var initialTheme = savedTheme === 'light' || savedTheme === 'dark'
+          ? savedTheme : matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        document.documentElement.classList.toggle('dark', initialTheme === 'dark');
+        document.documentElement.style.colorScheme = initialTheme;
+      } catch (_) {
+        var systemDark = matchMedia('(prefers-color-scheme: dark)').matches;
+        document.documentElement.classList.toggle('dark', systemDark);
+        document.documentElement.style.colorScheme = systemDark ? 'dark' : 'light';
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

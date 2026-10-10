@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>用量统计 · 热力图示例</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f4f5f7;
+      --surface: #ffffff;
+      --surface-soft: #f8f9fb;
+      --line: #e2e5e9;
+      --line-strong: #d0d5dc;
+      --text: #20242b;
+      --muted: #707984;
+      --muted-2: #9aa1aa;
+      --accent: #087f9e;
+      --accent-soft: #d9f0f5;
+      --accent-1: #edf1f3;
+      --accent-2: #cce8ee;
+      --accent-3: #99d1dc;
+      --accent-4: #55adbe;
+      --accent-5: #07819f;
+      --shadow: 0 14px 36px rgba(38, 46, 58, .06);
+      --radius: 12px;
+    }
+
+    [data-theme="dark"] {
+      color-scheme: dark;
+      --bg: #15181c;
+      --surface: #20252b;
+      --surface-soft: #282e35;
+      --line: #343b44;
+      --line-strong: #48515c;
+      --text: #f2f5f7;
+      --muted: #aeb7c1;
+      --muted-2: #7f8994;
+      --accent: #62c3d4;
+      --accent-soft: #193c46;
+      --accent-1: #30373d;
+      --accent-2: #24515c;
+      --accent-3: #2e7886;
+      --accent-4: #41a6b7;
+      --accent-5: #74d5e2;
+      --shadow: 0 18px 42px rgba(0, 0, 0, .24);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 14px;
+      transition: background-color .25s ease, color .25s ease;
+    }
+    button, select { font: inherit; color: inherit; }
+    button { cursor: pointer; }
+
+    .app { min-height: 100vh; display: grid; grid-template-columns: 248px minmax(0, 1fr); }
+    .sidebar { background: var(--surface); border-right: 1px solid var(--line); padding: 22px 14px 16px; display: flex; flex-direction: column; gap: 28px; }
+    .brand { display: flex; align-items: center; gap: 10px; padding: 0 12px 14px; border-bottom: 1px solid var(--line); }
+    .brand-mark { width: 28px; height: 28px; border-radius: 9px; background: conic-gradient(from 210deg, #f28c8c, #f4be43, #62c861, #55b9d5, #d967ad, #f28c8c); position: relative; }
+    .brand-mark::after { content: ""; position: absolute; inset: 6px; border-radius: 50%; background: var(--surface); }
+    .brand-name { font-size: 16px; font-weight: 760; letter-spacing: -.02em; }
+    .nav { display: grid; gap: 5px; }
+    .nav-group { padding: 0 12px 7px; color: var(--muted-2); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    .nav-item { display: flex; align-items: center; gap: 11px; min-height: 40px; padding: 0 12px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); text-align: left; transition: background .18s ease, color .18s ease, transform .18s ease; }
+    .nav-item:hover { background: var(--surface-soft); color: var(--text); transform: translateX(2px); }
+    .nav-item.active { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+    .nav-icon { width: 18px; text-align: center; font-size: 16px; line-height: 1; }
+    .sidebar-bottom { margin-top: auto; display: grid; gap: 6px; }
+    .main { min-width: 0; }
+    .topbar { height: 74px; background: var(--surface); border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 0 clamp(20px, 3vw, 46px); }
+    .title-wrap { display: flex; align-items: center; gap: 12px; }
+    .title-icon { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid var(--line-strong); border-radius: 10px; color: var(--accent); font-size: 20px; }
+    h1 { margin: 0; font-size: 22px; letter-spacing: -.035em; }
+    .top-actions { display: flex; align-items: center; gap: 10px; color: var(--muted); }
+    .button, .select { min-height: 38px; border: 1px solid var(--line-strong); border-radius: 9px; background: var(--surface); padding: 0 13px; display: inline-flex; align-items: center; gap: 8px; transition: border-color .18s ease, background .18s ease, transform .18s ease; }
+    .button:hover, .select:hover { border-color: var(--accent); background: var(--surface-soft); }
+    .button:active { transform: translateY(1px); }
+    .button.primary { color: var(--text); font-weight: 650; }
+    .select { appearance: none; padding-right: 30px; background-image: linear-gradient(45deg, transparent 50%, var(--muted) 50%), linear-gradient(135deg, var(--muted) 50%, transparent 50%); background-position: calc(100% - 16px) 16px, calc(100% - 11px) 16px; background-size: 5px 5px, 5px 5px; background-repeat: no-repeat; }
+    .theme-toggle { width: 38px; padding: 0; justify-content: center; }
+    .content { width: min(1480px, 100%); margin: 0 auto; padding: 26px clamp(20px, 3vw, 46px) 48px; }
+    .toolbar { display: flex; justify-content: space-between; gap: 14px; align-items: center; margin-bottom: 20px; }
+    .provider-tabs { display: flex; align-items: center; gap: 3px; padding: 4px; border-radius: 11px; background: var(--surface-soft); border: 1px solid var(--line); }
+    .provider-tab { min-height: 31px; border: 0; border-radius: 8px; padding: 0 13px; background: transparent; color: var(--muted); }
+    .provider-tab:hover { color: var(--text); }
+    .provider-tab.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 4px rgba(20, 26, 32, .09); font-weight: 700; }
+    .filters { display: flex; flex-wrap: wrap; gap: 8px; }
+    .metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 20px; }
+    .metric { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 19px 20px 17px; box-shadow: var(--shadow); }
+    .metric-label { color: var(--muted); font-size: 13px; }
+    .metric-value { margin-top: 8px; font-size: clamp(24px, 2.3vw, 34px); letter-spacing: -.045em; font-weight: 780; }
+    .metric-foot { margin-top: 7px; color: var(--muted-2); font-size: 12px; }
+    .heatmap-panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 23px 24px 20px; box-shadow: var(--shadow); }
+    .panel-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; }
+    .panel-title { margin: 0; font-size: 17px; letter-spacing: -.025em; }
+    .panel-subtitle { margin: 5px 0 0; color: var(--muted); }
+    .segmented { display: flex; gap: 3px; padding: 3px; border: 1px solid var(--line); background: var(--surface-soft); border-radius: 10px; }
+    .segment { border: 0; border-radius: 7px; background: transparent; min-height: 30px; padding: 0 13px; color: var(--muted); }
+    .segment.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 4px rgba(20, 26, 32, .10); font-weight: 700; }
+    .heatmap-scroll { overflow-x: auto; padding: 23px 0 3px; scrollbar-width: thin; }
+    .heatmap { min-width: 800px; display: grid; grid-template-columns: 41px 1fr; gap: 9px; }
+    .month-row { height: 18px; display: grid; grid-template-columns: repeat(53, 1fr); gap: 5px; color: var(--muted); font-size: 11px; }
+    .month-row span { grid-column: span 4; }
+    .week-labels { display: grid; grid-template-rows: repeat(7, 18px); gap: 5px; padding-top: 24px; color: var(--muted); font-size: 11px; }
+    .week-labels span:nth-child(even) { visibility: hidden; }
+    .cells { display: grid; grid-template-columns: repeat(53, minmax(11px, 1fr)); grid-template-rows: repeat(7, 18px); grid-auto-flow: column; gap: 5px; }
+    .cell { border-radius: 4px; background: var(--accent-1); position: relative; transition: transform .16s ease, box-shadow .16s ease, filter .16s ease; }
+    .cell:hover { z-index: 2; transform: translateY(-2px) scale(1.12); box-shadow: 0 5px 10px rgba(0, 50, 65, .18); filter: saturate(1.1); }
+    .cell[data-level="1"] { background: var(--accent-2); } .cell[data-level="2"] { background: var(--accent-3); } .cell[data-level="3"] { background: var(--accent-4); } .cell[data-level="4"] { background: var(--accent-5); }
+    .cell::after { content: attr(data-tooltip); position: absolute; left: 50%; bottom: calc(100% + 9px); transform: translate(-50%, 4px); white-space: nowrap; pointer-events: none; opacity: 0; padding: 7px 9px; border-radius: 7px; background: var(--text); color: var(--surface); font-size: 11px; box-shadow: var(--shadow); transition: opacity .15s ease, transform .15s ease; }
+    .cell:hover::after { opacity: 1; transform: translate(-50%, 0); }
+    .heatmap-footer { display: flex; justify-content: flex-end; align-items: center; gap: 8px; margin-top: 15px; color: var(--muted); font-size: 11px; }
+    .legend { display: flex; gap: 4px; align-items: center; } .legend i { width: 14px; height: 14px; border-radius: 3px; display: block; }
+    .legend i:nth-child(1) { background: var(--accent-1); } .legend i:nth-child(2) { background: var(--accent-2); } .legend i:nth-child(3) { background: var(--accent-3); } .legend i:nth-child(4) { background: var(--accent-4); } .legend i:nth-child(5) { background: var(--accent-5); }
+    .logs { margin-top: 24px; background: var(--surface); border-top: 1px solid var(--line); }
+    .tabs-row { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); }
+    .log-tabs { display: flex; gap: 28px; }
+    .log-tab { border: 0; border-bottom: 2px solid transparent; background: transparent; padding: 15px 2px 12px; color: var(--muted); font-size: 15px; }
+    .log-tab.active { color: var(--text); border-bottom-color: var(--text); font-weight: 700; }
+    .table-wrap { overflow-x: auto; } table { width: 100%; min-width: 900px; border-collapse: collapse; } th, td { padding: 14px 12px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; } th { color: var(--muted); font-weight: 550; font-size: 12px; } td { color: var(--text); } td.muted { color: var(--muted); } td.model { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+    .source-dot { display: inline-block; width: 8px; height: 8px; margin-right: 8px; border-radius: 50%; background: #f38b82; }
+    @media (max-width: 1000px) { .app { grid-template-columns: 72px minmax(0, 1fr); } .sidebar { padding: 18px 10px; } .brand { justify-content: center; padding: 0 0 16px; } .brand-name, .nav-group, .nav-item span:not(.nav-icon) { display: none; } .nav-item { justify-content: center; padding: 0; } .metric-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .top-actions .quiet { display: none; } }
+    @media (max-width: 650px) { .app { display: block; } .sidebar { display: none; } .topbar { height: auto; min-height: 68px; padding: 14px 16px; } .top-actions .select { display: none; } .content { padding: 18px 14px 36px; } .toolbar, .panel-head, .tabs-row { align-items: stretch; flex-direction: column; } .filters { justify-content: flex-start; } .metric-grid { gap: 9px; } .metric { padding: 14px; } .metric-value { font-size: 24px; } .heatmap-panel { padding: 17px 14px; } .segmented { align-self: flex-start; } .log-tabs { gap: 18px; } }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; } }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar" aria-label="主导航">
+      <div class="brand"><span class="brand-mark" aria-hidden="true"></span><span class="brand-name">Research Agent</span></div>
+      <nav class="nav">
+        <div class="nav-group">Workspace</div>
+        <button class="nav-item"><span class="nav-icon">⌁</span><span>对话</span></button>
+        <button class="nav-item"><span class="nav-icon">◈</span><span>模型管理</span></button>
+        <button class="nav-item active"><span class="nav-icon">▥</span><span>用量统计</span></button>
+      </nav>
+      <div class="sidebar-bottom"><button class="nav-item"><span class="nav-icon">⚙</span><span>设置</span></button></div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="title-wrap"><div class="title-icon" aria-hidden="true">▥</div><h1>用量统计</h1></div>
+        <div class="top-actions"><span class="quiet">会话日志 · 刚刚同步</span><button class="button primary" id="sync">⟳&nbsp; 立即同步</button><select class="select" aria-label="自动刷新频率"><option>自动刷新 30 秒</option><option>自动刷新 1 分钟</option><option>关闭自动刷新</option></select><button class="button theme-toggle" id="theme" aria-label="切换主题">◐</button></div>
+      </header>
+
+      <div class="content">
+        <div class="toolbar">
+          <div class="provider-tabs" role="tablist" aria-label="供应商筛选"><button class="provider-tab active">全部</button><button class="provider-tab">Claude</button><button class="provider-tab">OpenAI</button><button class="provider-tab">Gemini</button><button class="provider-tab">DeepSeek</button></div>
+          <div class="filters"><select class="select"><option>供应商</option><option>OpenAI</option><option>Claude</option></select><select class="select"><option>模型</option><option>gpt-5.6-sol</option><option>gpt-5.6-luna</option></select><select class="select"><option>全部状态</option><option>成功</option><option>失败</option></select></div>
+        </div>
+
+        <section class="metric-grid" aria-label="用量概览"><article class="metric"><div class="metric-label">总成本</div><div class="metric-value" id="cost">$27,314.42</div><div class="metric-foot">较上周期 +12.8%</div></article><article class="metric"><div class="metric-label">总请求数</div><div class="metric-value">275,383</div><div class="metric-foot">过去 53 周累计</div></article><article class="metric"><div class="metric-label">真实消耗 Tokens</div><div class="metric-value">32.5B</div><div class="metric-foot">输入 24.9B · 输出 7.6B</div></article><article class="metric"><div class="metric-label">缓存命中率</div><div class="metric-value">95.0%</div><div class="metric-foot">较上周期 +3.2%</div></article></section>
+
+        <section class="heatmap-panel" aria-labelledby="heatmap-title"><div class="panel-head"><div><h2 class="panel-title" id="heatmap-title">用量热力图</h2><p class="panel-subtitle">最近 53 周的每日用量</p></div><div class="segmented" role="tablist" aria-label="热力图指标"><button class="segment active" data-metric="tokens">Tokens</button><button class="segment" data-metric="requests">请求</button><button class="segment" data-metric="cost">成本</button></div></div><div class="heatmap-scroll"><div class="heatmap"><div></div><div class="month-row" id="months"></div><div class="week-labels"><span>周一</span><span>周二</span><span>周三</span><span>周四</span><span>周五</span><span>周六</span><span>周日</span></div><div class="cells" id="cells"></div></div></div><div class="heatmap-footer"><span>少</span><div class="legend"><i></i><i></i><i></i><i></i><i></i></div><span>多</span></div></section>
+
+        <section class="logs"><div class="tabs-row"><div class="log-tabs"><button class="log-tab active">请求日志</button><button class="log-tab">供应商</button><button class="log-tab">模型</button><button class="log-tab">定价</button></div><select class="select"><option>全部状态码</option><option>2xx 成功</option><option>4xx 客户端错误</option></select></div><div class="table-wrap"><table><thead><tr><th>时间</th><th>应用</th><th>供应商</th><th>模型</th><th>新增输入</th><th>输出</th><th>缓存命中</th><th>成本</th><th>速度</th></tr></thead><tbody><tr><td>14:58:06</td><td><span class="source-dot"></span>Research</td><td>OpenAI</td><td class="model">gpt-5.6-sol</td><td>54</td><td>424</td><td>343K</td><td>$0.0840</td><td class="muted">≈49 tok/s</td></tr><tr><td>14:57:54</td><td><span class="source-dot"></span>Research</td><td>OpenAI</td><td class="model">gpt-5.6-sol</td><td>54</td><td>1,184</td><td>342K</td><td>$0.0950</td><td class="muted">≈87 tok/s</td></tr><tr><td>14:57:40</td><td><span class="source-dot"></span>Research</td><td>OpenAI</td><td class="model">gpt-5.6-luna</td><td>55</td><td>101</td><td>342K</td><td>$0.0707</td><td class="muted">暂无</td></tr><tr><td>14:54:11</td><td><span class="source-dot"></span>Research</td><td>Claude</td><td class="model">claude-opus-5-5</td><td>54</td><td>605</td><td>340K</td><td>$0.0854</td><td class="muted">≈53 tok/s</td></tr><tr><td>14:53:31</td><td><span class="source-dot"></span>Research</td><td>Gemini</td><td class="model">gemini-3-pro</td><td>54</td><td>323</td><td>339K</td><td>$0.0807</td><td class="muted">≈48 tok/s</td></tr></tbody></table></div></section>
+      </div>
+    </main>
+  </div>
+  <script>
+    const cells = document.querySelector('#cells');
+    const months = document.querySelector('#months');
+    const monthNames = ['9月', '10月', '11月', '12月', '1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月'];
+    monthNames.forEach((name) => { const item = document.createElement('span'); item.textContent = name; months.appendChild(item); });
+    let metric = 'tokens';
+    function seedValue(row, col) { const wave = Math.sin(col * .52 + row * 1.7) + Math.cos(col * .14 - row); const trend = col / 53 * 2.1; return Math.max(0, Math.min(4, Math.round((wave + 2.2 + trend) / 1.12))); }
+    function renderCells() { cells.replaceChildren(); for (let col = 0; col < 53; col += 1) { for (let row = 0; row < 7; row += 1) { const cell = document.createElement('span'); const level = Math.min(4, Math.max(0, seedValue(row, col) + (metric === 'requests' ? 0 : metric === 'cost' ? (col % 5 === 0 ? 1 : 0) : 0))); cell.className = 'cell'; cell.dataset.level = String(level); const amount = level === 0 ? '0' : `${(level * 1.8 + (col % 7) / 10).toFixed(1)}M`; cell.dataset.tooltip = `${monthNames[Math.floor(col / 4) % monthNames.length]} · ${amount} ${metric}`; cells.appendChild(cell); } } }
+    renderCells();
+    document.querySelectorAll('.segment').forEach((button) => button.addEventListener('click', () => { document.querySelectorAll('.segment').forEach((item) => item.classList.remove('active')); button.classList.add('active'); metric = button.dataset.metric; renderCells(); }));
+    document.querySelectorAll('.provider-tab').forEach((button) => button.addEventListener('click', () => { document.querySelectorAll('.provider-tab').forEach((item) => item.classList.remove('active')); button.classList.add('active'); }));
+    document.querySelectorAll('.log-tab').forEach((button) => button.addEventListener('click', () => { document.querySelectorAll('.log-tab').forEach((item) => item.classList.remove('active')); button.classList.add('active'); }));
+    document.querySelector('#theme').addEventListener('click', () => { const dark = document.documentElement.dataset.theme === 'dark'; document.documentElement.dataset.theme = dark ? 'light' : 'dark'; document.querySelector('#theme').textContent = dark ? '◐' : '☼'; });
+    document.querySelector('#sync').addEventListener('click', (event) => { const button = event.currentTarget; button.textContent = '⟳  同步中'; button.disabled = true; window.setTimeout(() => { button.textContent = '✓  已同步'; window.setTimeout(() => { button.textContent = '⟳  立即同步'; button.disabled = false; }, 900); }, 700); });
+  </script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+package org.wwz.ai.domain.agent.research.data.dto;
+
+import lombok.Data;
+
+/**
+ * 向量索引中的问数模型 schema 模型。
+ */
+@Data
+public class VectorModelSchema {
+    private String modelCode;
+    private String columnId;
+    private String columnName;
+    private String columnComment;
+    private String fewShot;
+    private String dataType;
+    private String synonyms;
+    private String vectorUuid;
+    private String defaultRecall;
+    private String analyzeSuggest;
+}

@@ -1,0 +1,485 @@
+/* ============================================================================
+   模型接入页（ModelAdmin）
+   版式参考 CC Switch 的卡片列表语言，配色/圆角/间距全部复用 global.css 的
+   Kimi design-tokens v2，不覆盖任何 workspace-admin-* 已有规则。
+   ========================================================================== */
+
+.model-admin-workbench {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  align-items: stretch;
+  gap: 16px;
+}
+
+/* body-inner 来自 workspace-admin.css（min-height:100%）；本页要让面板内部滚动，
+   必须把高度锁死。用复合选择器提高优先级，避免改动共享规则影响其它管理页。 */
+.workspace-admin-body-inner.model-admin-body-inner {
+  height: 100%;
+  min-height: 0;
+}
+
+/* 服务商筛选：tab 不参与收缩，避免「全部」被挤成两行 */
+.model-admin-provider-tabs {
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.model-admin-provider-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.model-admin-provider-tabs .workspace-admin-tab {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.model-admin-rail {
+  display: flex;
+  width: 372px;
+  min-height: 0;
+  flex: 0 0 372px;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.model-admin-panel {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--color-line);
+  border-radius: var(--kimi-radius-md);
+  background: var(--color-surface-raised);
+}
+
+@media (max-width: 1080px) {
+  .model-admin-workbench {
+    flex-direction: column;
+  }
+
+  .model-admin-rail {
+    width: 100%;
+    flex: 0 0 auto;
+  }
+}
+
+/* ---------------------------------------------------------------- 搜索框 -- */
+
+.model-admin-search {
+  position: relative;
+  flex: none;
+}
+
+.model-admin-search > svg {
+  position: absolute;
+  top: 50%;
+  left: 11px;
+  color: var(--color-text-faint);
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+
+.model-admin-search input {
+  padding-left: 34px;
+}
+
+/* ------------------------------------------------------------ 模型卡片 -- */
+
+.model-admin-list {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  padding: 2px;
+}
+
+.model-admin-provider-group {
+  min-width: 0;
+  border: 1px solid var(--color-line);
+  border-radius: var(--kimi-radius-md);
+  background: var(--color-surface);
+  padding: 7px;
+}
+
+.model-admin-provider-head {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  border: 0;
+  background: transparent;
+  padding: 3px 2px 7px;
+  color: var(--color-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.model-admin-provider-heading {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+.model-admin-provider-name {
+  overflow: hidden;
+  font: 600 12px/1.4 var(--font-ui);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-admin-provider-url {
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font: 400 10.5px/1.4 var(--font-mono);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-admin-provider-count {
+  flex: none;
+  color: var(--color-text-muted);
+  font: 500 11px/1 var(--font-ui);
+}
+
+.model-admin-provider-chevron {
+  flex: none;
+  color: var(--color-text-faint);
+  transition: transform var(--duration-base) var(--ease-out);
+}
+
+.model-admin-provider-head[aria-expanded="false"] .model-admin-provider-chevron {
+  transform: rotate(-90deg);
+}
+
+.model-admin-provider-models {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.model-admin-card {
+  position: relative;
+  display: flex;
+  width: 100%;
+  align-items: flex-start;
+  gap: 10px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--kimi-radius-md);
+  background: var(--color-surface-raised);
+  padding: 12px;
+  color: var(--color-text);
+  text-align: left;
+  transition:
+    background-color var(--duration-base) var(--ease-out),
+    border-color var(--duration-base) var(--ease-out),
+    box-shadow var(--duration-base) var(--ease-out);
+}
+
+.model-admin-card:hover {
+  border-color: var(--color-line-strong);
+  box-shadow: var(--shadow-xs);
+}
+
+.model-admin-card[data-active="true"] {
+  border-color: var(--color-accent-bd);
+  background: var(--color-accent-soft);
+}
+
+/* 卡片内的主点击区。卡片本身是 div，主区是 button，快捷操作是它的兄弟节点——
+   避免 button 嵌套 button / a 的非法结构。 */
+.model-admin-card-main {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: flex-start;
+  gap: 10px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.model-admin-card-main:focus-visible {
+  outline: none;
+}
+
+.model-admin-card:focus-within {
+  box-shadow: var(--p-focus-ring);
+}
+
+.model-admin-mark {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: none;
+  place-items: center;
+  border-radius: 9px;
+  color: #fff;
+  font: 700 13px/1 var(--font-ui);
+}
+
+.model-admin-mark[data-size="sm"] {
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  font-size: 9px;
+}
+
+.model-admin-card-body {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.model-admin-card-name {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  padding-right: 62px;
+  color: var(--color-text);
+  font: 600 14px/1.4 var(--font-ui);
+}
+
+.model-admin-card-name > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-admin-dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--color-success);
+}
+
+.model-admin-dot[data-off="true"] {
+  background: var(--color-text-faint);
+}
+
+.model-admin-card-url {
+  display: block;
+  margin-top: 2px;
+  overflow: hidden;
+  color: var(--color-accent);
+  font: 400 11.5px/1.5 var(--font-mono);
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-admin-card-url:hover {
+  text-decoration: underline;
+}
+
+.model-admin-card-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  margin-top: 6px;
+  color: var(--color-text-muted);
+  font: 400 11.5px/1.5 var(--font-ui);
+}
+
+.model-admin-card-meta > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.model-admin-tag {
+  display: inline-flex;
+  height: 19px;
+  align-items: center;
+  border: 1px solid var(--color-line);
+  border-radius: 999px;
+  background: var(--color-surface-sunken);
+  padding: 0 7px;
+  color: var(--color-text-muted);
+  font: 600 10.5px/1 var(--font-ui);
+  white-space: nowrap;
+}
+
+.model-admin-tag[data-tone="accent"] {
+  border-color: var(--color-accent-bd);
+  background: var(--color-accent-soft);
+  color: var(--color-accent);
+}
+
+.model-admin-tag[data-tone="warn"] {
+  border-color: var(--color-warning-bd);
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
+}
+
+/* 快捷操作：hover / 键盘聚焦 / 选中态可见，默认不干扰信息层级 */
+.model-admin-card-actions {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity var(--duration-base) var(--ease-out);
+}
+
+.model-admin-card:hover .model-admin-card-actions,
+.model-admin-card:focus-within .model-admin-card-actions,
+.model-admin-card[data-active="true"] .model-admin-card-actions {
+  opacity: 1;
+}
+
+.model-admin-empty {
+  border: 1px dashed var(--color-line-strong);
+  border-radius: var(--kimi-radius-md);
+  background: var(--color-surface);
+  padding: 40px 20px;
+  color: var(--color-text-muted);
+  font: 400 13px/1.6 var(--font-ui);
+  text-align: center;
+}
+
+.model-admin-empty strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+/* -------------------------------------------------------------- 详情面板 -- */
+
+.model-admin-panel-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--color-line);
+  padding: 12px 16px;
+}
+
+.model-admin-panel-heading {
+  min-width: 0;
+  flex: 1 1 180px;
+}
+
+.model-admin-panel-title {
+  overflow: hidden;
+  color: var(--color-text);
+  font: 600 14px/1.4 var(--font-ui);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-admin-panel-sub {
+  color: var(--color-text-muted);
+  font: 400 12px/1.5 var(--font-ui);
+}
+
+.model-admin-panel-body {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 16px;
+}
+
+.model-admin-section + .model-admin-section {
+  margin-top: 20px;
+  border-top: 1px solid var(--color-line);
+  padding-top: 18px;
+}
+
+.model-admin-section-title {
+  margin-bottom: 12px;
+  color: var(--color-text-faint);
+  font: 700 11px/1.5 var(--font-ui);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.model-admin-panel-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  border-top: 1px solid var(--color-line);
+  background: var(--color-surface-sunken);
+  padding: 12px 16px;
+}
+
+.model-admin-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 16px;
+}
+
+@media (max-width: 720px) {
+  .model-admin-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.model-admin-span2 {
+  grid-column: 1 / -1;
+}
+
+.model-admin-field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.model-admin-field-toggles {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 2px;
+}
+
+/* API Key 显隐 */
+.model-admin-input-wrap {
+  position: relative;
+}
+
+.model-admin-input-wrap input {
+  padding-right: 38px;
+}
+
+.model-admin-input-wrap > button {
+  position: absolute;
+  top: 50%;
+  right: 4px;
+  transform: translateY(-50%);
+}
+
+/* 测试结果（aria-live 播报） */
+.model-admin-result {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: 600 12.5px/1.5 var(--font-ui);
+}
+
+.model-admin-result[data-ok="true"] {
+  color: var(--color-success);
+}
+
+.model-admin-result[data-ok="false"] {
+  color: var(--color-danger);
+  font-weight: 500;
+}

@@ -1,0 +1,428 @@
+package org.wwz.ai.domain.agent.runtime.tool.common;
+
+
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONObject;
+import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
+import org.wwz.ai.domain.agent.adapter.port.RemoteStreamListener;
+import org.wwz.ai.domain.agent.adapter.port.RemoteStreamPort;
+import org.wwz.ai.domain.agent.adapter.port.RemoteStreamRequest;
+import org.wwz.ai.domain.agent.adapter.port.RemoteStreamSession;
+import org.wwz.ai.domain.agent.runtime.agent.AgentContext;
+import org.wwz.ai.domain.agent.runtime.artifact.FileArtifactUploader;
+import org.wwz.ai.domain.agent.runtime.artifact.ToolArtifactSource;
+import org.wwz.ai.domain.agent.runtime.dto.DeepSearchRequest;
+import org.wwz.ai.domain.agent.runtime.dto.DeepSearchrResponse;
+import org.wwz.ai.domain.agent.runtime.dto.FileRequest;
+import org.wwz.ai.domain.agent.runtime.tool.BaseTool;
+import org.wwz.ai.domain.agent.runtime.tool.ContextIsolatableTool;
+import org.wwz.ai.domain.agent.runtime.tool.ToolResultPayload;
+import org.wwz.ai.domain.agent.runtime.util.StringUtil;
+import org.wwz.ai.domain.agent.research.config.ResearchConfig;
+import org.wwz.ai.domain.agent.ledger.model.tooloutput.DeepSearchToolOutput;
+
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
+
+/**
+ * DeepSearch 外部流式工具。
+ * <p>
+ * 负责把远端阶段事件转成 Agent 可消费的结构化结果，并把远端会话句柄绑定到当前请求，
+ * 这样用户取消或超时时可以主动中断上游连接。
+ */
+@Slf4j
+@Data
+public class DeepSearchTool implements ContextIsolatableTool {
+
+    private static final String DESCRIPTION = "这是一个搜索工具，可以搜索各种互联网知识";
+
+    /**
+     * deep_search 保底超时时间，避免外部流式接口异常时导致 future.get() 长时间阻塞。
+     */
+    private static final long DEEP_SEARCH_TIMEOUT_MINUTES = 20L;
+    /**
+     * deep_search HTTP 连接超时时间。
+     */
+    private static final long DEEP_SEARCH_CONNECT_TIMEOUT_SECONDS = 30L;
+    /**
+     * deep_search HTTP 读写超时时间。
+     */
+    private static final long DEEP_SEARCH_IO_TIMEOUT_MINUTES = 20L;
+
+    private AgentContext agentContext;
+
+    @Override
+    public BaseTool isolateFor(AgentContext context) {
+        if (context == null) {
+            throw new IllegalArgumentException("DeepSearchTool.isolateFor context 不能为空");
+        }
+        DeepSearchTool copy = new DeepSearchTool();
+        copy.setAgentContext(context);
+        return copy;
+    }
+
+    @Override
+    public String getName() {
+        return "deep_search";
+    }
+
+    @Override
+    public String getDescription() {
+        return DESCRIPTION;
+    }
+
+    @Override
+    public Map<String, Object> toParams() {
+        Map<String, Object> taskParam = new HashMap<>();
+        taskParam.put("type", "string");
+        taskParam.put("description", "需要搜索的全部内容及描述");
+        Map<String, Object> reportFileNameParam = new HashMap<>();
+        reportFileNameParam.put("type", "string");
+        reportFileNameParam.put("maxLength", DeepSearchFileNamePolicy.MAX_REPORT_FILE_NAME_LENGTH);
+        reportFileNameParam.put("description", "最终研究报告文件名称，必填且不超过20个字符（含扩展名），例如：新能源汽车行业报告.md");
+        Map<String, Object> parameters = new HashMap<>();
+        parameters.put("type", "object");
+        Map<String, Object> properties = new HashMap<>();
+        properties.put("query", taskParam);
+        properties.put("reportFileName", reportFileNameParam);
+        parameters.put("properties", properties);
+        parameters.put("required", List.of("query", "reportFileName"));
+        return parameters;
+    }
+
+    @Override
+    public Object execute(Object input) {
+        // 单次执行捕获 context，避免并发 rebind 影响回调
+        final AgentContext ctx = requireAgentContext();
+        final AtomicReference<RemoteStreamSession> streamSession = new AtomicReference<>();
+
+        try {
+            Map<String, Object> params = (Map<String, Object>) input;
+            String query = (String) params.get("query");
+            String requestedReportFileName = params.get("reportFileName") == null
+                    ? null
+                    : String.valueOf(params.get("reportFileName"));
+            // Schema 用于约束模型；入口仍做最终归一化，避免模型偶尔漏传或生成过长名称导致整次搜索失败。
+            String reportFileName = DeepSearchFileNamePolicy.resolveReportFileName(requestedReportFileName);
+            ResearchConfig researchConfig = requireResearchConfig(ctx);
+            Map<String, Object> srcConfig = new HashMap<>();
+
+            Map<String, Object> bingConfig = new HashMap<>();
+            bingConfig.put("count", Integer.parseInt(researchConfig.getDeepSearchPageCount()));
+            srcConfig.put("bing", bingConfig);
+            DeepSearchRequest request = DeepSearchRequest.builder()
+                    .request_id(ctx.getRequestId() + ":" + StringUtil.generateRandomString(5))
+                    .query(query)
+                    .report_file_name(reportFileName)
+                    .agent_id("1")
+                    .scene_type("auto_agent")
+                    .src_configs(srcConfig)
+                    .stream(true)
+                    .content_stream(ctx.getIsStream())
+                    .build();
+            ToolArtifactSource artifactSource = ctx.requireCurrentToolArtifactSource(getName());
+
+            Future<ToolResultPayload> future = callDeepSearchStream(ctx, request, artifactSource, streamSession);
+            return future.get(DEEP_SEARCH_TIMEOUT_MINUTES, TimeUnit.MINUTES);
+        } catch (TimeoutException e) {
+            RemoteStreamSession session = streamSession.get();
+            if (session != null) {
+                session.cancel();
+            }
+            log.error("{} deep_search timeout after {} minutes", ctx.getRequestId(), DEEP_SEARCH_TIMEOUT_MINUTES, e);
+            return buildFailurePayload("deep_search执行超时，已终止本次搜索，请基于当前已获取的信息继续处理。");
+        } catch (Exception e) {
+            log.error("{} deep_search agent error", ctx.getRequestId(), e);
+            return buildFailurePayload("deep_search执行失败：" + StringUtils.defaultIfBlank(e.getMessage(), "未知异常"));
+        }
+    }
+
+    /**
+     * 调用 DeepSearch；流会话仅存于本次调用的 streamSession，不写入实例字段。
+     */
+    public CompletableFuture<ToolResultPayload> callDeepSearchStream(DeepSearchRequest searchRequest,
+                                                                     ToolArtifactSource artifactSource) {
+        return callDeepSearchStream(requireAgentContext(), searchRequest, artifactSource, new AtomicReference<>());
+    }
+
+    private CompletableFuture<ToolResultPayload> callDeepSearchStream(AgentContext ctx,
+                                                                       DeepSearchRequest searchRequest,
+                                                                       ToolArtifactSource artifactSource,
+                                                                       AtomicReference<RemoteStreamSession> streamSession) {
+        CompletableFuture<ToolResultPayload> future = new CompletableFuture<>();
+        if (searchRequest == null) {
+            future.complete(buildFailurePayload("deep_search执行失败：请求不能为空"));
+            return future;
+        }
+        searchRequest.setReport_file_name(
+                DeepSearchFileNamePolicy.resolveReportFileName(searchRequest.getReport_file_name()));
+        try {
+            ResearchConfig researchConfig = requireResearchConfig(ctx);
+            String url = researchConfig.getDeepSearchUrl() + "/v1/tool/deepsearch";
+            log.info("{} deep_search request queryLength={} reportFileName={}",
+                    ctx.getRequestId(),
+                    StringUtils.length(searchRequest.getQuery()),
+                    searchRequest.getReport_file_name());
+
+            String[] interval = researchConfig.getMessageInterval().getOrDefault("search", "5,20").split(",");
+            int firstInterval = Integer.parseInt(interval[0]);
+            int sendInterval = Integer.parseInt(interval[1]);
+            AtomicInteger eventIndex = new AtomicInteger(0);
+            AtomicInteger reportIndex = new AtomicInteger(1);
+            AtomicReference<String> resultRef = new AtomicReference<>("搜索结果为空");
+            AtomicReference<String> messageIdRef = new AtomicReference<>("");
+            String toolCallId = artifactSource == null ? null : artifactSource.getToolCallId();
+            // 同一次流调用的 search 事件复用同一 basename，且中间文件沿用最终报告名。
+            String finalReportFileName = DeepSearchFileNamePolicy.resolveReportFileName(
+                    searchRequest.getReport_file_name());
+            String searchResultFileName = DeepSearchFileNamePolicy.buildSearchResultFileName(finalReportFileName);
+            StringBuilder stringBuilderIncr = new StringBuilder();
+            StringBuilder stringBuilderAll = new StringBuilder();
+            AtomicBoolean finalAnswerUploaded = new AtomicBoolean(false);
+            DeepSearchStructuredResultBuilder resultBuilder = new DeepSearchStructuredResultBuilder(searchRequest.getQuery());
+             FileArtifactUploader fileArtifactUploader = new FileArtifactUploader(ctx);
+            String digitalEmployee = ctx.getToolCollection().getDigitalEmployee(getName());
+            RemoteStreamSession session = requireRemoteStreamPort(ctx).openStream(RemoteStreamRequest.builder()
+                    .method("POST")
+                    .url(url)
+                    .headers(Map.of(
+                            "Accept", "text/event-stream",
+                            "Cache-Control", "no-cache",
+                            "Content-Type", "application/json"
+                    ))
+                    .body(JSONObject.toJSONString(searchRequest))
+                    .connectTimeoutSeconds(DEEP_SEARCH_CONNECT_TIMEOUT_SECONDS)
+                    .readTimeoutSeconds(TimeUnit.MINUTES.toSeconds(DEEP_SEARCH_IO_TIMEOUT_MINUTES))
+                    .writeTimeoutSeconds(TimeUnit.MINUTES.toSeconds(DEEP_SEARCH_IO_TIMEOUT_MINUTES))
+                    .callTimeoutSeconds(TimeUnit.MINUTES.toSeconds(DEEP_SEARCH_IO_TIMEOUT_MINUTES))
+                    .build(), new RemoteStreamListener() {
+                @Override
+                public void onOpen() {
+                    log.info("{} deep_search stream opened", ctx.getRequestId());
+                }
+
+                @Override
+                public void onLine(String line) {
+                    try {
+                        if (!line.startsWith("data:")) {
+                            return;
+                        }
+                        String data = line.substring(5).trim();
+                        if ("[DONE]".equals(data)) {
+                            return;
+                        }
+                        if (data.startsWith("heartbeat")) {
+                            return;
+                        }
+                        int eventNumber = eventIndex.incrementAndGet();
+                        DeepSearchrResponse searchResponse = JSONObject.parseObject(data, DeepSearchrResponse.class);
+                        searchResponse.setToolCallId(toolCallId);
+                        if (eventNumber == 1 || eventNumber % 100 == 0) {
+                            log.info("{} deep_search recv event={} type={} final={} answerLength={}",
+                                    ctx.getRequestId(), eventNumber, searchResponse.getMessageType(),
+                                    searchResponse.getIsFinal(), StringUtils.length(searchResponse.getAnswer()));
+                        }
+                        // 使用标准 SSE 客户端逐条消费事件，避免 extend 被上游缓冲后延迟透传。
+                        if (searchResponse.getIsFinal()) {
+                            if (StringUtils.isBlank(searchResponse.getAnswer())) {
+                                searchResponse.setAnswer(stringBuilderAll.toString());
+                            }
+                            if (searchResponse.getAnswer().isEmpty()) {
+                                log.error("{} deep search answer empty", ctx.getRequestId());
+                                resultRef.set("搜索结果为空");
+                                return;
+                            }
+                            resultBuilder.recordFinalAnswer(searchResponse.getQuery(), searchResponse.getAnswer());
+                             uploadFinalAnswerWithRetry(ctx, artifactSource, finalReportFileName,
+                                     searchResponse.getAnswer(), researchConfig, fileArtifactUploader, finalAnswerUploaded);
+                            // 总结文章全量回传，供 observation / fallback 使用，不再截断
+                            resultRef.set(searchResponse.getAnswer());
+
+                            ctx.getPrinter().send(messageIdRef.get(), "deep_search", searchResponse, digitalEmployee, true);
+                            return;
+                        }
+
+                        resultBuilder.recordEvent(searchResponse);
+
+                        Map<String, Object> contentMap = new HashMap<>();
+                        if (searchResponse.getSearchResult() != null
+                                && searchResponse.getSearchResult().getQuery() != null
+                                && searchResponse.getSearchResult().getDocs() != null) {
+                            List<String> eventQueries = searchResponse.getSearchResult().getQuery();
+                            List<List<DeepSearchrResponse.SearchDoc>> eventDocs = searchResponse.getSearchResult().getDocs();
+                            // query/docs 可能因章节补搜不同步，按较短一侧对齐，避免 IndexOutOfBoundsException。
+                            int alignedSize = Math.min(eventQueries.size(), eventDocs.size());
+                            for (int idx = 0; idx < alignedSize; idx++) {
+                                contentMap.put(eventQueries.get(idx), eventDocs.get(idx));
+                            }
+                        }
+
+                        if ("extend".equals(searchResponse.getMessageType())) {
+                            messageIdRef.set(StringUtil.getUUID());
+                            searchResponse.setSearchFinish(false);
+                            ctx.getPrinter().send(messageIdRef.get(), "deep_search", searchResponse, digitalEmployee, false);
+                        } else if ("search".equals(searchResponse.getMessageType())) {
+                            searchResponse.setSearchFinish(true);
+                            ctx.getPrinter().send(messageIdRef.get(), "deep_search", searchResponse, digitalEmployee, false);
+                            FileRequest fileRequest = FileRequest.builder()
+                                    .requestId(ctx.getRequestId())
+                                    .fileName(searchResultFileName)
+                                    .description("DeepSearch检索结果")
+                                    .content(JSON.toJSONString(contentMap))
+                                    .build();
+                             fileArtifactUploader.upload(fileRequest, true, artifactSource);
+                        } else if ("chapter_summary".equals(searchResponse.getMessageType())) {
+                            if (messageIdRef.get().isEmpty()) {
+                                messageIdRef.set(StringUtil.getUUID());
+                            }
+                            searchResponse.setSearchFinish(true);
+                            ctx.getPrinter().send(messageIdRef.get(), "deep_search", searchResponse, digitalEmployee, false);
+                        } else if ("report".equals(searchResponse.getMessageType())) {
+                            int currentReportIndex = reportIndex.get();
+                            if (currentReportIndex == 1 && messageIdRef.get().isEmpty()) {
+                                messageIdRef.set(StringUtil.getUUID());
+                            }
+                            stringBuilderIncr.append(searchResponse.getAnswer());
+                            stringBuilderAll.append(searchResponse.getAnswer());
+                            if (currentReportIndex == firstInterval || currentReportIndex % sendInterval == 0) {
+                                searchResponse.setAnswer(stringBuilderIncr.toString());
+                                ctx.getPrinter().send(messageIdRef.get(), "deep_search", searchResponse, digitalEmployee, false);
+                                stringBuilderIncr.setLength(0);
+                            }
+                            reportIndex.incrementAndGet();
+                        }
+                    } catch (Exception e) {
+                        log.error("{} deep_search request error", ctx.getRequestId(), e);
+                        if (!future.isDone()) {
+                            future.completeExceptionally(e);
+                        }
+                        RemoteStreamSession active = streamSession.get();
+                        if (active != null) {
+                            active.cancel();
+                        }
+                    }
+                }
+
+                @Override
+                public void onClosed() {
+                    streamSession.set(null);
+                    if (StringUtils.isNotBlank(stringBuilderAll)) {
+                        resultBuilder.recordFinalAnswer(searchRequest.getQuery(), stringBuilderAll.toString());
+                        resultRef.set(stringBuilderAll.toString());
+                    }
+                    uploadFinalAnswerWithRetry(ctx, artifactSource, finalReportFileName,
+                            stringBuilderAll.toString(), researchConfig, fileArtifactUploader, finalAnswerUploaded);
+                    if (!future.isDone()) {
+                        future.complete(resultBuilder.buildPayload(resultRef.get()));
+                    }
+                }
+
+                @Override
+                public void onFailure(Throwable throwable, Integer statusCode, String responseBody) {
+                    streamSession.set(null);
+                    uploadFinalAnswerWithRetry(ctx, artifactSource, finalReportFileName,
+                            stringBuilderAll.toString(), researchConfig, fileArtifactUploader, finalAnswerUploaded);
+                    if (throwable == null && statusCode == null) {
+                        if (!future.isDone()) {
+                            future.complete(resultBuilder.buildPayload(resultRef.get()));
+                        }
+                        return;
+                    }
+                    log.error("{} deep_search on failure, statusCode={}, bodyLength={}",
+                            ctx.getRequestId(), statusCode, StringUtils.length(responseBody), throwable);
+                    if (!future.isDone()) {
+                        future.completeExceptionally(throwable instanceof Exception
+                                ? (Exception) throwable
+                                : new RuntimeException(throwable));
+                    }
+                }
+            });
+            streamSession.set(session);
+        } catch (Exception e) {
+            log.error("{} deep_search request error", ctx.getRequestId(), e);
+            future.completeExceptionally(e);
+        }
+
+        return future;
+    }
+
+    private void uploadFinalAnswerWithRetry(AgentContext ctx,
+                                            ToolArtifactSource artifactSource,
+                                            String fileName,
+                                            String answer,
+                                            ResearchConfig researchConfig,
+                                             FileArtifactUploader fileArtifactUploader,
+                                            AtomicBoolean uploaded) {
+        if (uploaded.get() || StringUtils.isBlank(answer)) {
+            return;
+        }
+        String fileDesc = answer.substring(0, Math.min(answer.length(), researchConfig.getDeepSearchToolFileDescTruncateLen())) + "...";
+        FileRequest fileRequest = FileRequest.builder()
+                .requestId(ctx.getRequestId())
+                .fileName(fileName)
+                .description(fileDesc)
+                .content(answer)
+                .build();
+        for (int attempt = 1; attempt <= 3 && !uploaded.get(); attempt++) {
+            try {
+                 ToolResultPayload payload = fileArtifactUploader.upload(fileRequest, false, artifactSource);
+                if (payload != null && !Boolean.TRUE.equals(payload.getFailed())) {
+                    uploaded.set(true);
+                    log.info("{} deep_search final answer uploaded, attempt={}", ctx.getRequestId(), attempt);
+                    return;
+                }
+                log.warn("{} deep_search final answer upload failed, attempt={}", ctx.getRequestId(), attempt);
+            } catch (Exception e) {
+                log.warn("{} deep_search final answer upload error, attempt={}", ctx.getRequestId(), attempt, e);
+            }
+        }
+        log.error("{} deep_search final answer upload exhausted, answerLength={}", ctx.getRequestId(), answer.length());
+    }
+
+    /**
+     * deep_search 失败时仍返回可解释 observation，避免主智能体拿到空结果。
+     */
+    private ToolResultPayload buildFailurePayload(String message) {
+        return ToolResultPayload.failure(
+                message,
+                message,
+                DeepSearchToolOutput.of("", message, null),
+                message
+        );
+    }
+
+    private AgentContext requireAgentContext() {
+        if (agentContext == null) {
+            throw new IllegalStateException("DeepSearchTool 缺少 AgentContext");
+        }
+        return agentContext;
+    }
+
+    private ResearchConfig requireResearchConfig() {
+        return requireResearchConfig(requireAgentContext());
+    }
+
+    private ResearchConfig requireResearchConfig(AgentContext ctx) {
+        if (ctx == null || ctx.getRuntimeDependencies() == null) {
+            throw new IllegalStateException("DeepSearchTool 缺少 ResearchRuntimeDependencies");
+        }
+        return ctx.getRuntimeDependencies().requireResearchConfig();
+    }
+
+    private RemoteStreamPort requireRemoteStreamPort(AgentContext ctx) {
+        if (ctx == null || ctx.getRuntimeDependencies() == null) {
+            throw new IllegalStateException("DeepSearchTool 缺少 ResearchRuntimeDependencies");
+        }
+        return ctx.getRuntimeDependencies().requireRemoteStreamPort();
+    }
+}

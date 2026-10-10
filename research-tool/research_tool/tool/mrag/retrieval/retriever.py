@@ -1,0 +1,99 @@
+"""
+基础检索器模块
+
+该模块定义检索器的基础接口和通用功能：
+- 检索器抽象基类
+- 通用检索逻辑
+- 检索结果处理
+- 检索性能监控
+
+主要功能：
+1. 定义检索器标准接口
+2. 提供通用检索流程
+3. 检索结果格式化
+4. 检索性能统计和优化
+5. 缓存机制
+"""
+import concurrent.futures
+import os
+
+import requests
+
+from .image_retriever import ImageRetriever
+from .text_retriever import TextRetriever
+from ..runtime_mode import is_multimodal_image_index_enabled
+from ..utils.logger_utils import logger
+
+
+class BaseRetriever:
+    """混合检索门面：文本向量 + BM25 +（可选）图/页跨模态，线程池并发。"""
+
+    def __init__(self):
+        self._image_vector_enabled = is_multimodal_image_index_enabled()
+        self._image_retriever = ImageRetriever()
+        self._text_retriever = TextRetriever()
+
+    def retrieval_by_texts(self, kb_id: str | list[str], queries: list[str]):
+        """对多条 query 并发做文本/稀疏/图页检索，结果按 query 维度对齐。"""
+        tasks = []
+        res = [[] for _ in range(len(queries))]
+        # 各召回器独立并发执行，最终按 query 下标合并，避免某一路结果覆盖其他召回源。
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+            # 稠密向量召回
+            task = executor.submit(self._text_retriever.vector_search, kb_id, queries,
+                                   score_threshold=float(os.getenv("RETRIEVAL_TEXT_THRESHOLD")))
+            tasks.append(task)
+            # BM25 稀疏召回
+            task = executor.submit(self._text_retriever.sparse_search, kb_id, queries)
+            tasks.append(task)
+            if self._image_vector_enabled:
+                # 文本→图片 / 文本→页面
+                task = executor.submit(self._image_retriever.text2image_search, kb_id, queries,
+                                       score_threshold=float(os.getenv("RETRIEVAL_IMAGE_THRESHOLD")))
+                tasks.append(task)
+                task = executor.submit(self._image_retriever.text2page_search, kb_id, queries,
+                                       score_threshold=float(os.getenv("RETRIEVAL_PAGE_THRESHOLD")))
+                tasks.append(task)
+
+            for task in concurrent.futures.as_completed(tasks):
+                # as_completed 只改变返回顺序，current_res 自身仍按原 query 顺序排列，因此这里按下标归并。
+                current_res = task.result()
+                if current_res:
+                    for i, query in enumerate(queries):
+                        res[i].extend(current_res[i])
+
+        return res
+
+    def retrieval_image(self, image_path: str):
+        pass
+
+    def retrieval_lightrag(self, kb_id: str | list[str], queries: list[str]):
+        url = f"{os.getenv('LIGHTRAG_SERVER_BASE_URL')}/query/data"
+
+        data = {
+            "query": "",
+            "mode": "global",
+            "top_k": 10
+        }
+
+        def make_query(query):
+            # LightRAG 是可选外部服务；单条 query 失败时返回空结果，不影响同批其他 query。
+            data["query"] = query
+            try:
+                response = requests.post(url, json=data, timeout=300)
+                if response.status_code == 200:
+                    return response.json()
+                else:
+                    return []
+            except Exception as e:
+                import traceback
+                logger.error(traceback.format_exc())
+                logger.error(f"LightRAG 请求失败: {e}")
+                return []
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+            tasks = [executor.submit(make_query, query) for query in queries]
+            results = [task.result() for task in tasks]
+
+
+        return results

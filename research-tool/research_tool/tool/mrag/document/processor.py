@@ -1,0 +1,448 @@
+"""
+文档离线处理模块
+
+该模块负责对解析后的文档进行切分和预处理，然后存储到向量数据库：
+- 文档切块（Chunking）
+- 文本预处理和清洗
+- 向量化处理
+- 批量存储到向量数据库
+
+主要功能：
+1. 智能文档切分（基于语义、段落、句子等）
+2. 图像内容提取和处理
+3. 文档去重和去噪
+4. 向量化并存储到Qdrant
+5. 索引优化和管理
+"""
+
+import os
+import time
+import uuid
+from datetime import datetime
+
+import requests
+import tqdm
+from PIL import Image
+from loguru import logger
+
+from .parser import get_document_parser
+from .splitter import get_text_splitter
+from ..embedding.bm25_embedding import get_bm25_embedding_model
+from ..embedding.image_embedding import get_image_embedding_model
+from ..embedding.text_embedding import get_text_embedding_model
+from ..runtime_mode import get_image_index_mode, is_multimodal_image_index_enabled
+from ..storage import VectorStore
+from ..storage.models.kb_doc_model import (
+    CANONICAL_FULL_TEXT_CHUNK_TYPE,
+    KBDocModel,
+    build_canonical_doc_id,
+)
+from ..storage.store_factory import get_kb_doc_store
+from ..utils import image_utils, oss_utils
+from ..utils.caption_utils import generate_caption
+from ..utils.ocr_utils import get_ocr_model
+
+
+def get_file_type(file_path: str):
+    """获取文件扩展名（含点），用于选择解析器。"""
+
+    basename = os.path.basename(file_path)
+    if "." in basename:
+        return os.path.splitext(file_path)[1]
+    else:
+        raise ValueError(f"Unsupported file name: {file_path}")
+
+
+class DocumentProcessor:
+    """离线文档处理：解析 → 切分 → embedding → 写入 Qdrant + SQLite。"""
+
+    def __init__(self,
+                 kb_id: str,
+                 file_id: str,
+                 work_dir: str,
+                 file_path: str,
+                 file_url: str
+                 ):
+        self._kb_id = kb_id  # 目标知识库
+        self._work_dir = work_dir  # 解析工作目录
+        self._file_path = file_path
+        self._file_type = get_file_type(file_path)
+        self._filename = os.path.basename(file_path)
+        self._parser = get_document_parser(self._file_type)(self._work_dir, self._file_path)
+        self._file_url = file_url
+
+        self._uid = file_id
+
+        self._vector_store = VectorStore()
+
+        self._text_embedding = get_text_embedding_model()
+
+        self._bm25_embedding = get_bm25_embedding_model()
+
+        self._image_index_mode = get_image_index_mode()
+        self._image_vector_enabled = is_multimodal_image_index_enabled()
+        self._image_embedding = get_image_embedding_model() if self._image_vector_enabled else None
+
+        self._ocr = get_ocr_model()
+        self._image_urls = {}
+        self.pre_process()
+
+    def pre_process(self):
+        """"""
+        parser_start_time = time.time()
+        self._parser.parse()
+        # 解析器产生的图片先上传并建立相对路径映射，再改写 Markdown 引用，保证后续切块保存的是稳定资源 URL。
+        for image_path in self._parser.parsed_images():
+            image_url = oss_utils.upload_local_storage(image_path, file_id=self._uid)
+            asset_key = self._build_asset_key(image_path, self._parser.images_dir)
+            self._image_urls[asset_key] = image_url
+
+        for path_path in self._parser.parsed_pages():
+            image_url = oss_utils.upload_local_storage(path_path, file_id=self._uid)
+            asset_key = self._build_asset_key(path_path, self._parser.pages_dir)
+            self._image_urls[asset_key] = image_url
+
+        with open(self._parser.md_file_path, "r", encoding="utf-8") as f:
+            text = f.read()
+
+        for image_path, image_url in self._image_urls.items():
+            # ![image_12.png](images/image_12.png)
+            raw_md = f"![{os.path.basename(image_path)}](images/{image_path})"
+            target_md = f"![{os.path.basename(image_path)}]({image_url})"
+            logger.info(f"Processing text: {raw_md}\n ====> {target_md}")
+            text = text.replace(raw_md, target_md)
+
+        with open(self._parser.md_file_path, "w", encoding="utf-8") as f:
+            f.write(text)
+
+        parser_cost_time = time.time()
+
+        logger.info(f"Parser cost time: {parser_cost_time - parser_start_time}s")
+
+    @staticmethod
+    def _build_asset_key(file_path: str, root_dir: str) -> str:
+        """生成相对资源路径，统一转成正斜杠，避免分块子目录信息丢失。"""
+        return os.path.relpath(file_path, root_dir).replace("\\", "/")
+
+    def _get_uploaded_asset_url(self, file_path: str, root_dir: str) -> str:
+        """按相对资源路径查找已上传的图片 URL。"""
+        asset_key = self._build_asset_key(file_path, root_dir)
+        return self._image_urls[asset_key]
+
+    def _build_visual_asset_id(self, index: int) -> str:
+        """统一图片/页面关联键生成规则，避免向量块和文本代理块编号漂移。"""
+        return f"{self._uid}-{index}"
+
+    def _build_visual_text_chunks(
+            self,
+            asset_paths: list[str],
+            *,
+            root_dir: str,
+            path_field: str,
+            id_field: str,
+            start_index: int = 0,
+    ) -> list[dict]:
+        """为图片/页面生成 OCR 与 caption 文本代理块，供 text_proxy 模式复用。"""
+        text_chunk_data = []
+        for offset, asset_path in enumerate(asset_paths):
+            visual_asset_id = self._build_visual_asset_id(start_index + offset)
+            common_payload = {
+                "kb_id": self._kb_id,
+                "ref_id": self._uid,
+                "file_id": self._uid,
+                "doc_id": self._uid,
+                "file_sorted": visual_asset_id,
+                "file_path": self._file_path,
+                "file_url": self._file_url,
+                "filename": self._filename,
+                "created": time.time(),
+                "image_url": self._get_uploaded_asset_url(asset_path, root_dir),
+                id_field: visual_asset_id,
+                path_field: asset_path,
+            }
+
+            ocr_text = self._ocr.ocr(asset_path)
+            if ocr_text:
+                text_chunk_data.append({
+                    **common_payload,
+                    "text": ocr_text,
+                    "chunk_type": "ocr_text",
+                    "chunk_id": uuid.uuid4().hex,
+                })
+
+            caption = generate_caption(asset_path)
+            if caption:
+                text_chunk_data.append({
+                    **common_payload,
+                    "text": caption,
+                    "chunk_type": "caption",
+                    "chunk_id": uuid.uuid4().hex,
+                })
+        return text_chunk_data
+
+    def _persist_visual_text_chunks(self, text_chunk_data: list[dict], desc: str) -> None:
+        """统一补齐 OCR/caption 文本向量，避免图片与页面逻辑重复。"""
+        if not text_chunk_data:
+            logger.info(f"No {desc} generated for file_id={self._uid}, skip text proxy upsert")
+            return
+
+        batch_size = 10
+        for i in tqdm.tqdm(range(0, len(text_chunk_data), batch_size), desc=desc,
+                           total=len(text_chunk_data) // batch_size + 1):
+            chunk_batch = text_chunk_data[i:i + batch_size]
+            text_batch = [chunk["text"] for chunk in chunk_batch]
+            text_embeddings = self._text_embedding.encode_text_batch(text_batch)
+            bm25_embeddings = self._bm25_embedding.encode_text_batch(text_batch)
+            for chunk, embedding, bm25_embedding in zip(chunk_batch, text_embeddings, bm25_embeddings):
+                chunk.update({
+                    "vector": embedding,
+                    "sparse_vector": bm25_embedding,
+                })
+            self._vector_store.add_text_chunks(chunk_batch)
+
+    def _process_text(self):
+        text = self._parser.parsed_text()
+
+        if not text:
+            return
+
+        chunk_texts = get_text_splitter().split(text=text)
+        # 主块用于常规上下文召回；可选的 sub chunk 只增加细粒度检索入口，原始主块内容仍作为展示和回链数据保留。
+        log_str = ""
+        for i, chunk in enumerate(chunk_texts):
+            log_str += f"=======================Chunk {i}: \n{chunk}\n"
+        logger.debug(log_str)
+        # 增加chunk的meta信息和
+        batch_size = 10
+        for i in tqdm.tqdm(range(0, len(chunk_texts), batch_size), desc="Processing text",
+                           total=len(chunk_texts) // batch_size + 1):
+            chunk_texts_batch = chunk_texts[i:i + batch_size]
+            chunk_texts_embeddings = self._text_embedding.encode_text_batch(chunk_texts_batch)
+            chunk_bm25_embeddings = self._bm25_embedding.encode_text_batch(chunk_texts_batch)
+            chunk_data = [{
+                "text": text,
+                "vector": embedding,
+                "sparse_vector": bm25_embedding,
+                "kb_id": self._kb_id,
+                "file_id": self._uid,
+                "ref_id": self._uid,
+                "doc_id": self._uid,
+                "file_sorted": f"{self._uid}-{i + j}",
+                "chunk_type": "text",
+                "chunk_id": uuid.uuid4().hex,
+
+                "file_path": self._file_path,
+                "file_url": self._file_url,
+                "filename": self._filename,
+                "created": time.time(),
+                "split_type": "default"
+
+            }
+                for j, (text, embedding, bm25_embedding) in
+                enumerate(zip(chunk_texts_batch, chunk_texts_embeddings, chunk_bm25_embeddings))
+            ]
+
+            self._vector_store.add_text_chunks(chunk_data)
+            logger.info(f"Processed {len(chunk_texts_batch)} text chunks")
+
+        enable_sub_chunk = os.getenv("ENABLE_SUB_CHUNK_ENHANCE")
+
+        sub_chunk_size = int(os.getenv("SUB_CHUNK_SIZE", 100))
+        splitter = get_text_splitter(chunk_type="default", chunk_size=sub_chunk_size, chunk_overlap=0)
+        sub_text_chunks = []
+        sub_texts = []
+        if enable_sub_chunk:
+            for i, chunk_text in enumerate(chunk_texts):
+                for sub_chunk_text in splitter.split(chunk_text):
+                    sub_texts.append(sub_chunk_text)
+                    sub_text_chunks.append({
+                        "text": chunk_text,
+                        "kb_id": self._kb_id,
+                        "ref_id": self._uid,
+                        "doc_id": self._uid,
+                        "file_id": self._uid,
+                        "file_sorted": f"{self._uid}-{i}",
+                        "chunk_type": "text",
+                        "chunk_id": uuid.uuid4().hex,
+
+                        "file_path": self._file_path,
+                        "file_url": self._file_url,
+                        "filename": self._filename,
+                        "created": time.time(),
+                        "split_type": "default"
+                    })
+            for i in tqdm.tqdm(range(0, len(sub_texts), batch_size), desc="Processing sub text",
+                               total=len(sub_texts) // batch_size + 1):
+                sub_texts_batch = sub_texts[i:i + batch_size]
+                sub_texts_embeddings = self._text_embedding.encode_text_batch(sub_texts_batch)
+                sub_bm25_embeddings = self._bm25_embedding.encode_text_batch(sub_texts_batch)
+                sub_chunk_data = sub_text_chunks[i:i + batch_size]
+                for j, (chunk, embedding, bm25_embedding) in enumerate(
+                        zip(sub_chunk_data, sub_texts_embeddings, sub_bm25_embeddings)):
+                    chunk.update({
+                        "vector": embedding,
+                        "sparse_vector": bm25_embedding,
+                    })
+                self._vector_store.add_text_chunks(sub_chunk_data)
+
+    def _process_image(self):
+        image_paths = self._parser.parsed_images()
+        if not image_paths:
+            return
+
+        if self._image_vector_enabled:
+            # 多模态索引开启时写入 image chunk；关闭时跳过视觉向量，但统一保留 OCR/caption 文本代理。
+            batch_size = 5
+            for i in tqdm.tqdm(range(0, len(image_paths), batch_size), desc="Process image",
+                               total=len(image_paths) // batch_size + 1):
+                image_paths_batch = image_paths[i:i + batch_size]
+                images = [Image.open(image_path) for image_path in image_paths_batch]
+                images = [image_utils.resize_image(image) for image in images]
+                image_embeddings = self._image_embedding.encode_image_batch(images)
+
+                chunk_data = []
+                for j, (image_path, embedding) in enumerate(zip(image_paths_batch, image_embeddings)):
+                    visual_asset_id = self._build_visual_asset_id(i + j)
+                    chunk_data.append({
+                        "kb_id": self._kb_id,
+                        "ref_id": self._uid,
+                        "doc_id": self._uid,
+                        "file_id": self._uid,
+                        "image_id": visual_asset_id,
+                        "file_sorted": visual_asset_id,
+                        "chunk_id": uuid.uuid4().hex,
+                        "chunk_type": "image",
+                        "vector": embedding,
+                        "file_path": self._file_path,
+                        "image_path": image_path,
+                        "file_url": self._file_url,
+                        "filename": self._filename,
+                        "created": time.time(),
+                        "image_url": self._get_uploaded_asset_url(image_path, self._parser.images_dir),
+                    })
+                self._vector_store.add_image_chunks(chunk_data)
+        else:
+            logger.info(f"MRAG 图片向量已关闭，当前以文本代理模式处理图片，file_id={self._uid}")
+
+        text_chunk_data = self._build_visual_text_chunks(
+            image_paths,
+            root_dir=self._parser.images_dir,
+            path_field="image_path",
+            id_field="image_id",
+        )
+        self._persist_visual_text_chunks(text_chunk_data, "Process image text proxy")
+
+    def _process_page(self):
+        page_paths = self._parser.parsed_pages()
+        if not page_paths:
+            return
+
+        if self._image_vector_enabled:
+            # 页面截图与图片使用相同的视觉向量协议，但 page_id/path 字段保留页面语义供预览回链。
+            batch_size = 5
+            for i in tqdm.tqdm(range(0, len(page_paths), batch_size), desc="Process page",
+                               total=len(page_paths) // batch_size + 1):
+                page_paths_batch = page_paths[i:i + batch_size]
+                pages = [Image.open(page_path) for page_path in page_paths_batch]
+                pages = [image_utils.resize_image(page) for page in pages]
+                image_embeddings = self._image_embedding.encode_image_batch(pages)
+
+                chunk_data = []
+                for j, (image_path, embedding) in enumerate(zip(page_paths_batch, image_embeddings)):
+                    visual_asset_id = self._build_visual_asset_id(i + j)
+                    chunk_data.append({
+                        "kb_id": self._kb_id,
+                        "ref_id": self._uid,
+                        "doc_id": self._uid,
+                        "file_id": self._uid,
+                        "chunk_id": uuid.uuid4().hex,
+                        "page_id": visual_asset_id,
+                        "file_sorted": visual_asset_id,
+                        "chunk_type": "page",
+                        "vector": embedding,
+                        "file_path": self._file_path,
+                        "file_url": self._file_url,
+                        "page_path": image_path,
+                        "filename": self._filename,
+                        "created": time.time(),
+                        "image_url": self._get_uploaded_asset_url(image_path, self._parser.pages_dir),
+                    })
+                self._vector_store.add_page_chunks(chunk_data)
+        else:
+            # text_proxy 模式下，页面截图只作为预览/回链资源保留，不再重复做整页 OCR/caption。
+            logger.info(f"MRAG 页面向量已关闭，跳过 page OCR/caption 文本代理，file_id={self._uid}")
+            return
+
+        text_chunk_data = self._build_visual_text_chunks(
+            page_paths,
+            root_dir=self._parser.pages_dir,
+            path_field="page_path",
+            id_field="page_id",
+        )
+        self._persist_visual_text_chunks(text_chunk_data, "Process page text proxy")
+
+    def _mrag_process(self):
+        self._process_text()
+
+        self._process_image()
+
+        self._process_page()
+
+    def _lightrag_process(self):
+        lightrag_base_url = os.getenv('LIGHTRAG_SERVER_BASE_URL')
+        if not lightrag_base_url:
+            logger.warning("LIGHTRAG_SERVER_BASE_URL environment variable not set, skip lightrag process")
+            return
+        text = self._parser.parsed_text()
+        url = f"{os.getenv('LIGHTRAG_SERVER_BASE_URL')}/documents/text"
+
+        data = {
+            "text": text
+        }
+        try:
+            response = requests.post(url, json=data, timeout=300)
+            if response.status_code != 200:
+                raise Exception(f"LightRAG 请求失败: {response.text}")
+        except Exception as e:
+            import traceback
+            logger.error(traceback.format_exc())
+            logger.error(f"LightRAG 请求失败: {e}")
+            return
+
+    def _persist_canonical_full_text(self):
+        """将整篇解析正文持久化到稳定存储，供工作台后续直接回显。"""
+        text = self._parser.parsed_text()
+        if not text.strip():
+            logger.warning(f"Skip canonical full text persistence because markdown is empty, file_id={self._uid}")
+            return
+
+        current_time = datetime.now().isoformat()
+        kb_doc = KBDocModel(
+            kb_id=self._kb_id,
+            doc_id=build_canonical_doc_id(self._uid),
+            text=text,
+            chunk_type=CANONICAL_FULL_TEXT_CHUNK_TYPE,
+            file_id=self._uid,
+            title=self._filename,
+            file_url=self._file_url,
+            parent_id=self._uid,
+            deleted=0,
+            create_time=current_time,
+            modify_time=current_time,
+            creator=None,
+            modifier=None,
+        )
+        get_kb_doc_store().upsert_canonical_doc(kb_doc)
+        logger.info(f"Persisted canonical full text, file_id={self._uid}")
+
+    def process(self):
+        mrag_start_time = time.time()
+        self._mrag_process()
+        # canonical 正文先落稳定文档存储，LightRAG 属于可选外部索引，失败不应影响本地文档已可回显。
+        self._persist_canonical_full_text()
+        mrag_cost_time = time.time()
+        logger.info(f"MRAG cost time: {mrag_cost_time - mrag_start_time}")
+        light_rag_start_time = time.time()
+        self._lightrag_process()
+        light_rag_cost_time = time.time()
+        logger.info(f"LightRAG cost time: {light_rag_cost_time - light_rag_start_time}")

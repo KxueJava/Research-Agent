@@ -1,0 +1,316 @@
+package org.wwz.ai.domain.agent.research.config;
+
+
+import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.TypeReference;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.util.StringUtils;
+import org.wwz.ai.domain.agent.runtime.llm.LLMSettings;
+
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * Research Phase 1 期间保留在 domain 的过渡态共享配置契约。
+ * 删除/迁移时机：当 Research 共享配置被单独 change 收敛到 app 或专用配置模块后再迁移；
+ * 当前阶段禁止顺手改写读取语义。
+ */
+@Slf4j
+@Getter
+@Configuration
+public class ResearchConfig {
+
+    @Value("${autobots.autoagent.planner.model_name:}")
+    private String plannerModelName;
+
+    @Value("${autobots.autoagent.executor.model_name:}")
+    private String executorModelName;
+
+    @Value("${autobots.autoagent.react.model_name:}")
+    private String reactModelName;
+
+    @Value("${autobots.autoagent.tool.deep_search.file_desc.truncate_len:500}")
+    private Integer deepSearchToolFileDescTruncateLen;
+
+    @Value("${autobots.autoagent.tool.deep_search.message.truncate_len:500}")
+    private Integer deepSearchToolMessageTruncateLen;
+
+    @Value("${autobots.autoagent.tool.clear_tool_message:1}")
+    private String clearToolMessage;
+
+    @Value("${autobots.autoagent.deep_search_page_count:3}")
+    private String deepSearchPageCount;
+
+    private Map<String, String> multiAgentToolListMap = new HashMap<>();
+    @Value("${autobots.autoagent.tool_list:{}}")
+    public void setMultiAgentToolList(String list) {
+        this.multiAgentToolListMap = parseStringMap(list);
+    }
+
+    /**
+     * PlanSolve 主 Agent 可见的工具白名单。完整 tool_list 仍作为子 Agent 的工具来源。
+     */
+    @Value("${autobots.autoagent.plan-solve-main-tool-list:Agent,TaskCreate,TaskGet,TaskUpdate,TaskList,TodoWrite,TaskStop,TaskOutput,SendMessage,EnterPlanMode,ExitPlanMode,AskUserQuestion,ToolSearch,ListMcpResources,ReadMcpResource,workspace_read,workspace_list,workspace_glob,workspace_grep,workspace_write,workspace_edit,skill_tool,memory,session_search,emit_ui_patch,emit_ui_tree,list_ui_components,get_genui_guide,image_ocr,canvas_publish,pdf_reader,pdf_structure,word_reader,text_processor,markdown_processor,html_processor,excel_reader,csv_processor}")
+    private String planSolveMainToolList;
+
+    public void setPlanSolveMainToolList(String planSolveMainToolList) {
+        this.planSolveMainToolList = planSolveMainToolList;
+    }
+
+    /**
+     * MCP 工具搜索模式：always=默认延迟+ToolSearch；standard=全量进 tools[]；auto=超过阈值才延迟。
+     */
+    @Value("${autobots.autoagent.mcp.tool-search-mode:always}")
+    private String mcpToolSearchMode;
+
+    public void setMcpToolSearchMode(String mcpToolSearchMode) {
+        this.mcpToolSearchMode = mcpToolSearchMode;
+    }
+
+    /**
+     * auto 模式下：deferred 候选数 ≥ 该阈值时启用 ToolSearch。
+     */
+    @Value("${autobots.autoagent.mcp.tool-search-auto-threshold:8}")
+    private Integer mcpToolSearchAutoThreshold;
+
+    public void setMcpToolSearchAutoThreshold(Integer mcpToolSearchAutoThreshold) {
+        this.mcpToolSearchAutoThreshold = mcpToolSearchAutoThreshold;
+    }
+
+    /**
+     * LLM Settings
+     */
+    private Map<String, LLMSettings> llmSettingsMap;
+    @Value("${llm.settings:{}}")
+    public void setLLMSettingsMap(String jsonStr) {
+        Map<String, LLMSettings> rawSettings = JSON.parseObject(jsonStr, new TypeReference<Map<String, LLMSettings>>() {
+        });
+        this.llmSettingsMap = normalizeLlmSettingsMap(rawSettings);
+    }
+
+    @Value("${autobots.autoagent.planner.max_steps:400}")
+    private Integer plannerMaxSteps;
+
+    @Value("${autobots.autoagent.executor.max_steps:400}")
+    private Integer executorMaxSteps;
+
+    @Value("${autobots.autoagent.react.max_steps:400}")
+    private Integer reactMaxSteps;
+
+    @Value("${autobots.autoagent.executor.max_observe:10000}")
+    private String maxObserve;
+
+    /**
+     * 单次 LLM 工具调用的业务超时时间，单位秒；非正值由调用方回退到默认值。
+     */
+    @Value("${autobots.autoagent.llm-timeout-seconds:1200}")
+    private Integer llmTimeoutSeconds;
+
+    @Value("${autobots.autoagent.code_interpreter_url:}")
+    private String codeInterpreterUrl;
+
+    @Value("${autobots.autoagent.deep_search_url:}")
+    private String deepSearchUrl;
+
+    @Value("${autobots.autoagent.web_fetch_url:}")
+    private String webFetchUrl;
+
+    @Value("${autobots.autoagent.web_fetch_proxy:}")
+    @Setter
+    private String webFetchProxy;
+
+    /**
+     * WebSearch 模式：auto | gpt | grok | exa | tavily | brave | disabled。
+     * auto 时优先 Grok/xAI 原生搜索，其次 GPT/OpenAI Responses API、Exa、Tavily、Brave。
+     */
+    @Value("${autobots.autoagent.web_search.mode:auto}")
+    private String webSearchMode;
+
+    /**
+     * Grok/xAI 原生搜索凭证；为空时回退 llm.default / llm.settings。
+     */
+    @Value("${autobots.autoagent.web_search.grok_api_key:}")
+    private String webSearchGrokApiKey;
+
+    @Value("${autobots.autoagent.web_search.grok_base_url:}")
+    private String webSearchGrokBaseUrl;
+
+    @Value("${autobots.autoagent.web_search.grok_model:}")
+    private String webSearchGrokModel;
+
+    @Value("${autobots.autoagent.web_search.grok_interface_url:/v1/chat/completions}")
+     private String webSearchGrokInterfaceUrl;
+
+     /**
+      * OpenAI Responses API 搜索凭证；支持官方 OpenAI 或兼容 Responses API 的代理。
+      */
+     @Value("${autobots.autoagent.web_search.gpt_api_key:}")
+     private String webSearchGptApiKey;
+
+     @Value("${autobots.autoagent.web_search.gpt_base_url:https://api.openai.com/v1}")
+     private String webSearchGptBaseUrl;
+
+     @Value("${autobots.autoagent.web_search.gpt_model:gpt-4.1}")
+     private String webSearchGptModel;
+
+     @Value("${autobots.autoagent.web_search.gpt_interface_url:/responses}")
+     private String webSearchGptInterfaceUrl;
+
+    @Value("${autobots.autoagent.web_search.exa_api_key:}")
+    private String webSearchExaApiKey;
+
+    @Value("${autobots.autoagent.web_search.exa_search_url:https://api.exa.ai/search}")
+    private String webSearchExaSearchUrl;
+
+    @Value("${autobots.autoagent.web_search.tavily_api_key:}")
+    private String webSearchTavilyApiKey;
+
+    @Value("${autobots.autoagent.web_search.brave_api_key:}")
+    private String webSearchBraveApiKey;
+
+    @Value("${autobots.autoagent.multimodalagent_url:}")
+    private String multiModalAgentUrl;
+
+    /**
+     * 兼容旧配置：历史上指向 research-tool 的 image_generation 代理地址。
+     * Java 直连上游后不再作为主配置，仅作 base_url 兜底。
+     */
+    @Value("${autobots.autoagent.image_generation_url:}")
+    private String imageGenerationUrl;
+
+    /**
+     * 图片上游 base URL（米醋 / OpenAI 兼容），例如 https://www.micuapi.ai
+     */
+    @Value("${autobots.autoagent.image_generation.base_url:}")
+    private String imageGenerationBaseUrl;
+
+    @Value("${autobots.autoagent.image_generation.api_key:}")
+    private String imageGenerationApiKey;
+
+    @Value("${autobots.autoagent.image_generation.model:gpt-image-2.5-flare}")
+    private String imageGenerationModel;
+
+    @Value("${autobots.autoagent.image_generation.grok_base_url:}")
+    private String imageGenerationGrokBaseUrl;
+
+    @Value("${autobots.autoagent.image_generation.grok_api_key:}")
+    private String imageGenerationGrokApiKey;
+
+    @Value("${autobots.autoagent.image_generation.grok_model:grok-imagine-image-lite}")
+    private String imageGenerationGrokModel;
+
+    @Value("${autobots.autoagent.mcp_client_url:}")
+    private String mcpClientUrl;
+
+    @Value("${autobots.autoagent.mcp_server_url:}")
+    private String[] mcpServerUrlArr;
+
+    @Value("${autobots.autoagent.knowledge_url:}")
+    private String autoBotsKnowledgeUrl;
+
+    @Value("${autobots.autoagent.data_analysis_url:}")
+    private String dataAnalysisUrl;
+
+    @Value("${autobots.autoagent.summary.system_prompt:}")
+    private String summarySystemPrompt;
+
+    @Value("${autobots.autoagent.summary.model_name:}")
+    private String summaryModelName;
+
+    @Value("${autobots.autoagent.summary.temperature:0.2}")
+    private Double summaryTemperature;
+
+    @Value("${autobots.autoagent.digital_employee_prompt:}")
+    private String digitalEmployeePrompt;
+
+    @Value("${autobots.autoagent.summary.message_size_limit:1000}")
+    private Integer messageSizeLimit;
+
+    /**
+     * skill 在 ReAct 链路中的启用开关，主要用于日志观测与排障。
+     */
+    @Value("${autobots.autoagent.skill.react-enabled:true}")
+    private Boolean skillReactEnabled;
+
+    /**
+     * skill 在 PlanSolve 链路中的启用开关，主要用于日志观测与排障。
+     */
+    @Value("${autobots.autoagent.skill.plan-solve-enabled:true}")
+    private Boolean skillPlanSolveEnabled;
+
+    /**
+     * skill 文本读取上限，便于和 read_tool / skill_tool 的截断行为联动排查。
+     */
+    @Value("${autobots.autoagent.skill.max-read-chars:12000}")
+    private Integer skillMaxReadChars;
+
+    private Map<String, String> sensitivePatterns = new HashMap<>();
+    @Value("${autobots.autoagent.sensitive_patterns:{}}")
+    public void setSensitivePatterns(String jsonStr) {
+        this.sensitivePatterns = parseStringMap(jsonStr);
+    }
+
+    private Map<String, String> messageInterval = new HashMap<>();
+    @Value("${autobots.autoagent.message_interval:{}}")
+    public void setMessageInterval(String jsonStr) {
+        this.messageInterval = parseStringMap(jsonStr);
+    }
+
+	@Value("${autobots.multiagent.sseClient.readTimeout:18000}")
+	private Integer sseClientReadTimeout;
+
+    @Value("${autobots.multiagent.sseClient.connectTimeout:18000}")
+	private Integer sseClientConnectTimeout;
+
+    @Value("${autobots.autoagent.research_base_prompt:}")
+    private String researchBasePrompt;
+
+    private static Map<String, String> parseStringMap(String json) {
+        if (!StringUtils.hasText(json) || "{}".equals(json.trim())) {
+            return new HashMap<>();
+        }
+        return JSON.parseObject(json, new TypeReference<Map<String, String>>() {});
+    }
+
+    /**
+     * 对 llm.settings 的 key 和 model 字段做规范化，避免配置里混入首尾空格导致模型配置失效。
+     */
+    private static Map<String, LLMSettings> normalizeLlmSettingsMap(Map<String, LLMSettings> rawSettings) {
+        Map<String, LLMSettings> normalizedSettings = new HashMap<>();
+        if (rawSettings == null || rawSettings.isEmpty()) {
+            return normalizedSettings;
+        }
+
+        rawSettings.forEach((modelName, settings) -> {
+            if (settings == null) {
+                return;
+            }
+
+            String normalizedModelName = StringUtils.hasText(modelName) ? modelName.trim() : "";
+            if (!StringUtils.hasText(normalizedModelName)) {
+                return;
+            }
+
+            normalizedSettings.put(normalizedModelName, LLMSettings.builder()
+                    .model(StringUtils.hasText(settings.getModel()) ? settings.getModel().trim() : normalizedModelName)
+                    .maxTokens(settings.getMaxTokens())
+                    .temperature(settings.getTemperature())
+                    .apiType(settings.getApiType())
+                    .apiKey(settings.getApiKey())
+                    .apiVersion(settings.getApiVersion())
+                    .baseUrl(settings.getBaseUrl())
+                    .interfaceUrl(settings.getInterfaceUrl())
+                    .functionCallType(settings.getFunctionCallType())
+                    .maxInputTokens(settings.getMaxInputTokens())
+                    .reasoningEffort(settings.getReasoningEffort())
+                    .extParams(settings.getExtParams())
+                    .build());
+        });
+        return normalizedSettings;
+    }
+
+}

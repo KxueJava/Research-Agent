@@ -1,0 +1,129 @@
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+node_modules/
+dist/
+coverage/
+*.log
+.env
+.env.*
+
+### IntelliJ IDEA ###
+.idea/modules.xml
+.idea/jarRepositories.xml
+.idea/compiler.xml
+.idea/libraries/
+*.iws
+*.iml
+*.ipr
+
+### Eclipse ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### VS Code ###
+.vscode/
+
+### Mac OS ###
+.DS_Store
+/.idea/
+/Research-agent-app/data/
+/data/
+/Research-agent-app/.local-config
+__pycache__/
+*.pyc
+.venv/
+venv/
+# Runtime skills — exclude generated files but keep source code
+runtime/skills/*/__pycache__/
+runtime/skills/*/*.pyc
+runtime/skills/*/.venv/
+runtime/skills/*/output/
+runtime/skills/*/tools/vector_index.json
+Thumbs.db
+*.tmp
+*.swp
+
+# 本地 Agent / Spec 工作流资产不纳入版本控制
+/.agents/
+/.claude/
+/.codex/
+/.specify/
+/.omo/
+/CLAUDE.md
+/AGENTS.md
+/PROMPT_CONTEXT_MEMORY_REARCH.md
+/specs/
+/openspec/
+/docs/
+
+# 敏感配置与本地运行文件不纳入版本控制
+/mcp-server-csdn/
+/Research-agent-app/src/main/resources/*
+/Research-agent-app/src/main/resources/application-dev.yml
+/Research-agent-app/src/main/resources/application-test.yml
+/Research-agent-app/src/main/resources/application-prod.yml.local
+
+# Java runtime resources are required for a reproducible build.
+!/Research-agent-app/src/main/resources/
+!/Research-agent-app/src/main/resources/application.yml
+!/Research-agent-app/src/main/resources/application-prod.yml
+!/Research-agent-app/src/main/resources/logback-spring.xml
+!/Research-agent-app/src/main/resources/db/
+!/Research-agent-app/src/main/resources/db/**
+!/Research-agent-app/src/main/resources/mybatis/
+!/Research-agent-app/src/main/resources/mybatis/**
+/mcp-server-csdn/mcp-server-csdn/src/main/resources/application.yml
+/mcp-server-csdn/data/log/
+/research-tool/cookies.json
+/research-tool/skilloutput/
+/research-tool/新建 文本文档.txt
+/ui/.env
+/ui/.claude/
+/ui/.serena/
+/ui/docs/
+/ui/.playwright-mcp/
+
+# 自动执行旧目录仅保留本地，不再纳入版本控制
+/Research-agent-domain/src/main/java/org/wwz/ai/domain/agent/service/execute/auto/step/
+/Research-agent-domain/src/main/java/org/wwz/ai/domain/agent/service/execute/auto1/step/
+/.playwright-mcp/
+/.codegraph/
+/.codegraph/
+/.codegraph/
+/plans/
+
+# Local dependency caches and development runtime state
+/.pnpm-store/
+*.err
+*.pid
+/scripts/.dev-pids.json
+/research-tool/*.db
+/research-tool/*.db-*
+/research-tool/fastembed_cache/
+/research-tool/.uv-cache-test/
+/research-tool/.crawl4ai-test-before/
+/research-tool/playwright_*/
+/research-tool/playwright-*/
+/research-tool/????????????????????????????????/
+/design-preview/studio-check.js
+/design-preview/studio-check.css
+/research-publish-*
+/research-tool/ai-agent-crawl4ai/
+/research-tool/.crawl4ai/

@@ -1,0 +1,134 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="org.wwz.ai.infrastructure.dao.research.ISessionPurgeDao">
+
+    <!--
+      会话硬删除：集中列出「删除一个会话」需要清理的全部表，便于审计。
+      新增会话域表时必须同步在此登记，否则会留下孤儿数据。
+
+      注意执行顺序：ai_agent_llm_invocation、ai_agent_tool_invocation、ai_agent_artifact
+      只通过 run_id 关联，必须在 ai_agent_dialogue_run 之前删除，否则子查询取不到 run。
+      库中当前没有外键约束，顺序由 Service 与 Adapter 保证。
+    -->
+
+    <select id="countSessionOwnedByVisitor" resultType="int">
+        SELECT COUNT(1)
+        FROM ai_agent_dialogue_session
+        WHERE session_id = #{sessionId}
+          AND visitor_id = #{visitorId}
+    </select>
+
+    <!-- 仅按 run_id 关联的三张表：必须最先删 -->
+
+    <delete id="deleteLlmInvocationsBySessionId">
+        DELETE FROM ai_agent_llm_invocation
+        WHERE run_id IN (
+            SELECT id FROM ai_agent_dialogue_run WHERE session_id = #{sessionId}
+        )
+    </delete>
+
+    <delete id="deleteToolInvocationsBySessionId">
+        DELETE FROM ai_agent_tool_invocation
+        WHERE run_id IN (
+            SELECT id FROM ai_agent_dialogue_run WHERE session_id = #{sessionId}
+        )
+    </delete>
+
+    <delete id="deleteArtifactsBySessionId">
+        DELETE FROM ai_agent_artifact
+        WHERE run_id IN (
+            SELECT id FROM ai_agent_dialogue_run WHERE session_id = #{sessionId}
+        )
+    </delete>
+
+    <!-- 分工具结构化输出 -->
+
+    <delete id="deleteToolOutputCanvasPublishBySessionId">
+        DELETE FROM ai_agent_tool_output_canvas_publish WHERE session_id = #{sessionId}
+    </delete>
+
+    <delete id="deleteToolOutputCodeInterpreterBySessionId">
+        DELETE FROM ai_agent_tool_output_code_interpreter WHERE session_id = #{sessionId}
+    </delete>
+
+    <delete id="deleteToolOutputDataAnalysisBySessionId">
+        DELETE FROM ai_agent_tool_output_data_analysis WHERE session_id = #{sessionId}
+    </delete>
+
+    <delete id="deleteToolOutputDeepSearchBySessionId">
+        DELETE FROM ai_agent_tool_output_deep_search WHERE session_id = #{sessionId}
+    </delete>
+
+    <delete id="deleteToolOutputEmitUiPatchBySessionId">
+        DELETE FROM ai_agent_tool_output_emit_ui_patch WHERE session_id = #{sessionId}
+    </delete>
+
+    <delete id="deleteToolOutputEmitUiTreeBySessionId">
+        DELETE FROM ai_agent_tool_output_emit_ui_tree WHERE session_id = #{sessionId}
+    </delete>
+
+    <delete id="deleteToolOutputImageGenerationBySessionId">
+        DELETE FROM ai_agent_tool_output_image_generation WHERE session_id = #{sessionId}
+    </delete>
+
+    <delete id="deleteToolOutputMultimodalAgentBySessionId">
+        DELETE FROM ai_agent_tool_output_multimodal_agent WHERE session_id = #{sessionId}
+    </delete>
+
+    <!-- 会话级附属数据 -->
+
+    <delete id="deleteBackgroundTasksBySessionId">
+        DELETE FROM ai_agent_background_task WHERE session_id = #{sessionId}
+    </delete>
+
+    <delete id="deleteFeaturedConversationsBySessionId">
+        DELETE FROM ai_agent_featured_conversation WHERE session_id = #{sessionId}
+    </delete>
+
+    <delete id="deleteLtmForkExecutionsBySessionId">
+        DELETE FROM ai_agent_ltm_fork_execution WHERE session_id = #{sessionId}
+    </delete>
+
+    <delete id="deletePlanApprovalsBySessionId">
+        DELETE FROM ai_agent_plan_approval WHERE session_id = #{sessionId}
+    </delete>
+
+    <delete id="deleteSessionCapabilitiesBySessionId">
+        DELETE FROM ai_agent_session_capability WHERE session_id = #{sessionId}
+    </delete>
+
+    <delete id="deleteSessionTodosBySessionId">
+        DELETE FROM ai_agent_session_todo WHERE session_id = #{sessionId}
+    </delete>
+
+    <delete id="deleteUserQuestionsBySessionId">
+        DELETE FROM ai_agent_user_question WHERE session_id = #{sessionId}
+    </delete>
+
+    <!-- 工作记忆投影 -->
+
+    <delete id="deleteWorkingMemoryMessagesBySessionId">
+        DELETE FROM ai_agent_working_memory_message WHERE session_id = #{sessionId}
+    </delete>
+
+    <delete id="deleteWorkingMemoryTurnsBySessionId">
+        DELETE FROM ai_agent_working_memory_turn WHERE session_id = #{sessionId}
+    </delete>
+
+    <delete id="deleteWorkingMemoryCompactionsBySessionId">
+        DELETE FROM ai_agent_working_memory_compaction WHERE session_id = #{sessionId}
+    </delete>
+
+    <!-- 账本主干：必须最后删 -->
+
+    <delete id="deleteDialogueRunsBySessionId">
+        DELETE FROM ai_agent_dialogue_run WHERE session_id = #{sessionId}
+    </delete>
+
+    <delete id="deleteDialogueSessionBySessionIdAndVisitor">
+        DELETE FROM ai_agent_dialogue_session
+        WHERE session_id = #{sessionId}
+          AND visitor_id = #{visitorId}
+    </delete>
+
+</mapper>

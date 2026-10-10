@@ -1,0 +1,135 @@
+services:
+  mysql:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-ai-agent-station}
+      MYSQL_USER: ${MYSQL_USER:-research}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./Research-agent-app/src/main/resources/db/schema.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
+      - ./Research-agent-app/src/main/resources/db/data.sql:/docker-entrypoint-initdb.d/002-data.sql:ro
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - mysqladmin ping -h 127.0.0.1 -u root -p"$${MYSQL_ROOT_PASSWORD}" --silent
+      interval: 10s
+      timeout: 5s
+      retries: 20
+
+  research-sandbox:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: research-tool
+    restart: unless-stopped
+    env_file:
+      - ./research-tool/.env
+    environment:
+      ENV: prod
+      RESEARCH_TOOL_ROLE: sandbox
+      RESEARCH_TOOL_HOST: 0.0.0.0
+      RESEARCH_TOOL_PORT: 1602
+      RESEARCH_TOOL_WORKERS: 1
+      FILE_SAVE_PATH: /data/skilloutput
+      FILE_SERVER_URL: ${PUBLIC_TOOL_URL:-http://localhost:3000/tool}/v1/file_tool
+      FILE_SERVER_INTERNAL_URL: http://research-tool:1601/v1/file_tool
+      SQLITE_DB_PATH: /data/autobots.db
+      SQLITE_PATH: /data/mrag_sqlite.db
+      LOG_PATH: /data/logs/research-sandbox.log
+    volumes:
+      - research-data:/data
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:1602/docs', timeout=3)
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  research-tool:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: research-tool
+    restart: unless-stopped
+    env_file:
+      - ./research-tool/.env
+    environment:
+      ENV: prod
+      RESEARCH_TOOL_ROLE: api
+      RESEARCH_TOOL_HOST: 0.0.0.0
+      RESEARCH_TOOL_PORT: 1601
+      RESEARCH_TOOL_WORKERS: ${TOOL_WORKERS:-3}
+      RESEARCH_SANDBOX_URL: http://research-sandbox:1602
+      FILE_SAVE_PATH: /data/skilloutput
+      FILE_SERVER_URL: ${PUBLIC_TOOL_URL:-http://localhost:3000/tool}/v1/file_tool
+      FILE_SERVER_INTERNAL_URL: http://research-tool:1601/v1/file_tool
+      SQLITE_DB_PATH: /data/autobots.db
+      SQLITE_PATH: /data/mrag_sqlite.db
+      LOG_PATH: /data/logs/research-tool.log
+    volumes:
+      - research-data:/data
+    depends_on:
+      research-sandbox:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:1601/docs', timeout=3)
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  research-backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: backend
+    restart: unless-stopped
+    env_file:
+      - ./research-tool/.env
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-ai-agent-station}
+      MYSQL_USER: ${MYSQL_USER:-research}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?MYSQL_PASSWORD is required}
+      RESEARCH_TOOL_BASE_URL: http://research-tool:1601
+      WORKSPACE_ROOT: /data/skilloutput
+      SKILL_DIR: /app/runtime/skills
+    volumes:
+      - research-data:/data
+      - research-data:/app/data
+    depends_on:
+      mysql:
+        condition: service_healthy
+      research-tool:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: frontend
+      args:
+        SERVICE_BASE_URL: ${SERVICE_BASE_URL:-}
+        RESEARCH_TOOL_BASE_URL: ${RESEARCH_TOOL_BASE_URL:-/tool}
+        VITE_Mrag_TOOL_URL: ${VITE_Mrag_TOOL_URL:-/tool}
+    restart: unless-stopped
+    ports:
+      - "${WEB_PORT:-3000}:80"
+    depends_on:
+      - research-backend
+      - research-tool
+
+volumes:
+  mysql-data:
+  research-data:

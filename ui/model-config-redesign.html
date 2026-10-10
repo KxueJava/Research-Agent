@@ -1,0 +1,1131 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>模型配置 · 重设计示例</title>
+<style>
+/* ============================================================
+   Tokens —— 直接复用 ui/src/global.css 的 Kimi design-tokens v2，
+   落地到工程时无需改动变量名。
+   ============================================================ */
+:root{
+  --accent-primary:#1783ff;
+  --color-bg:#ffffff;
+  --color-surface:#fafbfc;
+  --color-surface-raised:#ffffff;
+  --color-surface-sunken:#f3f5f8;
+  --color-text:rgba(0,0,0,.9);
+  --color-text-muted:#6b7280;
+  --color-text-faint:#9aa3af;
+  --color-line:#e7eaee;
+  --color-line-strong:#d4d9e0;
+  --color-hover:#f1f3f5;
+  --color-accent:#1783ff;
+  --color-accent-hover:#0f6fe0;
+  --color-accent-soft:#e8f3ff;
+  --color-accent-bd:#cfe6ff;
+  --color-success:#0e7a38;
+  --color-success-soft:#e7f6ee;
+  --color-danger:#c0392b;
+  --color-danger-soft:#fbeaea;
+  --color-warning:#a9610a;
+  --color-warning-soft:#fbf1e0;
+  --color-warning-bd:#f0d9b8;
+  --color-text-on-accent:#ffffff;
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px;
+  --p-focus-ring:0 0 0 3px var(--color-accent-soft);
+  --kimi-radius-sm:6px;
+  --kimi-radius-md:8px;
+  --radius-card:12px;
+  --text-xs:12px; --text-sm:13px; --text-base:14px;
+  --leading-tight:1.25; --leading-normal:1.5; --leading-relaxed:1.7;
+  --font-ui:"Inter Variable","Inter","Instrument Sans Variable",-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  --font-mono:"JetBrains Mono","SFMono-Regular",Consolas,"Liberation Mono",monospace;
+  --shadow-card:0 1px 2px rgba(16,24,40,.04);
+  --shadow-raise:0 4px 14px rgba(16,24,40,.08);
+  --dur:.18s;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --color-bg:#0d1117; --color-surface:#0d1117; --color-surface-raised:#161b22;
+    --color-surface-sunken:#1c2128; --color-text:rgba(255,255,255,.92);
+    --color-text-muted:#9aa0a8; --color-text-faint:#6e7681;
+    --color-line:#2d333b; --color-line-strong:#3d444d; --color-hover:#21262d;
+    --color-accent:#4d9dff; --color-accent-hover:#6fb0ff;
+    --color-accent-soft:#132a45; --color-accent-bd:#1f4470;
+    --color-success:#3fb950; --color-success-soft:#12261a;
+    --color-danger:#f85149; --color-danger-soft:#2a1416;
+    --color-warning:#d29922; --color-warning-soft:#2a2113;
+    --shadow-card:0 1px 2px rgba(0,0,0,.4);
+    --shadow-raise:0 4px 14px rgba(0,0,0,.5);
+  }
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{
+  background:var(--color-surface);
+  color:var(--color-text);
+  font-family:var(--font-ui);
+  font-size:var(--text-base);
+  line-height:var(--leading-normal);
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+button{font:inherit;color:inherit}
+svg{display:block;flex:none}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+:where(button,a,input,select,[tabindex]):focus-visible{
+  outline:2px solid var(--color-accent);
+  outline-offset:2px;
+  box-shadow:var(--p-focus-ring);
+  border-radius:var(--kimi-radius-sm);
+}
+
+/* ============================ Top bar ============================ */
+.topbar{
+  position:sticky; top:0; z-index:50;
+  background:color-mix(in srgb, var(--color-bg) 88%, transparent);
+  backdrop-filter:saturate(180%) blur(12px);
+  border-bottom:1px solid var(--color-line);
+}
+.topbar-inner{
+  max-width:1340px; margin:0 auto;
+  padding:10px 24px;
+  display:flex; align-items:center; gap:14px; flex-wrap:wrap;
+}
+.brand{display:flex;align-items:center;gap:10px;min-width:0}
+.brand-mark{
+  width:34px;height:34px;border-radius:10px;flex:none;
+  display:grid;place-items:center;
+  background:var(--color-accent-soft); color:var(--color-accent);
+  border:1px solid var(--color-accent-bd);
+}
+.brand{flex:0 1 auto}
+.brand-text{display:flex;flex-direction:column;min-width:0}
+.brand-title{font-size:15.5px;font-weight:700;letter-spacing:-.01em;line-height:1.25}
+.brand-sub{font-size:var(--text-xs);color:var(--color-text-muted);line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.spacer{flex:1 1 auto;min-width:8px}
+.tools{display:flex;align-items:center;gap:2px}
+
+.icon-btn{
+  width:36px;height:36px;flex:none;
+  display:grid;place-items:center;
+  border:1px solid transparent;border-radius:9px;
+  background:transparent;color:var(--color-text-muted);
+  cursor:pointer;
+  transition:background var(--dur),color var(--dur),border-color var(--dur);
+}
+.icon-btn:hover{background:var(--color-hover);color:var(--color-text)}
+.icon-btn[data-danger]:hover{background:var(--color-danger-soft);color:var(--color-danger)}
+.icon-btn:disabled{opacity:.45;cursor:not-allowed}
+
+/* 分段服务商筛选：借鉴 CC Switch 顶部图标 tab，但补上文字标签
+   （icon-only 导航会损害可发现性） */
+.seg{
+  display:flex;align-items:center;gap:2px;padding:3px;
+  background:var(--color-surface-sunken);
+  border:1px solid var(--color-line);
+  border-radius:11px;
+  overflow-x:auto;scrollbar-width:none;
+}
+.seg::-webkit-scrollbar{display:none}
+.seg-btn{
+  height:30px;padding:0 10px;flex:none;
+  display:inline-flex;align-items:center;gap:6px;
+  border:0;border-radius:8px;background:transparent;
+  color:var(--color-text-muted);font-size:12.5px;font-weight:500;
+  cursor:pointer;white-space:nowrap;
+  transition:background var(--dur),color var(--dur),box-shadow var(--dur);
+}
+.seg-btn:hover{color:var(--color-text)}
+.seg-btn[aria-selected="true"]{
+  background:var(--color-surface-raised);color:var(--color-text);
+  box-shadow:var(--shadow-card);
+}
+.seg-btn .mark{width:16px;height:16px;border-radius:5px;display:grid;place-items:center;font-size:9px;font-weight:700;color:#fff;flex:none}
+
+.btn{
+  height:38px;padding:0 14px;
+  display:inline-flex;align-items:center;justify-content:center;gap:7px;
+  border-radius:10px;border:1px solid transparent;
+  font-size:13.5px;font-weight:600;cursor:pointer;white-space:nowrap;
+  transition:background var(--dur),border-color var(--dur),color var(--dur),opacity var(--dur);
+}
+.btn-primary{background:var(--color-accent);color:var(--color-text-on-accent)}
+.btn-primary:hover{background:var(--color-accent-hover)}
+.btn-outline{background:var(--color-surface-raised);border-color:var(--color-line-strong);color:var(--color-text)}
+.btn-outline:hover{background:var(--color-hover)}
+.btn-ghost{background:transparent;color:var(--color-text-muted)}
+.btn-ghost:hover{background:var(--color-hover);color:var(--color-text)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+
+/* 窄屏：品牌 + 主按钮一行，工具组 + 服务商 tab 一行，避免 4 行堆叠 */
+@media (max-width:760px){
+  .topbar-inner{padding:10px 14px;row-gap:10px}
+  .brand{order:1}
+  .spacer{display:none}
+  #btnAdd{order:2;margin-left:auto}
+  .tools{order:3}
+  .seg{order:4;flex:1 1 150px;min-width:0}
+}
+
+/* ============================ Layout ============================ */
+.body{max-width:1340px;margin:0 auto;padding:20px 24px 64px}
+.workbench{display:grid;grid-template-columns:minmax(320px,392px) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:1040px){ .workbench{grid-template-columns:1fr} }
+
+.panel{
+  background:var(--color-surface-raised);
+  border:1px solid var(--color-line);
+  border-radius:var(--radius-card);
+  box-shadow:var(--shadow-card);
+}
+.panel-head{
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:13px 16px;border-bottom:1px solid var(--color-line);
+}
+.panel-title{font-size:13.5px;font-weight:700;letter-spacing:-.005em}
+.panel-sub{font-size:var(--text-xs);color:var(--color-text-muted);margin-top:1px}
+.panel-body{padding:16px}
+.panel-foot{
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:12px 16px;border-top:1px solid var(--color-line);
+  background:var(--color-surface-sunken);
+  border-radius:0 0 var(--radius-card) var(--radius-card);
+}
+
+/* ============================ Rail / list ============================ */
+.rail{position:sticky;top:78px;display:flex;flex-direction:column;gap:12px}
+@media (max-width:1040px){ .rail{position:static} }
+
+.search{position:relative}
+.search svg{position:absolute;left:11px;top:50%;transform:translateY(-50%);color:var(--color-text-faint);pointer-events:none}
+.search input{
+  width:100%;height:38px;padding:0 12px 0 34px;
+  border:1px solid var(--color-line);border-radius:10px;
+  background:var(--color-surface-raised);color:var(--color-text);
+  font-size:13px;
+  transition:border-color var(--dur),box-shadow var(--dur);
+}
+.search input::placeholder{color:var(--color-text-faint)}
+.search input:focus{border-color:var(--color-accent);outline:none;box-shadow:var(--p-focus-ring)}
+
+.list{display:flex;flex-direction:column;gap:10px;max-height:calc(100dvh - 300px);overflow-y:auto;padding:2px}
+@media (max-width:1040px){ .list{max-height:none} }
+
+/* 卡片：借鉴 CC Switch 的「拖拽手柄 + 图标 + 名称 + 链接」结构 */
+.card{
+  position:relative;
+  display:flex;align-items:flex-start;gap:11px;
+  padding:13px 12px 13px 6px;
+  background:var(--color-surface-raised);
+  border:1px solid var(--color-line);
+  border-radius:var(--radius-card);
+  cursor:pointer;
+  transition:background var(--dur),border-color var(--dur),box-shadow var(--dur),transform var(--dur);
+}
+.card:hover{border-color:var(--color-line-strong);box-shadow:var(--shadow-raise)}
+.card[aria-selected="true"]{
+  background:var(--color-accent-soft);
+  border-color:var(--color-accent-bd);
+  box-shadow:0 0 0 1px var(--color-accent-bd);
+}
+.card[data-dragging]{opacity:.5;cursor:grabbing}
+.card[data-dropzone]{border-color:var(--color-accent);border-style:dashed}
+
+.grip{
+  width:22px;align-self:stretch;flex:none;
+  display:grid;place-items:center;
+  border:0;background:transparent;color:var(--color-text-faint);
+  cursor:grab;border-radius:var(--kimi-radius-sm);
+  transition:color var(--dur),background var(--dur);
+}
+.grip:hover{color:var(--color-text-muted);background:color-mix(in srgb,var(--color-hover) 70%,transparent)}
+.grip:active{cursor:grabbing}
+
+.mark{
+  width:34px;height:34px;flex:none;border-radius:9px;
+  display:grid;place-items:center;
+  font-size:13px;font-weight:700;color:#fff;letter-spacing:-.02em;
+  border:1px solid rgba(0,0,0,.06);
+}
+.card-main{min-width:0;flex:1}
+.card-top{display:flex;align-items:center;gap:7px;min-width:0}
+.card-name{
+  font-size:14px;font-weight:600;letter-spacing:-.005em;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.dot{width:6px;height:6px;border-radius:50%;flex:none}
+.dot-on{background:var(--color-success)}
+.dot-off{background:var(--color-text-faint)}
+.card-url{
+  display:block;margin-top:3px;
+  font-family:var(--font-mono);font-size:11.5px;
+  color:var(--color-accent);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  overflow-wrap:anywhere;
+  text-decoration:none;
+}
+.card-url:hover{text-decoration:underline}
+.card-meta{
+  display:flex;align-items:center;gap:6px 12px;flex-wrap:wrap;
+  margin-top:7px;font-size:11.5px;color:var(--color-text-muted);
+}
+.card-meta .m{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
+
+.tag{
+  display:inline-flex;align-items:center;gap:4px;
+  height:19px;padding:0 7px;border-radius:999px;
+  font-size:10.5px;font-weight:600;letter-spacing:.01em;
+  background:var(--color-surface-sunken);color:var(--color-text-muted);
+  border:1px solid var(--color-line);
+  white-space:nowrap;
+}
+.tag-accent{background:var(--color-accent-soft);color:var(--color-accent);border-color:var(--color-accent-bd)}
+.tag-warn{background:var(--color-warning-soft);color:var(--color-warning);border-color:var(--color-warning-bd)}
+
+.card-actions{display:flex;align-items:center;gap:2px;flex:none}
+.card-actions .icon-btn{width:30px;height:30px;border-radius:8px}
+.card-actions .icon-btn:hover{background:color-mix(in srgb,var(--color-surface-raised) 60%,var(--color-hover))}
+.icon-btn.spin svg{animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.empty{
+  padding:40px 20px;text-align:center;
+  border:1px dashed var(--color-line-strong);
+  border-radius:var(--radius-card);
+  color:var(--color-text-muted);font-size:13px;
+  background:var(--color-surface);
+}
+.empty b{display:block;color:var(--color-text);font-size:13.5px;margin-bottom:4px}
+
+/* ============================ Form ============================ */
+.section + .section{margin-top:20px;padding-top:18px;border-top:1px solid var(--color-line)}
+.section-title{
+  font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--color-text-faint);margin-bottom:12px;
+}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:14px 16px}
+@media (max-width:720px){ .grid{grid-template-columns:1fr} }
+.col-2{grid-column:1 / -1}
+
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.field-label{font-size:12.5px;font-weight:600;color:var(--color-text)}
+.field-label .req{color:var(--color-danger);margin-left:2px}
+.field-hint{font-size:11.5px;color:var(--color-text-muted);line-height:1.45}
+.input,.select{
+  width:100%;height:38px;padding:0 11px;
+  border:1px solid var(--color-line);border-radius:9px;
+  background:var(--color-surface-raised);color:var(--color-text);
+  font-size:13px;
+  transition:border-color var(--dur),box-shadow var(--dur),background var(--dur);
+}
+.input.mono{font-family:var(--font-mono);font-size:12.5px}
+.input::placeholder{color:var(--color-text-faint)}
+.input:focus,.select:focus{border-color:var(--color-accent);outline:none;box-shadow:var(--p-focus-ring)}
+.input[readonly],.select:disabled{
+  background:var(--color-surface-sunken);color:var(--color-text-muted);cursor:default;
+}
+.input-wrap{position:relative}
+.input-wrap .input{padding-right:38px}
+.input-wrap .icon-btn{position:absolute;right:2px;top:1px;width:34px;height:36px}
+.select{appearance:none;padding-right:32px;cursor:pointer;background-image:none}
+.select-wrap{position:relative}
+.select-wrap > svg{position:absolute;right:10px;top:50%;transform:translateY(-50%);color:var(--color-text-faint);pointer-events:none}
+
+.callout{
+  display:flex;align-items:flex-start;gap:8px;
+  margin-top:12px;padding:10px 12px;
+  border-radius:9px;font-size:12.5px;line-height:1.5;
+  background:var(--color-accent-soft);color:var(--color-text);
+  border:1px solid var(--color-accent-bd);
+}
+.callout svg{color:var(--color-accent);margin-top:1px}
+
+.switch{display:inline-flex;align-items:center;gap:9px;cursor:pointer;user-select:none;font-size:13px;padding:6px 0}
+.switch input{position:absolute;opacity:0;width:0;height:0}
+.track{
+  width:38px;height:22px;border-radius:999px;flex:none;
+  background:var(--color-line-strong);position:relative;
+  transition:background var(--dur);
+}
+.track::after{
+  content:"";position:absolute;top:2px;left:2px;
+  width:18px;height:18px;border-radius:50%;background:#fff;
+  box-shadow:0 1px 3px rgba(16,24,40,.28);
+  transition:transform var(--dur);
+}
+.switch input:checked + .track{background:var(--color-accent)}
+.switch input:checked + .track::after{transform:translateX(16px)}
+.switch input:focus-visible + .track{box-shadow:var(--p-focus-ring);outline:2px solid var(--color-accent);outline-offset:2px}
+
+.check{display:inline-flex;align-items:flex-start;gap:9px;cursor:pointer;font-size:13px;padding:6px 0}
+.check input{
+  appearance:none;width:17px;height:17px;margin:1px 0 0;flex:none;
+  border:1.5px solid var(--color-line-strong);border-radius:5px;
+  background:var(--color-surface-raised);cursor:pointer;position:relative;
+  transition:background var(--dur),border-color var(--dur);
+}
+.check input:checked{background:var(--color-accent);border-color:var(--color-accent)}
+.check input:checked::after{
+  content:"";position:absolute;left:5px;top:1.5px;
+  width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;
+  transform:rotate(45deg);
+}
+.check input:focus-visible{box-shadow:var(--p-focus-ring)}
+
+.status-pill{
+  display:inline-flex;align-items:center;gap:6px;
+  height:24px;padding:0 9px;border-radius:999px;
+  font-size:11.5px;font-weight:600;
+  background:var(--color-success-soft);color:var(--color-success);
+}
+.status-pill[data-off]{background:var(--color-surface-sunken);color:var(--color-text-muted)}
+
+.result{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600}
+.result-ok{color:var(--color-success)}
+.result-err{color:var(--color-danger);font-weight:500;min-width:0}
+
+/* ============================ Modal ============================ */
+.scrim{
+  position:fixed;inset:0;z-index:100;
+  background:rgba(16,24,40,.45);
+  backdrop-filter:blur(2px);
+  display:grid;place-items:center;padding:20px;
+  animation:fade var(--dur) ease-out;
+}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.modal{
+  width:100%;max-width:520px;max-height:88dvh;overflow-y:auto;
+  background:var(--color-surface-raised);
+  border:1px solid var(--color-line);
+  border-radius:14px;
+  box-shadow:0 20px 48px rgba(16,24,40,.22);
+  animation:pop var(--dur) cubic-bezier(.2,.9,.3,1);
+}
+@keyframes pop{from{opacity:0;transform:translateY(8px) scale(.985)}to{opacity:1;transform:none}}
+.modal-head{display:flex;align-items:center;gap:10px;padding:16px 18px;border-bottom:1px solid var(--color-line)}
+.modal-title{font-size:15px;font-weight:700;flex:1}
+.modal-body{padding:18px}
+.modal-foot{display:flex;justify-content:flex-end;gap:10px;padding:14px 18px;border-top:1px solid var(--color-line);background:var(--color-surface-sunken);border-radius:0 0 14px 14px}
+
+/* ============================ Toast ============================ */
+.toasts{position:fixed;right:20px;bottom:20px;z-index:200;display:flex;flex-direction:column;gap:10px;max-width:min(360px,calc(100vw - 40px))}
+.toast{
+  display:flex;align-items:flex-start;gap:9px;
+  padding:11px 13px;border-radius:10px;
+  background:var(--color-surface-raised);
+  border:1px solid var(--color-line);
+  box-shadow:var(--shadow-raise);
+  font-size:13px;
+  animation:slide .22s cubic-bezier(.2,.9,.3,1);
+}
+@keyframes slide{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.toast svg{margin-top:1px}
+.toast-ok svg{color:var(--color-success)}
+.toast-err svg{color:var(--color-danger)}
+
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important}
+}
+</style>
+</head>
+<body>
+
+<!-- ============================ 顶栏 ============================ -->
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="5" y="5" width="14" height="14" rx="2.5"/><rect x="9.5" y="9.5" width="5" height="5" rx="1.2"/>
+          <path d="M9 2.5v2.5M15 2.5v2.5M9 19v2.5M15 19v2.5M2.5 9H5M2.5 15H5M19 9h2.5M19 15h2.5"/>
+        </svg>
+      </span>
+      <span class="brand-text">
+        <span class="brand-title">模型配置</span>
+        <span class="brand-sub" id="brandSub">接入用于 Agent 推理的大语言模型</span>
+      </span>
+    </div>
+
+    <span class="spacer"></span>
+
+    <div class="tools">
+    <button class="icon-btn" type="button" id="btnRefresh" title="刷新列表" aria-label="刷新模型列表">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v5h-5"/>
+      </svg>
+    </button>
+    <button class="icon-btn" type="button" id="btnImport" title="导入配置" aria-label="从 JSON 导入模型配置">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 12a9 9 0 1 1-9-9"/><path d="M12 16V8"/><path d="m8.5 11.5 3.5-3.5 3.5 3.5"/>
+      </svg>
+    </button>
+    <button class="icon-btn" type="button" id="btnSettings" title="模型服务设置" aria-label="模型服务设置">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M4 7h9M18 7h2M4 17h3M12 17h8"/><circle cx="15.5" cy="7" r="2.5"/><circle cx="9.5" cy="17" r="2.5"/>
+      </svg>
+    </button>
+
+    </div>
+
+    <div class="seg" role="tablist" aria-label="按服务商筛选">
+      <!-- JS 注入 -->
+    </div>
+
+    <button class="btn btn-primary" type="button" id="btnAdd">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      新增模型
+    </button>
+  </div>
+</header>
+
+<main class="body">
+  <div class="workbench">
+
+    <!-- ============================ 左：模型列表 ============================ -->
+    <div class="rail">
+      <div class="search">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.6-3.6"/></svg>
+        <input type="search" id="search" placeholder="搜索模型名 / Base URL" aria-label="搜索模型" autocomplete="off" />
+      </div>
+      <div class="list" id="list" role="listbox" aria-label="已接入模型"></div>
+    </div>
+
+    <!-- ============================ 右：连接配置 ============================ -->
+    <section class="panel" id="detail" aria-label="连接配置"></section>
+
+  </div>
+</main>
+
+<div class="toasts" id="toasts" aria-live="polite" aria-atomic="false"></div>
+<div id="modalRoot"></div>
+
+<script>
+"use strict";
+
+/* ---------------------------------------------------------------
+   服务商预设 —— 对齐 ui/src/pages/ModelAdmin/meta.ts 的 PROVIDER_PRESETS。
+   这里用字母方块代替官方 logo：不猜测/伪造品牌图形，落地时替换为
+   各厂商官方 SVG 即可（保持同一 --mark 尺寸与圆角）。
+   --------------------------------------------------------------- */
+const PROVIDERS = [
+  { id:"deepseek", label:"DeepSeek", color:"#4d6bfe", letter:"D", baseUrl:"https://api.deepseek.com/v1", completionsPath:"/chat/completions", keyHint:"platform.deepseek.com → API keys" },
+  { id:"openai",   label:"OpenAI",   color:"#10a37f", letter:"O", baseUrl:"https://api.openai.com/v1",   completionsPath:"/chat/completions", keyHint:"platform.openai.com → API keys" },
+  { id:"moonshot", label:"Kimi",     color:"#7c3aed", letter:"K", baseUrl:"https://api.moonshot.cn/v1",  completionsPath:"/chat/completions", keyHint:"platform.moonshot.cn → API Key" },
+  { id:"micu",     label:"Micu 中转",color:"#0e7490", letter:"M", baseUrl:"https://www.micuapi.ai/v1",   completionsPath:"/chat/completions", keyHint:"中转站后台复制 API Key" },
+  { id:"custom",   label:"自定义",   color:"#64748b", letter:"*", baseUrl:"",                            completionsPath:"/chat/completions", keyHint:"手填 Base URL 与 Key" }
+];
+const providerOf = id => PROVIDERS.find(p => p.id === id) || PROVIDERS[PROVIDERS.length - 1];
+
+/* 示例数据：首条与库中 ai_client_api / ai_client_model 的真实记录一致 */
+let MODELS = [
+  { id:6, modelId:"deepseek-v4-pro", modelName:"deepseek-v4-pro", providerId:"deepseek",
+    baseUrl:"https://api.deepseek.com/v1", apiKey:"sk-14c2••••••••7939",
+    completionsPath:"/chat/completions", embeddingsPath:"/embeddings", modelType:"openai",
+    modelUsage:"default", supportsThinking:1, contextWindow:128000, status:1,
+    latencyMs:842, lastTested:"2 分钟前" },
+
+  { id:7, modelId:"gpt-4o", modelName:"gpt-4o", providerId:"openai",
+    baseUrl:"https://api.openai.com/v1", apiKey:"sk-proj••••••••a91f",
+    completionsPath:"/chat/completions", embeddingsPath:"/embeddings", modelType:"openai",
+    modelUsage:"default", supportsThinking:0, contextWindow:128000, status:1,
+    latencyMs:1180, lastTested:"12 分钟前" },
+
+  { id:8, modelId:"kimi-k2", modelName:"kimi-k2-0905-preview", providerId:"moonshot",
+    baseUrl:"https://api.moonshot.cn/v1", apiKey:"sk-9fA2••••••••3c07",
+    completionsPath:"/chat/completions", embeddingsPath:"/embeddings", modelType:"openai",
+    modelUsage:"default", supportsThinking:1, contextWindow:256000, status:1,
+    latencyMs:640, lastTested:"1 小时前" },
+
+  { id:9, modelId:"claude-3-5-sonnet", modelName:"claude-3-5-sonnet-20241022", providerId:"micu",
+    baseUrl:"https://www.micuapi.ai/v1", apiKey:"sk-micu••••••••77b2",
+    completionsPath:"/chat/completions", embeddingsPath:"/embeddings", modelType:"openai",
+    modelUsage:"default", supportsThinking:1, contextWindow:200000, status:0,
+    latencyMs:null, lastTested:"未测试" },
+
+  { id:10, modelId:"grok-4.5", modelName:"grok-4.5", providerId:"custom",
+    baseUrl:"https://api.x.ai/v1", apiKey:"xai-3c••••••••00de",
+    completionsPath:"/chat/completions", embeddingsPath:"/embeddings", modelType:"openai",
+    modelUsage:"fallback", supportsThinking:1, contextWindow:131072, status:1,
+    latencyMs:1506, lastTested:"3 小时前" }
+];
+
+const state = { selectedId:6, filter:"all", query:"", testing:false, draft:null, dirty:false };
+
+/* ---------------------------------------------------------------
+   Icons
+   --------------------------------------------------------------- */
+const I = {
+  grip:'<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.5"/><circle cx="15" cy="6" r="1.5"/><circle cx="9" cy="12" r="1.5"/><circle cx="15" cy="12" r="1.5"/><circle cx="9" cy="18" r="1.5"/><circle cx="15" cy="18" r="1.5"/></svg>',
+  trash:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
+  zap:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z"/></svg>',
+  check:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+  info:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 16v-4M12 8h.01"/></svg>',
+  clock:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  eye:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>',
+  eyeOff:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10.6 5.2A9.9 9.9 0 0 1 12 5c6.4 0 10 7 10 7a17.8 17.8 0 0 1-3.2 4.2M6.2 6.2A17.6 17.6 0 0 0 2 12s3.6 7 10 7a9.7 9.7 0 0 0 4-.85"/><path d="m3 3 18 18"/></svg>',
+  x:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>',
+  chev:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>',
+  warn:'<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 2 20h20L12 3z"/><path d="M12 10v4M12 17.5h.01"/></svg>'
+};
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+const maskKey = k => !k ? "" : (k.length <= 10 ? "••••" : k.slice(0,6) + "••••" + k.slice(-4));
+const isFallback = u => ["fallback","backup","备用","备用模型"].includes(String(u||"").trim().toLowerCase());
+const isCustomUrl = u => !!u && !PROVIDERS.some(p => p.id !== "custom" && p.baseUrl && u.toLowerCase().startsWith(p.baseUrl.toLowerCase()));
+
+/* ---------------------------------------------------------------
+   Toast
+   --------------------------------------------------------------- */
+function toast(msg, kind = "ok"){
+  const el = document.createElement("div");
+  el.className = "toast toast-" + kind;
+  el.setAttribute("role", kind === "err" ? "alert" : "status");
+  el.innerHTML = (kind === "err" ? I.warn : I.check) + "<span>" + esc(msg) + "</span>";
+  document.getElementById("toasts").appendChild(el);
+  setTimeout(() => el.remove(), 3800);
+}
+
+/* ---------------------------------------------------------------
+   顶部分段筛选（服务商 tab）
+   --------------------------------------------------------------- */
+function renderSeg(){
+  const seg = document.querySelector(".seg");
+  const counts = {};
+  MODELS.forEach(m => { counts[m.providerId] = (counts[m.providerId] || 0) + 1; });
+  const items = [{ id:"all", label:"全部", color:"#64748b", letter:"≡" }]
+    .concat(PROVIDERS.filter(p => counts[p.id]));
+  seg.innerHTML = items.map(p => `
+    <button class="seg-btn" type="button" role="tab" data-filter="${p.id}"
+            aria-selected="${state.filter === p.id}">
+      <span class="mark" style="background:${p.color}" aria-hidden="true">${esc(p.letter)}</span>
+      ${esc(p.label)}
+    </button>`).join("");
+  seg.querySelectorAll(".seg-btn").forEach(b => {
+    b.addEventListener("click", () => { state.filter = b.dataset.filter; renderSeg(); renderList(); });
+  });
+}
+
+/* ---------------------------------------------------------------
+   列表
+   --------------------------------------------------------------- */
+function visibleModels(){
+  const q = state.query.trim().toLowerCase();
+  return MODELS
+    .filter(m => state.filter === "all" || m.providerId === state.filter)
+    .filter(m => !q || m.modelId.toLowerCase().includes(q) || m.modelName.toLowerCase().includes(q) || m.baseUrl.toLowerCase().includes(q));
+}
+
+function renderList(){
+  const list = document.getElementById("list");
+  const items = visibleModels();
+
+  if (!items.length){
+    list.innerHTML = `<div class="empty"><b>没有匹配的模型</b>换个关键词，或点击「新增模型」接入一个。</div>`;
+    return;
+  }
+
+  list.innerHTML = items.map((m, idx) => {
+    const p = providerOf(m.providerId);
+    const on = (m.status ?? 1) === 1;
+    const fb = isFallback(m.modelUsage);
+    return `
+    <div class="card" role="option" tabindex="0"
+         data-id="${m.id}" data-index="${idx}"
+         draggable="true"
+         aria-selected="${m.id === state.selectedId}"
+         aria-label="${esc(m.modelId)}，${esc(p.label)}${on ? "" : "，已停用"}">
+      <button class="grip" type="button" tabindex="-1" aria-hidden="true" title="拖拽排序，或选中后按 Alt + ↑ / ↓">${I.grip}</button>
+      <span class="mark" style="background:${p.color}" aria-hidden="true">${esc(p.letter)}</span>
+      <div class="card-main">
+        <div class="card-top">
+          <span class="dot ${on ? "dot-on" : "dot-off"}" aria-hidden="true"></span>
+          <span class="card-name">${esc(m.modelName)}</span>
+        </div>
+        <a class="card-url" href="${esc(m.baseUrl)}" target="_blank" rel="noreferrer noopener"
+           data-stop="1" title="${esc(m.baseUrl)}">${esc(m.baseUrl)}</a>
+        <div class="card-meta">
+          <span class="m">${I.clock}${esc(m.lastTested)}</span>
+          ${m.latencyMs ? `<span class="m">${m.latencyMs} ms</span>` : ""}
+          ${m.contextWindow ? `<span class="m">${(m.contextWindow/1000)|0}K 上下文</span>` : ""}
+          ${fb ? `<span class="tag tag-warn">备用</span>` : ""}
+          ${m.supportsThinking ? `<span class="tag tag-accent">深度思考</span>` : ""}
+        </div>
+      </div>
+      <div class="card-actions">
+        <button class="icon-btn" type="button" data-act="test" data-id="${m.id}"
+                title="测试连接" aria-label="测试 ${esc(m.modelId)} 连接">${I.zap}</button>
+        <button class="icon-btn" type="button" data-act="del" data-id="${m.id}" data-danger
+                title="删除" aria-label="删除 ${esc(m.modelId)}">${I.trash}</button>
+      </div>
+    </div>`;
+  }).join("");
+
+  bindList();
+}
+
+function bindList(){
+  const list = document.getElementById("list");
+
+  list.querySelectorAll(".card").forEach(card => {
+    const id = Number(card.dataset.id);
+    card.addEventListener("click", e => {
+      if (e.target.closest('[data-stop], .card-actions')) return;
+      select(id);
+    });
+    card.addEventListener("keydown", e => {
+      if (e.target !== card) return;
+      if (e.key === "Enter" || e.key === " "){ e.preventDefault(); select(id); }
+      // 拖拽的键盘替代方案（WCAG: dragging-alternative）
+      if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")){
+        e.preventDefault();
+        move(id, e.key === "ArrowUp" ? -1 : 1);
+      }
+    });
+  });
+
+  list.querySelectorAll("[data-act='test']").forEach(b =>
+    b.addEventListener("click", e => { e.stopPropagation(); testById(Number(b.dataset.id), b); }));
+  list.querySelectorAll("[data-act='del']").forEach(b =>
+    b.addEventListener("click", e => { e.stopPropagation(); confirmDelete(Number(b.dataset.id)); }));
+
+  // HTML5 拖拽排序
+  let dragId = null;
+  list.querySelectorAll(".card").forEach(card => {
+    card.addEventListener("dragstart", e => {
+      dragId = Number(card.dataset.id);
+      card.dataset.dragging = "1";
+      e.dataTransfer.effectAllowed = "move";
+      try { e.dataTransfer.setData("text/plain", String(dragId)); } catch {}
+    });
+    card.addEventListener("dragend", () => {
+      delete card.dataset.dragging;
+      list.querySelectorAll(".card").forEach(c => delete c.dataset.dropzone);
+    });
+    card.addEventListener("dragover", e => {
+      if (dragId == null || Number(card.dataset.id) === dragId) return;
+      e.preventDefault();
+      list.querySelectorAll(".card").forEach(c => delete c.dataset.dropzone);
+      card.dataset.dropzone = "1";
+    });
+    card.addEventListener("drop", e => {
+      e.preventDefault();
+      const targetId = Number(card.dataset.id);
+      if (dragId == null || targetId === dragId) return;
+      reorder(dragId, targetId);
+      dragId = null;
+    });
+  });
+}
+
+function select(id){ state.selectedId = id; state.draft = null; state.dirty = false; renderAll(); }
+function move(id, delta){
+  const i = MODELS.findIndex(m => m.id === id);
+  const j = i + delta;
+  if (i < 0 || j < 0 || j >= MODELS.length) return;
+  const [it] = MODELS.splice(i, 1); MODELS.splice(j, 0, it);
+  renderList(); toast("已调整顺序");
+}
+function reorder(fromId, toId){
+  const i = MODELS.findIndex(m => m.id === fromId);
+  const j = MODELS.findIndex(m => m.id === toId);
+  if (i < 0 || j < 0) return;
+  const [it] = MODELS.splice(i, 1); MODELS.splice(j, 0, it);
+  renderList(); toast("已调整顺序");
+}
+
+/* ---------------------------------------------------------------
+   详情面板
+   --------------------------------------------------------------- */
+function current(){ return MODELS.find(m => m.id === state.selectedId) || null; }
+
+function renderDetail(){
+  const box = document.getElementById("detail");
+  const m = current();
+
+  if (!m){
+    box.innerHTML = `<div class="panel-body"><div class="empty"><b>尚未选择模型</b>从左侧选择一个模型，或点击「新增模型」。</div></div>`;
+    return;
+  }
+  const d = state.draft || m;
+  const p = providerOf(d.providerId);
+  const on = (d.status ?? 1) === 1;
+  const custom = d.providerId === "custom";
+
+  box.innerHTML = `
+    <div class="panel-head">
+      <span class="mark" style="background:${p.color}" aria-hidden="true">${esc(p.letter)}</span>
+      <div style="min-width:0;flex:1">
+        <div class="panel-title" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(d.modelName || "未命名模型")}</div>
+        <div class="panel-sub">${esc(d.modelId)} · 修改后下一轮对话生效</div>
+      </div>
+      <span class="status-pill" ${on ? "" : "data-off"}>
+        <span class="dot ${on ? "dot-on" : "dot-off"}" aria-hidden="true"></span>${on ? "已启用" : "已停用"}
+      </span>
+      <label class="switch" title="启用 / 停用该模型">
+        <input type="checkbox" data-k="status" ${on ? "checked" : ""} aria-label="启用该模型" />
+        <span class="track" aria-hidden="true"></span>
+      </label>
+    </div>
+
+    <div class="panel-body">
+      <div class="section">
+        <div class="section-title">服务商</div>
+        <div class="grid">
+          <div class="field">
+            <label class="field-label" for="f-provider">服务商预设</label>
+            <div class="select-wrap">
+              <select class="select" id="f-provider" data-k="providerId">
+                ${PROVIDERS.map(x => `<option value="${x.id}" ${x.id === d.providerId ? "selected" : ""}>${esc(x.label)}</option>`).join("")}
+              </select>${I.chev}
+            </div>
+            <span class="field-hint">选择预设会自动填充 Base URL 与 Completions 路径</span>
+          </div>
+          <div class="field">
+            <label class="field-label" for="f-type">模型类型</label>
+            <input class="input" id="f-type" data-k="modelType" value="${esc(d.modelType || "openai")}" placeholder="openai / deepseek / claude" />
+            <span class="field-hint">决定请求体适配方式</span>
+          </div>
+          <div class="field col-2">
+            <label class="field-label" for="f-base">Base URL<span class="req" aria-hidden="true">*</span></label>
+            <input class="input mono" id="f-base" data-k="baseUrl" value="${esc(d.baseUrl)}"
+                   ${custom ? "" : "readonly"} placeholder="https://api.example.com/v1" />
+            <span class="field-hint">${custom ? "自定义模式：手填兼容 OpenAI 的地址" : "由所选服务商预设；切成「自定义」可手填"}</span>
+          </div>
+        </div>
+        ${p.keyHint && !custom ? `<div class="callout">${I.info}<span>${esc(p.keyHint)}</span></div>` : ""}
+      </div>
+
+      <div class="section">
+        <div class="section-title">模型与凭据</div>
+        <div class="grid">
+          <div class="field">
+            <label class="field-label" for="f-name">模型标识（上游 model）<span class="req" aria-hidden="true">*</span></label>
+            <input class="input mono" id="f-name" data-k="modelName" value="${esc(d.modelName)}" placeholder="gpt-4o / claude-3-5-sonnet" />
+            <span class="field-hint">与厂商文档逐字一致</span>
+          </div>
+          <div class="field">
+            <label class="field-label" for="f-id">模型 ID（业务主键）</label>
+            <input class="input mono" id="f-id" value="${esc(d.modelId)}" readonly />
+            <span class="field-hint">对话侧引用，创建后不可改</span>
+          </div>
+          <div class="field col-2">
+            <label class="field-label" for="f-key">API Key<span class="req" aria-hidden="true">*</span></label>
+            <div class="input-wrap">
+              <input class="input mono" id="f-key" data-k="apiKey" type="password" value="${esc(d.apiKey)}" placeholder="sk-…" autocomplete="off" spellcheck="false" />
+              <button class="icon-btn" type="button" id="toggleKey" aria-label="显示或隐藏 API Key" title="显示 / 隐藏">${I.eye}</button>
+            </div>
+            <span class="field-hint">脱敏保存；要轮换 key 请重新输入明文</span>
+          </div>
+          <div class="field">
+            <label class="field-label" for="f-cpath">Completions 路径</label>
+            <input class="input mono" id="f-cpath" data-k="completionsPath" value="${esc(d.completionsPath)}" />
+          </div>
+          <div class="field">
+            <label class="field-label" for="f-epath">Embeddings 路径</label>
+            <input class="input mono" id="f-epath" data-k="embeddingsPath" value="${esc(d.embeddingsPath)}" />
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-title">能力与路由</div>
+        <div class="grid">
+          <div class="field">
+            <label class="field-label" for="f-ctx">上下文窗口（token）</label>
+            <input class="input" id="f-ctx" data-k="contextWindow" type="number" min="0" step="1000"
+                   value="${d.contextWindow ?? ""}" placeholder="如 128000" inputmode="numeric" />
+            <span class="field-hint">用于上下文预算与压缩阈值</span>
+          </div>
+          <div class="field" style="justify-content:flex-end">
+            <label class="switch">
+              <input type="checkbox" data-k="supportsThinking" ${d.supportsThinking ? "checked" : ""} />
+              <span class="track" aria-hidden="true"></span>
+              <span>支持深度思考</span>
+            </label>
+            <label class="check">
+              <input type="checkbox" data-k="isFallback" ${isFallback(d.modelUsage) ? "checked" : ""} />
+              <span>
+                备用模型
+                <span class="field-hint" style="display:block">主模型失败后按顺序尝试</span>
+              </span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-foot">
+      <button class="btn btn-outline" type="button" id="btnTest" ${state.testing ? "disabled" : ""}>
+        ${I.zap}${state.testing ? "测试中…" : "测试连接"}
+      </button>
+      <span id="testResult" aria-live="polite"></span>
+      <span class="spacer"></span>
+      <button class="btn btn-ghost" type="button" id="btnRevert" ${state.dirty ? "" : "disabled"}>放弃改动</button>
+      <button class="btn btn-primary" type="button" id="btnSave" ${state.dirty ? "" : "disabled"}>
+        ${state.dirty ? "保存模型" : "已保存"}
+      </button>
+    </div>`;
+
+  bindDetail();
+}
+
+function bindDetail(){
+  const box = document.getElementById("detail");
+
+  // 表单字段 → draft
+  box.querySelectorAll("[data-k]").forEach(el => {
+    const handler = () => {
+      const m = current(); if (!m) return;
+      const d = Object.assign({}, state.draft || m);
+      const k = el.dataset.k;
+      if (el.type === "checkbox") d[k] = el.checked ? (k === "isFallback" ? true : 1) : (k === "isFallback" ? false : 0);
+      else if (k === "contextWindow") d[k] = el.value.trim() === "" ? null : (Number(el.value) || null);
+      else d[k] = el.value;
+
+      if (k === "isFallback") d.modelUsage = el.checked ? "fallback" : "default";
+      if (k === "providerId"){
+        const p = providerOf(el.value);
+        if (p.baseUrl){ d.baseUrl = p.baseUrl; }
+        d.completionsPath = p.completionsPath;
+        if (k === "providerId" && el.value === "custom" && !d.baseUrl) d.baseUrl = "";
+      }
+      if (k === "modelName" && !d.modelId) d.modelId = el.value;
+
+      state.draft = d; state.dirty = true;
+      // 切换服务商 / 启用状态需要重绘以更新只读态与 pill
+      if (k === "providerId" || k === "status") renderDetail();
+      else {
+        const save = document.getElementById("btnSave");
+        const revert = document.getElementById("btnRevert");
+        if (save){ save.disabled = false; save.textContent = "保存模型"; }
+        if (revert) revert.disabled = false;
+      }
+    };
+    el.addEventListener("change", handler);
+    if (el.tagName === "INPUT" && el.type !== "checkbox" && el.type !== "number") el.addEventListener("input", handler);
+  });
+
+  const tk = document.getElementById("toggleKey");
+  if (tk) tk.addEventListener("click", () => {
+    const inp = document.getElementById("f-key");
+    const show = inp.type === "password";
+    inp.type = show ? "text" : "password";
+    tk.innerHTML = show ? I.eyeOff : I.eye;
+    tk.setAttribute("aria-pressed", String(show));
+  });
+
+  const bt = document.getElementById("btnTest");
+  if (bt) bt.addEventListener("click", () => testById(state.selectedId, bt));
+
+  const bs = document.getElementById("btnSave");
+  if (bs) bs.addEventListener("click", saveDraft);
+
+  const br = document.getElementById("btnRevert");
+  if (br) br.addEventListener("click", () => { state.draft = null; state.dirty = false; renderDetail(); toast("已放弃改动"); });
+}
+
+async function testById(id, btn){
+  const m = MODELS.find(x => x.id === id); if (!m) return;
+  if (btn){ btn.classList.add("spin"); btn.disabled = true; }
+  state.testing = true;
+
+  const slot = id === state.selectedId ? document.getElementById("testResult") : null;
+  if (slot) slot.innerHTML = `<span class="result" style="color:var(--color-text-muted)">正在请求…</span>`;
+
+  await new Promise(r => setTimeout(r, 900));   // 演示用；落地时替换为 llmModelAdminApi.testConnectionById
+
+  const ok = (m.status ?? 1) === 1;
+  const ms = 620 + Math.floor(Math.random() * 900);
+  m.latencyMs = ms;
+  m.lastTested = "刚刚";
+  state.testing = false;
+
+  if (btn){ btn.classList.remove("spin"); btn.disabled = false; }
+  if (slot){
+    slot.innerHTML = ok
+      ? `<span class="result result-ok">${I.check}连接成功 · 延迟 ${ms} ms</span>`
+      : `<span class="result result-err">模型已停用，无法建立连接</span>`;
+  }
+  renderList();
+  if (!ok) toast(m.modelId + " 已停用，测试未通过", "err");
+}
+
+function saveDraft(){
+  const m = current(); if (!m) return;
+  const d = state.draft || m;
+
+  if (!d.modelName?.trim() || !d.modelId?.trim()) return toast("模型标识与模型 ID 必填", "err");
+  if (!d.baseUrl?.trim()) return toast("Base URL 必填", "err");
+  if (!d.apiKey?.trim()) return toast("API Key 不能为空", "err");
+
+  Object.assign(m, d);
+  m.providerId = isCustomUrl(d.baseUrl) ? (d.providerId === "custom" ? "custom" : d.providerId) : "custom";
+  state.draft = null; state.dirty = false;
+  renderAll();
+  toast("已保存「" + m.modelName + "」，下一轮对话生效");
+}
+
+function confirmDelete(id){
+  const m = MODELS.find(x => x.id === id); if (!m) return;
+  openModal(`
+    <div class="modal-head">
+      <span class="modal-title">删除模型</span>
+      <button class="icon-btn" type="button" data-close aria-label="关闭">${I.x}</button>
+    </div>
+    <div class="modal-body">
+      <p style="margin:0 0 10px">确认删除 <b>${esc(m.modelName)}</b>（#${m.id}）？</p>
+      <div class="callout">${I.warn}<span>若没有其它模型共用该 API 凭据，凭据配置会一并删除。此操作不可撤销。</span></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" type="button" data-close>取消</button>
+      <button class="btn btn-primary" type="button" id="doDelete" style="background:var(--color-danger)">删除</button>
+    </div>`, () => {
+      document.getElementById("doDelete").addEventListener("click", () => {
+        MODELS = MODELS.filter(x => x.id !== id);
+        if (state.selectedId === id) state.selectedId = MODELS[0]?.id ?? null;
+        state.draft = null; state.dirty = false;
+        closeModal(); renderAll(); toast("已删除");
+      });
+    });
+}
+
+/* ---------------------------------------------------------------
+   新增模型弹窗
+   --------------------------------------------------------------- */
+function openAddModal(){
+  const draft = { providerId:"deepseek", baseUrl:PROVIDERS[0].baseUrl, completionsPath:"/chat/completions",
+                  embeddingsPath:"/embeddings", modelType:"openai", modelName:"", modelId:"", apiKey:"", supportsThinking:0, modelUsage:"default", contextWindow:null };
+
+  openModal(`
+    <div class="modal-head">
+      <span class="modal-title">新增模型</span>
+      <button class="icon-btn" type="button" data-close aria-label="关闭">${I.x}</button>
+    </div>
+    <div class="modal-body">
+      <div class="grid">
+        <div class="field col-2">
+          <label class="field-label" for="a-provider">服务商</label>
+          <div class="select-wrap">
+            <select class="select" id="a-provider">
+              ${PROVIDERS.map(x => `<option value="${x.id}">${esc(x.label)}</option>`).join("")}
+            </select>${I.chev}
+          </div>
+        </div>
+        <div class="field col-2">
+          <label class="field-label" for="a-base">Base URL<span class="req" aria-hidden="true">*</span></label>
+          <input class="input mono" id="a-base" value="${esc(draft.baseUrl)}" readonly />
+        </div>
+        <div class="field">
+          <label class="field-label" for="a-name">模型标识（上游 model）<span class="req" aria-hidden="true">*</span></label>
+          <input class="input mono" id="a-name" placeholder="与厂商文档逐字一致" />
+        </div>
+        <div class="field">
+          <label class="field-label" for="a-id">模型 ID<span class="req" aria-hidden="true">*</span></label>
+          <input class="input mono" id="a-id" placeholder="业务主键，对话可引用" />
+          <span class="field-hint">留空则自动跟随模型标识</span>
+        </div>
+        <div class="field col-2">
+          <label class="field-label" for="a-key">API Key<span class="req" aria-hidden="true">*</span></label>
+          <input class="input mono" id="a-key" type="password" placeholder="sk-…" autocomplete="off" spellcheck="false" />
+        </div>
+        <div class="field col-2">
+          <label class="check">
+            <input type="checkbox" id="a-fb" />
+            <span>备用模型<span class="field-hint" style="display:block">主模型失败后按配置顺序尝试</span></span>
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" type="button" data-close>取消</button>
+      <button class="btn btn-primary" type="button" id="doCreate">创建</button>
+    </div>`, () => {
+      const sel = document.getElementById("a-provider");
+      const base = document.getElementById("a-base");
+      sel.addEventListener("change", () => {
+        const p = providerOf(sel.value);
+        base.value = p.baseUrl;
+        base.readOnly = p.id !== "custom";
+      });
+      document.getElementById("doCreate").addEventListener("click", () => {
+        const modelName = document.getElementById("a-name").value.trim();
+        const modelId = document.getElementById("a-id").value.trim() || modelName;
+        const apiKey = document.getElementById("a-key").value.trim();
+        if (!modelName) return toast("模型标识必填", "err");
+        if (!modelId) return toast("模型 ID 必填", "err");
+        if (!apiKey) return toast("API Key 必填", "err");
+        if (!base.value.trim()) return toast("Base URL 必填", "err");
+        if (MODELS.some(m => m.modelId === modelId)) return toast("模型 ID 已存在：" + modelId, "err");
+
+        MODELS.unshift({
+          id: Math.max(0, ...MODELS.map(m => m.id)) + 1,
+          modelId, modelName,
+          providerId: providerOf(sel.value).id === "custom" || !providerOf(sel.value).baseUrl ? "custom" : sel.value,
+          baseUrl: base.value.trim(),
+          apiKey: maskKey(apiKey),
+          completionsPath: "/chat/completions", embeddingsPath: "/embeddings",
+          modelType: "openai",
+          modelUsage: document.getElementById("a-fb").checked ? "fallback" : "default",
+          supportsThinking: 0, contextWindow: null, status: 1,
+          latencyMs: null, lastTested: "未测试"
+        });
+        state.selectedId = MODELS[0].id;
+        state.filter = "all"; state.query = "";
+        document.getElementById("search").value = "";
+        closeModal(); renderSeg(); renderAll();
+        toast("已新增模型，可直接在对话中选用");
+      });
+    });
+}
+
+/* ---------------------------------------------------------------
+   Modal 基础设施
+   --------------------------------------------------------------- */
+let modalCleanup = null;
+function openModal(html, onMount){
+  const root = document.getElementById("modalRoot");
+  const prev = document.activeElement;
+  root.innerHTML = `<div class="scrim" role="dialog" aria-modal="true">${'<div class="modal">' + html + "</div>"}</div>`;
+  const scrim = root.firstElementChild;
+  scrim.addEventListener("mousedown", e => { if (e.target === scrim) closeModal(); });
+  scrim.querySelectorAll("[data-close]").forEach(b => b.addEventListener("click", closeModal));
+  const onKey = e => { if (e.key === "Escape") closeModal(); };
+  document.addEventListener("keydown", onKey);
+  modalCleanup = () => { document.removeEventListener("keydown", onKey); if (prev && prev.focus) prev.focus(); };
+  onMount?.();
+  const first = scrim.querySelector("input,select,button");
+  first?.focus();
+}
+function closeModal(){
+  document.getElementById("modalRoot").innerHTML = "";
+  modalCleanup?.(); modalCleanup = null;
+}
+
+/* ---------------------------------------------------------------
+   Render / events
+   --------------------------------------------------------------- */
+function renderAll(){ renderList(); renderDetail(); updateSub(); }
+function updateSub(){
+  const on = MODELS.filter(m => (m.status ?? 1) === 1).length;
+  document.getElementById("brandSub").textContent =
+    `已接入 ${MODELS.length} 个模型 · ${on} 个已启用`;
+}
+
+document.getElementById("search").addEventListener("input", e => { state.query = e.target.value; renderList(); });
+document.getElementById("btnAdd").addEventListener("click", openAddModal);
+document.getElementById("btnRefresh").addEventListener("click", () => {
+  toast("已从 /api/v1/admin/ai-client-model/query-all 重新拉取");
+  renderAll();
+});
+document.getElementById("btnImport").addEventListener("click", () =>
+  toast("导入：解析 JSON 后逐条调用 createApi + createModel"));
+document.getElementById("btnSettings").addEventListener("click", () =>
+  toast("模型服务设置：默认模型、备用顺序、超时与重试"));
+
+renderSeg();
+renderAll();
+</script>
+</body>
+</html>

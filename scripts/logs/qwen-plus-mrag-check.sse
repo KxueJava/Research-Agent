@@ -1,0 +1,446 @@
+data: {"stage": "task", "data": "# 检索任务  \n根据已导入的 Java 官网资料，Java 有哪些用途？  \n\n- kb: `ab1ae802ab9f4ed18c98963aecc82bd1`\n- images: 0\n", "isFinal": false, "meta": {"kbScope": "ab1ae802ab9f4ed18c98963aecc82bd1", "imageCount": 0}, "requestId": null}
+
+data: {"stage": "route", "data": "\n## 路由  \n进入 Agentic 多轮检索。\n", "isFinal": false, "meta": {"mode": "agentic"}, "requestId": null}
+
+data: {"stage": "retrieve_round", "data": "\n## 第 1 轮检索  \n\n### 子问题\n- 根据已导入的 Java 官网资料，Java 有哪些用途？\n- Java 用途 官网资料\n\n### 命中预览（21）\n- [0.491] 75648bbd1e6f4586863571c34ff19a98.md: # Java ![此处为图像说明](images/image_1.jpg) Oracle Java 是第一大编程语言和开发平台。它有助于企业降低成本、缩短开发周期、推动创新以及改善应用程序服务。Jav...\n- [0.489] 75648bbd1e6f4586863571c34ff19a98.md: [](https://www.java.com/zh-CN/ \"java.com\") * [开发人员资源](https://dev.java/ \"开发人员资源\") * [企业资源](https://w...\n- [0.486] 75648bbd1e6f4586863571c34ff19a98.md: # Java ![此处为图像说明](images/image_1.jpg) Oracle Java 是第一大编程语言和开发平台。它有助于企业降低成本、缩短开发周期、推动创新以及改善应用程序服务。Jav...\n- …共 21 条，仅展示 Top 3\n", "isFinal": false, "meta": {"round": 1, "hitCount": 21, "subQuestions": ["根据已导入的 Java 官网资料，Java 有哪些用途？", "Java 用途 官网资料"]}, "requestId": null}
+
+data: {"stage": "summarize", "data": "\n### 子问总结\n- **根据已导入的 Java 官网资料，Java 有哪些用途？**: **Java 的主要用途如下：** - **企业级开发平台**：Oracle Java 是第一大编程语言和开发平台，有助于企业**降低成本、缩短开发周期、推动创新以及改善应用程序服务**；目前仍是**企业和开发人员的首选开发平台**。 - **运行桌面应用程序**：提供面向使用**台式机和笔记本电脑的最终用户**的 J...\n- **Java 用途 官网资料**: **Java 用途** Oracle Java 是第一大编程语言和开发平台，有助于企业**降低成本、缩短开发周期、推动创新以及改善应用程序服务**。它目前仍是**企业和开发人员的首选开发平台**。 **官网资料分类与链接** - **面向最终用户（台式机/笔记本）**：用于运行桌面应用程序，提供[下载适用于台式机的 J...\n", "isFinal": false, "meta": {"round": 1}, "requestId": null}
+
+data: {"stage": "plan_next", "data": "\n### 检索规划\n继续检索，改写查询：`根据Java官网资料，Java在Web开发、移动应用（Android）、嵌入式系统、大数据（如Hadoop）、云计算和科学计算等领域的具体用途和实际应用案例`\n", "isFinal": false, "meta": {"continueSearch": true, "rewriteQuery": "根据Java官网资料，Java在Web开发、移动应用（Android）、嵌入式系统、大数据（如Hadoop）、云计算和科学计算等领域的具体用途和实际应用案例"}, "requestId": null}
+
+data: heartbeat
+
+data: {"stage": "retrieve_round", "data": "\n## 第 2 轮检索  \n\n### 子问题\n- Java 官网 Web开发 应用案例\n\n### 命中预览（10）\n- [0.433] 75648bbd1e6f4586863571c34ff19a98.md: # Java ![此处为图像说明](images/image_1.jpg) Oracle Java 是第一大编程语言和开发平台。它有助于企业降低成本、缩短开发周期、推动创新以及改善应用程序服务。Jav...\n- [0.431] 75648bbd1e6f4586863571c34ff19a98.md: [](https://www.java.com/zh-CN/ \"java.com\") * [开发人员资源](https://dev.java/ \"开发人员资源\") * [企业资源](https://w...\n- [0.429] 75648bbd1e6f4586863571c34ff19a98.md: # Java ![此处为图像说明](images/image_1.jpg) Oracle Java 是第一大编程语言和开发平台。它有助于企业降低成本、缩短开发周期、推动创新以及改善应用程序服务。Jav...\n- …共 10 条，仅展示 Top 3\n", "isFinal": false, "meta": {"round": 2, "hitCount": 10, "subQuestions": ["Java 官网 Web开发 应用案例"]}, "requestId": null}
+
+data: {"stage": "summarize", "data": "\n### 子问总结\n- **Java 官网 Web开发 应用案例**: 知识库中未提及“Java 官网 Web开发 应用案例”相关内容。\n", "isFinal": false, "meta": {"round": 2}, "requestId": null}
+
+data: {"stage": "plan_next", "data": "\n### 检索规划\n继续检索，改写查询：`Java 官网中关于 Web 开发的具体应用案例（如企业级 Web 应用、Spring 相关集成、Servlet/JSP/Java EE/Jakarta EE 实际应用场景）`\n", "isFinal": false, "meta": {"continueSearch": true, "rewriteQuery": "Java 官网中关于 Web 开发的具体应用案例（如企业级 Web 应用、Spring 相关集成、Servlet/JSP/Java EE/Jakarta EE 实际应用场景）"}, "requestId": null}
+
+data: {"stage": "retrieve_round", "data": "\n## 第 3 轮检索  \n\n### 子问题\n- Java 官网 Web开发 应用案例\n\n### 命中预览（10）\n- [0.433] 75648bbd1e6f4586863571c34ff19a98.md: # Java ![此处为图像说明](images/image_1.jpg) Oracle Java 是第一大编程语言和开发平台。它有助于企业降低成本、缩短开发周期、推动创新以及改善应用程序服务。Jav...\n- [0.431] 75648bbd1e6f4586863571c34ff19a98.md: [](https://www.java.com/zh-CN/ \"java.com\") * [开发人员资源](https://dev.java/ \"开发人员资源\") * [企业资源](https://w...\n- [0.429] 75648bbd1e6f4586863571c34ff19a98.md: # Java ![此处为图像说明](images/image_1.jpg) Oracle Java 是第一大编程语言和开发平台。它有助于企业降低成本、缩短开发周期、推动创新以及改善应用程序服务。Jav...\n- …共 10 条，仅展示 Top 3\n", "isFinal": false, "meta": {"round": 3, "hitCount": 10, "subQuestions": ["Java 官网 Web开发 应用案例"]}, "requestId": null}
+
+data: {"stage": "merge", "data": "\n## 结果融合  \n- 文本: 3\n- 图片: 0\n- 页面: 0\n", "isFinal": false, "meta": {"textCount": 3, "imageCount": 0, "pageCount": 0}, "requestId": null}
+
+data: {"stage": "rerank", "data": "\n## 文本重排  \n保留 score>0.3 共 3 条（候选 3）\n\n- [0.649] 75648bbd1e6f4586863571c34ff19a98.md: # Java ![此处为图像说明](images/image_1.jpg) Oracle Java 是第一大编程语言和开发平台。它有助于企业降低成本、缩短开发周期、推动创新以及改善应用程序服务。Jav...\n- [0.635] 75648bbd1e6f4586863571c34ff19a98.md: [](https://www.java.com/zh-CN/ \"java.com\") * [开发人员资源](https://dev.java/ \"开发人员资源\") * [企业资源](https://w...\n- [0.443] 75648bbd1e6f4586863571c34ff19a98.md: # Java # 开发人员和企业管理员 来自 Java 管理者 Oracle 的免费 Java 开发工具包 (JDK) 下载和资源 [开发人员下载](https://www.oracle.com/ja...\n", "isFinal": false, "meta": {"keptCount": 3, "candidateCount": 3}, "requestId": null}
+
+data: {"stage": "answer", "data": "\n# 生成答案  \n", "isFinal": false, "meta": {"mode": "stream_start"}, "requestId": null}
+
+data: heartbeat
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": ""}, "finishReason": null, "index": 0}], "created": 1791612226, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "###"}, "finishReason": null, "index": 0}], "created": 1791612226, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": " Java"}, "finishReason": null, "index": 0}], "created": 1791612226, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": " 的主要"}, "finishReason": null, "index": 0}], "created": 1791612226, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "用途（"}, "finishReason": null, "index": 0}], "created": 1791612226, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "依据 Java 官网"}, "finishReason": null, "index": 0}], "created": 1791612226, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "资料归纳）\n\n根据所提供的"}, "finishReason": null, "index": 0}], "created": 1791612226, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "三份来自 **"}, "finishReason": null, "index": 0}], "created": 1791612226, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "java.com 官方网站"}, "finishReason": null, "index": 0}], "created": 1791612226, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "**（Oracle"}, "finishReason": null, "index": 0}], "created": 1791612227, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": " 运营）的参考资料"}, "finishReason": null, "index": 0}], "created": 1791612227, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "，Java 的用途"}, "finishReason": null, "index": 0}], "created": 1791612227, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "可明确划分为以下三"}, "finishReason": null, "index": 0}], "created": 1791612227, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "类，每类均对应"}, "finishReason": null, "index": 0}], "created": 1791612227, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "不同用户群体与"}, "finishReason": null, "index": 0}], "created": 1791612227, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "技术场景，且所有"}, "finishReason": null, "index": 0}], "created": 1791612227, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "描述均直接源自"}, "finishReason": null, "index": 0}], "created": 1791612227, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "知识库原文，"}, "finishReason": null, "index": 0}], "created": 1791612227, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "无任何扩展或推测：\n\n"}, "finishReason": null, "index": 0}], "created": 1791612228, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "---\n\n## 一"}, "finishReason": null, "index": 0}], "created": 1791612228, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "、运行桌面应用程序（面向"}, "finishReason": null, "index": 0}], "created": 1791612228, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "最终用户）\n\nJava"}, "finishReason": null, "index": 0}], "created": 1791612228, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": " 提供面向**"}, "finishReason": null, "index": 0}], "created": 1791612228, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "台式机和"}, "finishReason": null, "index": 0}], "created": 1791612228, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "笔记本电脑终端用户**的"}, "finishReason": null, "index": 0}], "created": 1791612228, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "运行环境，用于启动"}, "finishReason": null, "index": 0}], "created": 1791612228, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "和执行基于 Java"}, "finishReason": null, "index": 0}], "created": 1791612228, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": " 构建的"}, "finishReason": null, "index": 0}], "created": 1791612228, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "桌面应用程序。  \n该"}, "finishReason": null, "index": 0}], "created": 1791612229, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "用途强调终端用户的"}, "finishReason": null, "index": 0}], "created": 1791612229, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "安装与使用体验"}, "finishReason": null, "index": 0}], "created": 1791612229, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "，官网专门提供独立"}, "finishReason": null, "index": 0}], "created": 1791612229, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "下载入口：  \n- ["}, "finishReason": null, "index": 0}], "created": 1791612229, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "下载适用于台式机的"}, "finishReason": null, "index": 0}], "created": 1791612229, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": " Java](https://www.java"}, "finishReason": null, "index": 0}], "created": 1791612229, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": ".com/zh-CN/download/)"}, "finishReason": null, "index": 0}], "created": 1791612229, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "  \n- 相"}, "finishReason": null, "index": 0}], "created": 1791612229, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "关说明页面明确标注"}, "finishReason": null, "index": 0}], "created": 1791612230, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "其服务对象为“"}, "finishReason": null, "index": 0}], "created": 1791612230, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "**使用台式机和"}, "finishReason": null, "index": 0}], "created": 1791612230, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "笔记本电脑的最终用户**"}, "finishReason": null, "index": 0}], "created": 1791612230, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "”[〔1〕]("}, "finishReason": null, "index": 0}], "created": 1791612230, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "https://www.java.com/"}, "finishReason": null, "index": 0}], "created": 1791612230, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "zh-CN/)。\n\n>"}, "finishReason": null, "index": 0}], "created": 1791612230, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": " ✅ 此用途"}, "finishReason": null, "index": 0}], "created": 1791612230, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "不涉及开发或"}, "finishReason": null, "index": 0}], "created": 1791612231, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "部署，仅指"}, "finishReason": null, "index": 0}], "created": 1791612231, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": " Java 运行时"}, "finishReason": null, "index": 0}], "created": 1791612231, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "环境（JRE"}, "finishReason": null, "index": 0}], "created": 1791612231, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "）在用户端"}, "finishReason": null, "index": 0}], "created": 1791612231, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "的安装与执行"}, "finishReason": null, "index": 0}], "created": 1791612231, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "功能。\n\n---\n\n##"}, "finishReason": null, "index": 0}], "created": 1791612231, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": " 二、企业"}, "finishReason": null, "index": 0}], "created": 1791612231, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "级应用开发与"}, "finishReason": null, "index": 0}], "created": 1791612231, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "服务（面向企业"}, "finishReason": null, "index": 0}], "created": 1791612231, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "组织）\n\nJava"}, "finishReason": null, "index": 0}], "created": 1791612231, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": " 被定位为“"}, "finishReason": null, "index": 0}], "created": 1791612231, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "**第一大编程语言"}, "finishReason": null, "index": 0}], "created": 1791612232, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "和开发平台**”，其"}, "finishReason": null, "index": 0}], "created": 1791612232, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "核心价值在于支撑"}, "finishReason": null, "index": 0}], "created": 1791612232, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "企业级数字化建设"}, "finishReason": null, "index": 0}], "created": 1791612232, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "，具体体现为"}, "finishReason": null, "index": 0}], "created": 1791612232, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "四方面能力：  \n-"}, "finishReason": null, "index": 0}], "created": 1791612232, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": " **降低成本**（"}, "finishReason": null, "index": 0}], "created": 1791612232, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "如减少跨平台适"}, "finishReason": null, "index": 0}], "created": 1791612232, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "配开销）  \n"}, "finishReason": null, "index": 0}], "created": 1791612232, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "- **缩短开发周期**"}, "finishReason": null, "index": 0}], "created": 1791612233, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "（依托成熟生态"}, "finishReason": null, "index": 0}], "created": 1791612233, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "与标准化工具链"}, "finishReason": null, "index": 0}], "created": 1791612233, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "）  \n- **推动创新"}, "finishReason": null, "index": 0}], "created": 1791612233, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "**（支持微"}, "finishReason": null, "index": 0}], "created": 1791612233, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "服务、云原生等"}, "finishReason": null, "index": 0}], "created": 1791612233, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "现代架构演进）  \n"}, "finishReason": null, "index": 0}], "created": 1791612233, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "- **改善应用程序服务**"}, "finishReason": null, "index": 0}], "created": 1791612233, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "（例如高可用"}, "finishReason": null, "index": 0}], "created": 1791612233, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "性、安全性与可"}, "finishReason": null, "index": 0}], "created": 1791612234, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "维护性）  \n\n"}, "finishReason": null, "index": 0}], "created": 1791612234, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "官网将此类能力"}, "finishReason": null, "index": 0}], "created": 1791612234, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "整合于“**"}, "finishReason": null, "index": 0}], "created": 1791612234, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "企业资源**”专区"}, "finishReason": null, "index": 0}], "created": 1791612234, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "，并指向 Oracle 官方"}, "finishReason": null, "index": 0}], "created": 1791612234, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "企业 Java 门户"}, "finishReason": null, "index": 0}], "created": 1791612234, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "：  \n- [企业资源"}, "finishReason": null, "index": 0}], "created": 1791612234, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "](https://www.oracle.com"}, "finishReason": null, "index": 0}], "created": 1791612234, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "/java/) [〔2"}, "finishReason": null, "index": 0}], "created": 1791612235, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "〕](https://www.java"}, "finishReason": null, "index": 0}], "created": 1791612235, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": ".com/zh-CN/)"}, "finishReason": null, "index": 0}], "created": 1791612235, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "  \n- 同时"}, "finishReason": null, "index": 0}], "created": 1791612235, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "强调“**Java"}, "finishReason": null, "index": 0}], "created": 1791612235, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": " 现在"}, "finishReason": null, "index": 0}], "created": 1791612235, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "仍是企业和开发人员的首选"}, "finishReason": null, "index": 0}], "created": 1791612235, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "开发平台**”[〔"}, "finishReason": null, "index": 0}], "created": 1791612235, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "1〕](https://www"}, "finishReason": null, "index": 0}], "created": 1791612235, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": ".java.com/zh-CN/)"}, "finishReason": null, "index": 0}], "created": 1791612236, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "。\n\n> ✅"}, "finishReason": null, "index": 0}], "created": 1791612236, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": " 此用途涵盖从"}, "finishReason": null, "index": 0}], "created": 1791612236, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "传统 ERP、银行"}, "finishReason": null, "index": 0}], "created": 1791612236, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "核心系统到云"}, "finishReason": null, "index": 0}], "created": 1791612236, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "原生中间件等"}, "finishReason": null, "index": 0}], "created": 1791612236, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "全栈企业软件"}, "finishReason": null, "index": 0}], "created": 1791612236, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "场景。\n\n---\n\n##"}, "finishReason": null, "index": 0}], "created": 1791612236, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": " 三、软件"}, "finishReason": null, "index": 0}], "created": 1791612236, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "开发与技术构建（面向"}, "finishReason": null, "index": 0}], "created": 1791612236, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "开发人员与管理员"}, "finishReason": null, "index": 0}], "created": 1791612237, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "）\n\nJava 提供完整的"}, "finishReason": null, "index": 0}], "created": 1791612237, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "开发工具链与开源"}, "finishReason": null, "index": 0}], "created": 1791612237, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "支持，服务于开发者"}, "finishReason": null, "index": 0}], "created": 1791612237, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "日常编码、测试"}, "finishReason": null, "index": 0}], "created": 1791612237, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "、构建及运维"}, "finishReason": null, "index": 0}], "created": 1791612237, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "管理：  \n-"}, "finishReason": null, "index": 0}], "created": 1791612237, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": " **免费 Java 开发"}, "finishReason": null, "index": 0}], "created": 1791612237, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "工具包（JDK）"}, "finishReason": null, "index": 0}], "created": 1791612237, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "下载**：由 Oracle"}, "finishReason": null, "index": 0}], "created": 1791612238, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": " 官方提供"}, "finishReason": null, "index": 0}], "created": 1791612238, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "，面向开发人员与"}, "finishReason": null, "index": 0}], "created": 1791612238, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: heartbeat
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "企业管理员 [〔"}, "finishReason": null, "index": 0}], "created": 1791612238, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "3〕](https://www"}, "finishReason": null, "index": 0}], "created": 1791612238, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": ".java.com/zh-CN"}, "finishReason": null, "index": 0}], "created": 1791612238, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "/)  \n- **开发人员"}, "finishReason": null, "index": 0}], "created": 1791612238, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "专属资源门户**：["}, "finishReason": null, "index": 0}], "created": 1791612238, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "dev.java/](https://"}, "finishReason": null, "index": 0}], "created": 1791612238, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "dev.java/)，"}, "finishReason": null, "index": 0}], "created": 1791612239, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "集成文档、API"}, "finishReason": null, "index": 0}], "created": 1791612239, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": " 参考、最佳"}, "finishReason": null, "index": 0}], "created": 1791612239, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "实践等 [〔2"}, "finishReason": null, "index": 0}], "created": 1791612239, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "〕](https://www"}, "finishReason": null, "index": 0}], "created": 1791612239, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": ".java.com/zh-CN"}, "finishReason": null, "index": 0}], "created": 1791612239, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "/)  \n- **Open"}, "finishReason": null, "index": 0}], "created": 1791612239, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "JDK 抢"}, "finishReason": null, "index": 0}], "created": 1791612239, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "先体验版**：提供"}, "finishReason": null, "index": 0}], "created": 1791612239, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "开源 JDK 构建版本"}, "finishReason": null, "index": 0}], "created": 1791612239, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "，链接指向 ["}, "finishReason": null, "index": 0}], "created": 1791612240, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "jdk.java.net/"}, "finishReason": null, "index": 0}], "created": 1791612240, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "](https://jdk.java.net"}, "finishReason": null, "index": 0}], "created": 1791612240, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "/) [〔3〕"}, "finishReason": null, "index": 0}], "created": 1791612240, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "](https://www.java.com"}, "finishReason": null, "index": 0}], "created": 1791612240, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "/zh-CN/)  \n\n"}, "finishReason": null, "index": 0}], "created": 1791612240, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "> ✅"}, "finishReason": null, "index": 0}], "created": 1791612240, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": " 此用途覆盖从"}, "finishReason": null, "index": 0}], "created": 1791612240, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "学习入门、项目"}, "finishReason": null, "index": 0}], "created": 1791612240, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "开发、持续集成到生产"}, "finishReason": null, "index": 0}], "created": 1791612241, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "环境 JDK 管理"}, "finishReason": null, "index": 0}], "created": 1791612241, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "的全生命周期。\n\n"}, "finishReason": null, "index": 0}], "created": 1791612241, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "---\n\n### 用途"}, "finishReason": null, "index": 0}], "created": 1791612241, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "分类总结表\n\n| "}, "finishReason": null, "index": 0}], "created": 1791612241, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "用途类别             |"}, "finishReason": null, "index": 0}], "created": 1791612241, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": " 面向对象              "}, "finishReason": null, "index": 0}], "created": 1791612241, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": " | 典型活动"}, "finishReason": null, "index": 0}], "created": 1791612241, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "/产出                          |"}, "finishReason": null, "index": 0}], "created": 1791612241, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": " 官方资源链接"}, "finishReason": null, "index": 0}], "created": 1791612242, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "示例                                                                 |\n|----------------"}, "finishReason": null, "index": 0}], "created": 1791612242, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "------|------------------------|--------------------------------"}, "finishReason": null, "index": 0}], "created": 1791612242, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "----------|----------------------------------------------------------------------------------"}, "finishReason": null, "index": 0}], "created": 1791612242, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "|\n| 运行桌面"}, "finishReason": null, "index": 0}], "created": 1791612242, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "应用程序     | 最"}, "finishReason": null, "index": 0}], "created": 1791612242, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "终用户（台"}, "finishReason": null, "index": 0}], "created": 1791612242, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "式机/笔记本）"}, "finishReason": null, "index": 0}], "created": 1791612242, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": " | 安装 J"}, "finishReason": null, "index": 0}], "created": 1791612242, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "RE 并运行 Java"}, "finishReason": null, "index": 0}], "created": 1791612242, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": " 桌面程序"}, "finishReason": null, "index": 0}], "created": 1791612243, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "           | [下载"}, "finishReason": null, "index": 0}], "created": 1791612243, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "适用于台式机"}, "finishReason": null, "index": 0}], "created": 1791612243, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "的 Java](https://"}, "finishReason": null, "index": 0}], "created": 1791612243, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "www.java.com/"}, "finishReason": null, "index": 0}], "created": 1791612243, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "zh-CN/download/) ["}, "finishReason": null, "index": 0}], "created": 1791612243, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "〔1〕]("}, "finishReason": null, "index": 0}], "created": 1791612243, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "https://www.java.com/"}, "finishReason": null, "index": 0}], "created": 1791612243, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "zh-CN/) |\n| "}, "finishReason": null, "index": 0}], "created": 1791612243, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "企业级应用开发与"}, "finishReason": null, "index": 0}], "created": 1791612244, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "服务 | 企业决策"}, "finishReason": null, "index": 0}], "created": 1791612244, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "者、IT"}, "finishReason": null, "index": 0}], "created": 1791612244, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": " 架构师    |"}, "finishReason": null, "index": 0}], "created": 1791612244, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": " 构建高可靠性"}, "finishReason": null, "index": 0}], "created": 1791612244, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "业务系统、降低"}, "finishReason": null, "index": 0}], "created": 1791612244, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": " TCO、云"}, "finishReason": null, "index": 0}], "created": 1791612244, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "迁移   | [企业"}, "finishReason": null, "index": 0}], "created": 1791612244, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "资源](https://"}, "finishReason": null, "index": 0}], "created": 1791612244, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "www.oracle.com/java"}, "finishReason": null, "index": 0}], "created": 1791612244, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "/) [〔2〕]("}, "finishReason": null, "index": 0}], "created": 1791612245, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "https://www.java.com/"}, "finishReason": null, "index": 0}], "created": 1791612245, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "zh-CN/)             "}, "finishReason": null, "index": 0}], "created": 1791612245, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": " |\n| 软件"}, "finishReason": null, "index": 0}], "created": 1791612245, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "开发与技术构建  "}, "finishReason": null, "index": 0}], "created": 1791612245, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": " | 开发人员、"}, "finishReason": null, "index": 0}], "created": 1791612245, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "系统管理员     |"}, "finishReason": null, "index": 0}], "created": 1791612245, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": " 编码、调试"}, "finishReason": null, "index": 0}], "created": 1791612245, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "、构建、J"}, "finishReason": null, "index": 0}], "created": 1791612245, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "DK 选型"}, "finishReason": null, "index": 0}], "created": 1791612246, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "与升级         | [开发"}, "finishReason": null, "index": 0}], "created": 1791612246, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "人员下载](https://"}, "finishReason": null, "index": 0}], "created": 1791612246, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "www.oracle.com/j"}, "finishReason": null, "index": 0}], "created": 1791612246, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "avadownload)、["}, "finishReason": null, "index": 0}], "created": 1791612246, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "OpenJDK"}, "finishReason": null, "index": 0}], "created": 1791612246, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": " 抢先体验版](https"}, "finishReason": null, "index": 0}], "created": 1791612246, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "://jdk.java.net/) ["}, "finishReason": null, "index": 0}], "created": 1791612246, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "〔3〕](https://"}, "finishReason": null, "index": 0}], "created": 1791612246, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "www.java.com/zh-CN"}, "finishReason": null, "index": 0}], "created": 1791612247, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "/) |\n\n所有用途"}, "finishReason": null, "index": 0}], "created": 1791612247, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "均统一归属于 **"}, "finishReason": null, "index": 0}], "created": 1791612247, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "Oracle 主导的 Java 生"}, "finishReason": null, "index": 0}], "created": 1791612247, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "态体系**，并"}, "finishReason": null, "index": 0}], "created": 1791612247, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "严格遵循官网所"}, "finishReason": null, "index": 0}], "created": 1791612247, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "定义的用户角色划分"}, "finishReason": null, "index": 0}], "created": 1791612247, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "与资源导向逻辑"}, "finishReason": null, "index": 0}], "created": 1791612247, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": "。"}, "finishReason": null, "index": 0}], "created": 1791612247, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"id": "chatcmpl-mrag", "choices": [{"delta": {"content": ""}, "finishReason": "stop", "index": 0}], "created": 1791612247, "model": "mrag-agent", "object": "chat.completion.chunk"}
+
+data: {"stage": "final", "data": "", "isFinal": true, "meta": {"mode": "text_rag"}, "requestId": null}
+
+data: [DONE]
+

@@ -1,0 +1,103 @@
+package org.wwz.ai.domain.agent.runtime.subagent;
+
+import org.wwz.ai.domain.agent.runtime.dto.tool.McpToolInfo;
+import org.wwz.ai.domain.agent.runtime.tool.BaseTool;
+import org.wwz.ai.domain.agent.runtime.tool.ContextScopedTool;
+import org.wwz.ai.domain.agent.runtime.tool.ToolCollection;
+import org.wwz.ai.domain.agent.memory.ltm.LtmMemoryGuard;
+import org.wwz.ai.domain.agent.runtime.tool.common.AgentDispatchTool;
+import org.wwz.ai.domain.agent.runtime.tool.common.SessionSearchTool;
+import org.wwz.ai.domain.agent.runtime.tool.common.planmode.TaskToolNames;
+
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * 子 Agent 工具池三层过滤。
+ * 1) 全局禁止 Agent 自身（防递归）
+ * 2) 定义 disallowedTools
+ * 3) 定义 allowedTools 白名单
+ */
+public final class SubAgentToolFilter {
+
+    private SubAgentToolFilter() {
+    }
+
+    /**
+     * 从父工具池筛选出子 Agent 可用工具。
+     * 此处先共享引用；调用方必须 {@link ContextScopedTool#bindAll} /
+     * {@link org.wwz.ai.domain.agent.runtime.tool.ToolIsolation#bindAll}，
+     * 将工具隔离为子 Agent 独占实例（优先）或共享锁 rebind（兜底）。
+     * <p>plan mode 只约束主 Agent，不再按父状态剥离写工具。
+     */
+    public static ToolCollection filter(ToolCollection parentTools, SubAgentDefinition definition) {
+        return filter(parentTools, definition, false);
+    }
+
+    /**
+     * @param parentInPlanMode 保留参数以兼容旧调用；plan mode 不再剥离子 Agent 写工具
+     */
+    @SuppressWarnings("unused")
+    public static ToolCollection filter(ToolCollection parentTools,
+                                        SubAgentDefinition definition,
+                                        boolean parentInPlanMode) {
+        ToolCollection child = new ToolCollection();
+        if (parentTools == null || definition == null) {
+            return child;
+        }
+        child.setMcpToolExecutor(parentTools.getMcpToolExecutor());
+        child.restoreTaskScopedState(parentTools.snapshotTaskScopedState());
+
+        Set<String> disallowed = new HashSet<>();
+        disallowed.add(AgentDispatchTool.NAME);
+        // 子 Agent 禁止 TaskStop / Enter/Exit PlanMode
+        disallowed.add(TaskToolNames.TASK_STOP);
+        disallowed.add(TaskToolNames.TASK_OUTPUT);
+        disallowed.add(TaskToolNames.SEND_MESSAGE);
+        disallowed.add(TaskToolNames.ENTER_PLAN_MODE);
+        disallowed.add(TaskToolNames.EXIT_PLAN_MODE);
+        disallowed.add(org.wwz.ai.domain.agent.runtime.tool.common.planmode.AskUserQuestionTool.NAME);
+        // 子 Agent 完全不参与长期记忆：剥离 builtin 与深度 Provider 写工具。
+        disallowed.addAll(LtmMemoryGuard.MEMORY_WRITE_TOOLS);
+        // 子 Agent 默认不需要跨会话情景记忆检索。
+        disallowed.add(SessionSearchTool.TOOL_NAME);
+        if (definition.getDisallowedTools() != null) {
+            disallowed.addAll(definition.getDisallowedTools());
+        }
+
+        boolean allowAll = definition.allowsAllTools();
+        Set<String> allowed = definition.getAllowedTools() == null
+                ? Set.of()
+                : definition.getAllowedTools();
+
+        if (parentTools.getToolMap() != null) {
+            for (Map.Entry<String, BaseTool> entry : parentTools.getToolMap().entrySet()) {
+                String name = entry.getKey();
+                if (disallowed.contains(name)) {
+                    continue;
+                }
+                if (!allowAll && !allowed.contains(name)) {
+                    continue;
+                }
+                child.addTool(entry.getValue());
+            }
+        }
+
+        if (parentTools.getMcpToolMap() != null) {
+            for (McpToolInfo info : parentTools.getMcpToolMap().values()) {
+                if (info == null || info.getName() == null) {
+                    continue;
+                }
+                if (disallowed.contains(info.getName())) {
+                    continue;
+                }
+                if (!allowAll && !allowed.contains(info.getName())) {
+                    continue;
+                }
+                child.addMcpTool(info);
+            }
+        }
+        return child;
+    }
+}

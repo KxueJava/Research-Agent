@@ -1,0 +1,392 @@
+/* Ported from ai-chat-assistant visual system, adapted for Research chat shell */
+
+:root {
+  --chat-soft-shadow:
+    rgba(14, 63, 126, 0.04) 0px 0px 0px 1px,
+    rgba(42, 51, 69, 0.04) 0px 1px 1px -0.5px,
+    rgba(42, 51, 70, 0.04) 0px 3px 3px -1.5px,
+    rgba(42, 51, 70, 0.04) 0px 6px 6px -3px,
+    rgba(14, 63, 126, 0.04) 0px 12px 12px -6px,
+    rgba(14, 63, 126, 0.04) 0px 24px 24px -12px;
+  --chat-composer-shadow: none;
+  --chat-composer-shadow-focus: none;
+  --chat-user-bubble: var(--color-accent-soft, #e8f3ff);
+  --chat-user-bubble-border: var(--color-accent-bd, #cfe6ff);
+}
+
+.dark {
+  --chat-user-bubble: var(--color-accent-soft, rgba(88, 166, 255, 0.14));
+  --chat-user-bubble-border: var(--color-accent-bd, #1f4f7a);
+}
+
+@keyframes user-message-enter {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.user-message-enter {
+  animation: user-message-enter 200ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
+}
+
+/* Kimi user bubble: soft blue, asymmetric radius */
+.chat-user-bubble {
+  max-width: 78%;
+  margin-left: auto;
+  border-radius: 16px 16px 4px 16px;
+  border: 1px solid var(--chat-user-bubble-border, #cfe6ff);
+  background: var(--chat-user-bubble, #e8f3ff);
+  padding: 8px 14px;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--color-text, rgba(0, 0, 0, 0.9));
+  box-shadow: var(--shadow-xs, 0 1px 2px rgba(16, 24, 40, 0.04));
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+@keyframes image-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.image-bounce {
+  /* class name kept for call sites; animation is crisp enter, not bounce */
+  animation: image-enter 220ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
+}
+
+@keyframes orb-hue-rotate {
+  0% {
+    filter: hue-rotate(0deg);
+  }
+  25% {
+    filter: hue-rotate(45deg);
+  }
+  50% {
+    filter: hue-rotate(90deg);
+  }
+  75% {
+    filter: hue-rotate(45deg);
+  }
+  100% {
+    filter: hue-rotate(0deg);
+  }
+}
+
+@keyframes orb-hue-rotate-blur {
+  0% {
+    filter: blur(var(--orb-blur, 6px)) hue-rotate(0deg);
+  }
+  25% {
+    filter: blur(var(--orb-blur, 6px)) hue-rotate(45deg);
+  }
+  50% {
+    filter: blur(var(--orb-blur, 6px)) hue-rotate(90deg);
+  }
+  75% {
+    filter: blur(var(--orb-blur, 6px)) hue-rotate(45deg);
+  }
+  100% {
+    filter: blur(var(--orb-blur, 6px)) hue-rotate(0deg);
+  }
+}
+
+@keyframes orb-orbit-1 {
+  0% {
+    transform: rotate(0deg) translateX(25%) rotate(0deg) scale(1);
+  }
+  25% {
+    transform: rotate(90deg) translateX(30%) rotate(-90deg) scale(1.15);
+  }
+  50% {
+    transform: rotate(180deg) translateX(25%) rotate(-180deg) scale(0.9);
+  }
+  75% {
+    transform: rotate(270deg) translateX(30%) rotate(-270deg) scale(1.1);
+  }
+  100% {
+    transform: rotate(360deg) translateX(25%) rotate(-360deg) scale(1);
+  }
+}
+
+@keyframes orb-orbit-2 {
+  0% {
+    transform: rotate(90deg) translateX(20%) rotate(-90deg) scale(1);
+  }
+  25% {
+    transform: rotate(180deg) translateX(25%) rotate(-180deg) scale(0.85);
+  }
+  50% {
+    transform: rotate(270deg) translateX(20%) rotate(-270deg) scale(1.2);
+  }
+  75% {
+    transform: rotate(360deg) translateX(25%) rotate(-360deg) scale(0.95);
+  }
+  100% {
+    transform: rotate(450deg) translateX(20%) rotate(-450deg) scale(1);
+  }
+}
+
+@keyframes orb-orbit-3 {
+  0% {
+    transform: rotate(180deg) translateX(30%) rotate(-180deg) scale(1);
+  }
+  25% {
+    transform: rotate(270deg) translateX(35%) rotate(-270deg) scale(1.1);
+  }
+  50% {
+    transform: rotate(360deg) translateX(30%) rotate(-360deg) scale(0.85);
+  }
+  75% {
+    transform: rotate(450deg) translateX(35%) rotate(-450deg) scale(1.15);
+  }
+  100% {
+    transform: rotate(540deg) translateX(30%) rotate(-540deg) scale(1);
+  }
+}
+
+@keyframes orb-orbit-4 {
+  0% {
+    transform: rotate(270deg) translateX(15%) rotate(-270deg) scale(1);
+  }
+  25% {
+    transform: rotate(360deg) translateX(20%) rotate(-360deg) scale(1.25);
+  }
+  50% {
+    transform: rotate(450deg) translateX(15%) rotate(-450deg) scale(0.8);
+  }
+  75% {
+    transform: rotate(540deg) translateX(20%) rotate(-540deg) scale(1.1);
+  }
+  100% {
+    transform: rotate(630deg) translateX(15%) rotate(-630deg) scale(1);
+  }
+}
+
+@keyframes orb-orbit-5 {
+  0% {
+    transform: rotate(45deg) translateX(22%) rotate(-45deg) scale(1);
+  }
+  25% {
+    transform: rotate(135deg) translateX(28%) rotate(-135deg) scale(0.9);
+  }
+  50% {
+    transform: rotate(225deg) translateX(22%) rotate(-225deg) scale(1.15);
+  }
+  75% {
+    transform: rotate(315deg) translateX(28%) rotate(-315deg) scale(0.95);
+  }
+  100% {
+    transform: rotate(405deg) translateX(22%) rotate(-405deg) scale(1);
+  }
+}
+
+.orb-circle-1 {
+  animation: orb-orbit-1 6s ease-in-out infinite;
+}
+
+.orb-circle-2 {
+  animation: orb-orbit-2 5s ease-in-out infinite;
+}
+
+.orb-circle-3 {
+  animation: orb-orbit-3 7s ease-in-out infinite;
+}
+
+.orb-circle-4 {
+  animation: orb-orbit-4 4s ease-in-out infinite;
+}
+
+.orb-circle-5 {
+  animation: orb-orbit-5 5.5s ease-in-out infinite;
+}
+
+@keyframes orb-intro {
+  0% {
+    transform: translateY(12px) scale(1.06);
+    filter: blur(8px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+    opacity: 1;
+  }
+}
+
+.orb-intro {
+  animation: orb-intro 500ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)) forwards;
+  opacity: 0;
+}
+
+/* 欢迎页雷达扫描主视觉（替代原彩虹极光球） */
+.radar-sweep {
+  --radar-accent: var(--chat-accent, #1783ff);
+  --radar-line: color-mix(in srgb, var(--radar-accent) 22%, transparent);
+  --radar-faint: color-mix(in srgb, var(--radar-accent) 12%, transparent);
+  background:
+    radial-gradient(
+      circle at 50% 50%,
+      color-mix(in srgb, var(--radar-accent) 10%, transparent) 0%,
+      color-mix(in srgb, var(--radar-accent) 3%, transparent) 58%,
+      transparent 76%
+    ),
+    var(--chat-surface-muted, #f1f1f3);
+  box-shadow: inset 0 0 0 1px var(--chat-border, #e7eaee);
+}
+
+.radar-ring,
+.radar-axis,
+.radar-beam,
+.radar-blip,
+.radar-core {
+  position: absolute;
+}
+
+.radar-ring {
+  border: 1px solid var(--radar-line);
+  border-radius: 9999px;
+}
+
+.radar-axis {
+  background: var(--radar-faint);
+}
+
+.radar-axis-h {
+  top: 50%;
+  right: 8%;
+  left: 8%;
+  height: 1px;
+}
+
+.radar-axis-v {
+  top: 8%;
+  bottom: 8%;
+  left: 50%;
+  width: 1px;
+}
+
+.radar-beam {
+  inset: 0;
+  border-radius: 9999px;
+  background: conic-gradient(
+    from 0deg,
+    color-mix(in srgb, var(--radar-accent) 45%, transparent) 0deg,
+    color-mix(in srgb, var(--radar-accent) 14%, transparent) 30deg,
+    transparent 96deg,
+    transparent 360deg
+  );
+  animation: radar-sweep-rotate 3.6s linear infinite;
+}
+
+.radar-core {
+  top: 50%;
+  left: 50%;
+  width: 4px;
+  height: 4px;
+  margin: -2px 0 0 -2px;
+  border-radius: 9999px;
+  background: var(--radar-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--radar-accent) 20%, transparent);
+}
+
+.radar-blip {
+  width: 5px;
+  height: 5px;
+  margin: -2.5px 0 0 -2.5px;
+  border-radius: 9999px;
+  background: var(--radar-accent);
+  opacity: 0;
+  animation: radar-sweep-blip 3.6s linear infinite;
+}
+
+@keyframes radar-sweep-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes radar-sweep-blip {
+  0%,
+  6% {
+    opacity: 0.95;
+    transform: scale(1.15);
+  }
+  22%,
+  100% {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+}
+
+@keyframes composer-intro {
+  0% {
+    transform: translateY(16px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.composer-intro {
+  animation: composer-intro 280ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)) 80ms both;
+}
+
+@keyframes text-blur-intro {
+  0% {
+    filter: blur(6px);
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    filter: blur(0);
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.text-blur-intro {
+  animation: text-blur-intro 320ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)) both;
+  opacity: 0;
+}
+
+.text-blur-intro-delay {
+  animation: text-blur-intro 320ms var(--ease-out, cubic-bezier(0.23, 1, 0.32, 1)) 60ms both;
+  opacity: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .user-message-enter,
+  .image-bounce,
+  .orb-intro,
+  .composer-intro,
+  .text-blur-intro,
+  .text-blur-intro-delay,
+  .orb-circle-1,
+  .orb-circle-2,
+  .orb-circle-3,
+  .orb-circle-4,
+  .orb-circle-5,
+  .radar-beam,
+  .radar-blip {
+    animation: none !important;
+    opacity: 1 !important;
+    filter: none !important;
+    transform: none !important;
+  }
+}

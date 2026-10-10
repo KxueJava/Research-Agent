@@ -1,0 +1,468 @@
+package org.wwz.ai.infrastructure.tooloutput;
+
+import com.alibaba.fastjson.JSON;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
+import org.springframework.stereotype.Service;
+import org.wwz.ai.domain.agent.ledger.entity.ArtifactRecord;
+import org.wwz.ai.domain.agent.ledger.model.tooloutput.CanvasPublishToolOutput;
+import org.wwz.ai.domain.agent.ledger.model.tooloutput.CodeInterpreterToolOutput;
+import org.wwz.ai.domain.agent.ledger.model.tooloutput.DataAnalysisToolOutput;
+import org.wwz.ai.domain.agent.ledger.model.tooloutput.DeepSearchChapter;
+import org.wwz.ai.domain.agent.ledger.model.tooloutput.DeepSearchDoc;
+import org.wwz.ai.domain.agent.ledger.model.tooloutput.DeepSearchQueryResult;
+import org.wwz.ai.domain.agent.ledger.model.tooloutput.DeepSearchStage;
+import org.wwz.ai.domain.agent.ledger.model.tooloutput.DeepSearchToolOutput;
+import org.wwz.ai.domain.agent.ledger.model.tooloutput.GenUiPatchToolOutput;
+import org.wwz.ai.domain.agent.ledger.model.tooloutput.GenUiTreeToolOutput;
+import org.wwz.ai.domain.agent.ledger.model.tooloutput.ImageGenerationToolOutput;
+import org.wwz.ai.domain.agent.ledger.model.tooloutput.MultimodalAgentToolOutput;
+import org.wwz.ai.domain.agent.ledger.model.tooloutput.ToolFileRef;
+import org.wwz.ai.domain.agent.ledger.model.tooloutput.ToolOutputNames;
+import org.wwz.ai.domain.agent.ledger.model.tooloutput.ToolOutputView;
+import org.wwz.ai.domain.agent.ledger.model.tooloutput.ToolStructuredOutput;
+import org.wwz.ai.domain.agent.ledger.tooloutput.ToolOutputReader;
+import org.wwz.ai.infrastructure.dao.research.IArtifactLedgerDao;
+import org.wwz.ai.infrastructure.dao.research.IToolOutputCanvasPublishDao;
+import org.wwz.ai.infrastructure.dao.research.IToolOutputCodeInterpreterDao;
+import org.wwz.ai.infrastructure.dao.research.IToolOutputDataAnalysisDao;
+import org.wwz.ai.infrastructure.dao.research.IToolOutputDeepSearchDao;
+import org.wwz.ai.infrastructure.dao.research.IToolOutputEmitUiPatchDao;
+import org.wwz.ai.infrastructure.dao.research.IToolOutputEmitUiTreeDao;
+import org.wwz.ai.infrastructure.dao.research.IToolOutputImageGenerationDao;
+import org.wwz.ai.infrastructure.dao.research.IToolOutputMultimodalAgentDao;
+
+import java.sql.Timestamp;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+
+/**
+ * Execution Ledger 工具输出投影读取实现。
+ *
+ * <p>该类只读取仍保留的 rich tool 专属输出表，并将数据库行恢复为领域结构化输出；
+ * 已退役的 file/planning/report/script 输出不再读取。该类不创建新的执行事实，也不把输出表当作第二套账本。
+ * 已具备 {@code toolInvocationId}
+ * 时按工具和调用主键精准读取；历史记录缺少主键时才使用 request/toolCall 兼容查询，
+ * 多表命中则返回空结果而不猜测关联关系。</p>
+ *
+ * <p>文件产物不重复嵌入工具输出 JSON，而是通过 artifact ledger 关联查询后重新挂载
+ * 为 {@code ToolFileRef}，从而保持大对象和工具结构化结果的存储边界。</p>
+ */
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class ToolOutputReaderImpl implements ToolOutputReader {
+
+    private final IToolOutputDeepSearchDao deepSearchDao;
+    private final IToolOutputCodeInterpreterDao codeInterpreterDao;
+    private final IToolOutputDataAnalysisDao dataAnalysisDao;
+    private final IToolOutputMultimodalAgentDao multimodalAgentDao;
+    private final IToolOutputImageGenerationDao imageGenerationDao;
+    private final IToolOutputCanvasPublishDao canvasPublishDao;
+    private final IToolOutputEmitUiTreeDao emitUiTreeDao;
+    private final IToolOutputEmitUiPatchDao emitUiPatchDao;
+    private final IArtifactLedgerDao artifactLedgerDao;
+
+    @Override
+    public Optional<ToolStructuredOutput> readByInvocationId(String toolName, Long toolInvocationId) {
+        // 主键路径只访问目标工具表，未知工具按“没有结构化输出”处理，避免跨表误匹配。
+        if (StringUtils.isBlank(toolName) || toolInvocationId == null) {
+            return Optional.empty();
+        }
+        // 已有 invocation 主键时直接命中对应输出表，避免跨表扫描；未知工具按“没有结构化输出”处理。
+        return switch (toolName) {
+            case ToolOutputNames.DEEP_SEARCH -> Optional.ofNullable(toDeepSearchOutput(deepSearchDao.queryByToolInvocationId(toolInvocationId)));
+            case ToolOutputNames.CODE_INTERPRETER -> Optional.ofNullable(toCodeInterpreterOutput(codeInterpreterDao.queryByToolInvocationId(toolInvocationId)));
+            case ToolOutputNames.DATA_ANALYSIS -> Optional.ofNullable(toDataAnalysisOutput(dataAnalysisDao.queryByToolInvocationId(toolInvocationId)));
+            case ToolOutputNames.MULTIMODAL_AGENT -> Optional.ofNullable(toMultimodalOutput(multimodalAgentDao.queryByToolInvocationId(toolInvocationId)));
+            case ToolOutputNames.IMAGE_GENERATION -> Optional.ofNullable(toImageGenerationOutput(imageGenerationDao.queryByToolInvocationId(toolInvocationId)));
+            case ToolOutputNames.CANVAS_PUBLISH -> Optional.ofNullable(toCanvasPublishOutput(canvasPublishDao.queryByToolInvocationId(toolInvocationId)));
+            case ToolOutputNames.EMIT_UI_TREE -> Optional.ofNullable(toEmitUiTreeOutput(emitUiTreeDao.queryByToolInvocationId(toolInvocationId)));
+            case ToolOutputNames.EMIT_UI_PATCH -> Optional.ofNullable(toEmitUiPatchOutput(emitUiPatchDao.queryByToolInvocationId(toolInvocationId)));
+            default -> Optional.empty();
+        };
+    }
+
+    @Override
+    public Optional<ToolOutputView> readDirect(String requestId, String toolCallId) {
+        // 兼容旧数据的直接查询允许跨表，但只有唯一命中时才返回，确保历史回放不产生错配。
+        if (StringUtils.isBlank(requestId) || StringUtils.isBlank(toolCallId)) {
+            return Optional.empty();
+        }
+        // 旧回放或缺少 invocationId 时只能跨保留的 rich-tool 表查找；多表命中说明关联字段不唯一，不能猜测正确结果。
+        List<ToolOutputView> matches = new ArrayList<>();
+        addIfPresent(matches, ToolOutputNames.DEEP_SEARCH, deepSearchDao.queryByRequestToolCall(requestId, toolCallId));
+        addIfPresent(matches, ToolOutputNames.CODE_INTERPRETER, codeInterpreterDao.queryByRequestToolCall(requestId, toolCallId));
+        addIfPresent(matches, ToolOutputNames.DATA_ANALYSIS, dataAnalysisDao.queryByRequestToolCall(requestId, toolCallId));
+        addIfPresent(matches, ToolOutputNames.MULTIMODAL_AGENT, multimodalAgentDao.queryByRequestToolCall(requestId, toolCallId));
+        addIfPresent(matches, ToolOutputNames.IMAGE_GENERATION, imageGenerationDao.queryByRequestToolCall(requestId, toolCallId));
+        addIfPresent(matches, ToolOutputNames.CANVAS_PUBLISH, canvasPublishDao.queryByRequestToolCall(requestId, toolCallId));
+        addIfPresent(matches, ToolOutputNames.EMIT_UI_TREE, emitUiTreeDao.queryByRequestToolCall(requestId, toolCallId));
+        addIfPresent(matches, ToolOutputNames.EMIT_UI_PATCH, emitUiPatchDao.queryByRequestToolCall(requestId, toolCallId));
+        if (matches.size() > 1) {
+            log.warn("tool output direct lookup conflict, requestId={}, toolCallId={}, matchedTools={}",
+                    requestId, toolCallId, matches.stream().map(ToolOutputView::getToolName).toList());
+            return Optional.empty();
+        }
+        return matches.isEmpty() ? Optional.empty() : Optional.of(matches.get(0));
+    }
+
+    private void addIfPresent(List<ToolOutputView> matches, String toolName, Map<String, Object> row) {
+        // DAO 行先恢复为领域结构化输出，再包装为带账本元数据的视图，保持回放层不依赖数据库列名。
+        ToolStructuredOutput output = switch (toolName) {
+            case ToolOutputNames.DEEP_SEARCH -> toDeepSearchOutput(row);
+            case ToolOutputNames.CODE_INTERPRETER -> toCodeInterpreterOutput(row);
+            case ToolOutputNames.DATA_ANALYSIS -> toDataAnalysisOutput(row);
+            case ToolOutputNames.MULTIMODAL_AGENT -> toMultimodalOutput(row);
+            case ToolOutputNames.IMAGE_GENERATION -> toImageGenerationOutput(row);
+            case ToolOutputNames.CANVAS_PUBLISH -> toCanvasPublishOutput(row);
+            case ToolOutputNames.EMIT_UI_TREE -> toEmitUiTreeOutput(row);
+            case ToolOutputNames.EMIT_UI_PATCH -> toEmitUiPatchOutput(row);
+            default -> null;
+        };
+        ToolOutputView view = toView(toolName, row, output);
+        if (view != null) {
+            matches.add(view);
+        }
+    }
+
+    private ToolStructuredOutput toDeepSearchOutput(Map<String, Object> row) {
+        if (row == null) {
+            return null;
+        }
+        List<DeepSearchStage> stages = readStages(stringValue(row, "stages_json", "stagesJson"));
+        return DeepSearchToolOutput.of(
+                stringValue(row, "query"),
+                stringValue(row, "answer_summary", "answerSummary"),
+                stages,
+                rebuildChapters(stages)
+        );
+    }
+
+    private List<DeepSearchChapter> rebuildChapters(List<DeepSearchStage> stages) {
+        List<DeepSearchChapter> chapters = new ArrayList<>();
+        if (stages == null) {
+            return chapters;
+        }
+        for (DeepSearchStage stage : stages) {
+            if (stage == null || !"chapter_summary".equals(stage.getStage())) {
+                continue;
+            }
+            List<DeepSearchDoc> docs = new ArrayList<>();
+            if (stage.getResults() != null) {
+                for (DeepSearchQueryResult result : stage.getResults()) {
+                    if (result != null && result.getDocs() != null) {
+                        docs.addAll(result.getDocs());
+                    }
+                }
+            }
+            chapters.add(DeepSearchChapter.of(
+                    stage.getChapterId(),
+                    stage.getChapterTitle(),
+                    stage.getChapterContent(),
+                    stage.getChapterOrder(),
+                    stage.getQueries(),
+                    docs,
+                    stage.getChapterSummary(),
+                    "completed"
+            ));
+        }
+        return chapters;
+    }
+
+    private ToolStructuredOutput toCodeInterpreterOutput(Map<String, Object> row) {
+        if (row == null) {
+            return null;
+        }
+        return CodeInterpreterToolOutput.builder()
+                .codeOutput(stringValue(row, "code_output", "codeOutput"))
+                .content(stringValue(row, "content"))
+                .code(stringValue(row, "code"))
+                .explain(stringValue(row, "explain"))
+                .fileRefs(resolveFileRefs(row))
+                .build();
+    }
+
+
+    private ToolStructuredOutput toCanvasPublishOutput(Map<String, Object> row) {
+        if (row == null) {
+            return null;
+        }
+        return CanvasPublishToolOutput.builder()
+                .title(stringValue(row, "title"))
+                .mode(stringValue(row, "mode"))
+                .primaryFileName(stringValue(row, "primary_file_name", "primaryFileName"))
+                .previewUrl(stringValue(row, "preview_url", "previewUrl"))
+                .downloadUrl(stringValue(row, "download_url", "downloadUrl"))
+                .openInPanel(booleanValue(row, "open_in_panel", "openInPanel"))
+                .salvaged(booleanValue(row, "salvaged"))
+                .fileRefs(resolveFileRefs(row))
+                .build();
+    }
+
+    private ToolStructuredOutput toEmitUiTreeOutput(Map<String, Object> row) {
+        if (row == null) {
+            return null;
+        }
+        Map<String, Object> tree = readJsonMap(stringValue(row, "tree_json", "treeJson"));
+        return GenUiTreeToolOutput.builder()
+                .tree(tree)
+                .canvasId(stringValue(row, "canvas_id", "canvasId"))
+                .salvaged(booleanValue(row, "salvaged"))
+                .build();
+    }
+
+    private ToolStructuredOutput toEmitUiPatchOutput(Map<String, Object> row) {
+        if (row == null) {
+            return null;
+        }
+        List<Map<String, Object>> patches = readJsonListOfMap(stringValue(row, "patches_json", "patchesJson"));
+        return GenUiPatchToolOutput.builder()
+                .patches(patches)
+                .canvasId(stringValue(row, "canvas_id", "canvasId"))
+                .seq(integerValue(row, "seq"))
+                .build();
+    }
+
+    private ToolStructuredOutput toDataAnalysisOutput(Map<String, Object> row) {
+        if (row == null) {
+            return null;
+        }
+        return DataAnalysisToolOutput.builder()
+                .task(stringValue(row, "task"))
+                .summary(stringValue(row, "summary"))
+                .content(stringValue(row, "content"))
+                .fileRefs(resolveFileRefs(row))
+                .build();
+    }
+
+    private ToolStructuredOutput toMultimodalOutput(Map<String, Object> row) {
+        if (row == null) {
+            return null;
+        }
+        return MultimodalAgentToolOutput.builder()
+                .summary(stringValue(row, "summary"))
+                .markdownContent(stringValue(row, "markdown_content", "markdownContent"))
+                .fileRefs(resolveFileRefs(row))
+                .build();
+    }
+
+    private ToolStructuredOutput toImageGenerationOutput(Map<String, Object> row) {
+        if (row == null) {
+            return null;
+        }
+        return ImageGenerationToolOutput.builder()
+                .prompt(stringValue(row, "prompt"))
+                .mode(stringValue(row, "mode"))
+                .summary(stringValue(row, "summary"))
+                .size(stringValue(row, "size"))
+                .batchCount(integerValue(row, "batch_count", "batchCount"))
+                .sourceImageCount(integerValue(row, "source_image_count", "sourceImageCount"))
+                .maskImageCount(integerValue(row, "mask_image_count", "maskImageCount"))
+                .usedFallback(booleanValue(row, "used_fallback", "usedFallback"))
+                .fileRefs(resolveFileRefs(row))
+                .build();
+    }
+
+    private ToolOutputView toView(String toolName, Map<String, Object> row, ToolStructuredOutput output) {
+        if (row == null) {
+            return null;
+        }
+        return ToolOutputView.builder()
+                .toolName(toolName)
+                .requestId(stringValue(row, "request_id", "requestId"))
+                .requestSource(stringValue(row, "request_source", "requestSource"))
+                .sessionId(stringValue(row, "session_id", "sessionId"))
+                .toolCallId(stringValue(row, "tool_call_id", "toolCallId"))
+                .status(integerValue(row, "status"))
+                .errorMsg(stringValue(row, "error_msg", "errorMsg"))
+                .createdAt(localDateTimeValue(row, "created_at", "createdAt"))
+                .structuredOutput(output)
+                .build();
+    }
+
+    private List<DeepSearchStage> readStages(String json) {
+        if (StringUtils.isBlank(json)) {
+            return new ArrayList<>();
+        }
+        return JSON.parseArray(json, DeepSearchStage.class);
+    }
+
+    private List<ToolFileRef> resolveFileRefs(Map<String, Object> row) {
+        if (row == null || artifactLedgerDao == null) {
+            return List.of();
+        }
+        Long toolInvocationId = longValue(row, "tool_invocation_id", "toolInvocationId");
+        List<ArtifactRecord> artifacts;
+        if (toolInvocationId != null) {
+            // 优先使用工具调用主键关联产物；兼容历史行时再按 run/request + toolCallId 回退。
+            artifacts = artifactLedgerDao.queryOutputArtifactsByToolInvocationId(toolInvocationId);
+        } else {
+            Long runId = longValue(row, "run_id", "runId");
+            String requestId = stringValue(row, "request_id", "requestId");
+            String toolCallId = stringValue(row, "tool_call_id", "toolCallId");
+            if (StringUtils.isBlank(toolCallId)) {
+                return List.of();
+            }
+            if (runId != null) {
+                artifacts = artifactLedgerDao.queryOutputArtifactsByRunIdAndToolCallId(runId, toolCallId);
+            } else if (StringUtils.isNotBlank(requestId)) {
+                artifacts = artifactLedgerDao.queryOutputArtifactsByRequestIdAndToolCallId(requestId, toolCallId);
+            } else {
+                return List.of();
+            }
+        }
+        if (artifacts == null || artifacts.isEmpty()) {
+            return List.of();
+        }
+        // 产物不存进工具输出 JSON；这里把 Execution Ledger 的 artifact 投影重新挂回结构化输出。
+        List<ToolFileRef> fileRefs = new ArrayList<>(artifacts.size());
+        for (ArtifactRecord artifact : artifacts) {
+            if (artifact == null) {
+                continue;
+            }
+            fileRefs.add(ToolFileRef.builder()
+                    .fileName(artifact.getFileName())
+                    .downloadUrl(artifact.getDownloadUrl())
+                    .previewUrl(artifact.getPreviewUrl())
+                    .ossUrl(artifact.getDownloadUrl())
+                    .domainUrl(artifact.getPreviewUrl())
+                    .fileSize(artifact.getFileSize())
+                    .mimeType(artifact.getMimeType())
+                    .build());
+        }
+        return fileRefs;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> readJsonMap(String json) {
+        if (StringUtils.isBlank(json)) {
+            return null;
+        }
+        try {
+            Object parsed = JSON.parse(json);
+            if (parsed instanceof Map<?, ?> map) {
+                Map<String, Object> out = new java.util.LinkedHashMap<>();
+                for (Map.Entry<?, ?> e : map.entrySet()) {
+                    if (e.getKey() != null) {
+                        out.put(String.valueOf(e.getKey()), e.getValue());
+                    }
+                }
+                return out;
+            }
+        } catch (Exception ignore) {
+            // 非法或版本不兼容的 JSON 只使该可选字段缺失，不应阻断整条历史回放。
+        }
+        return null;
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> readJsonListOfMap(String json) {
+        if (StringUtils.isBlank(json)) {
+            return java.util.Collections.emptyList();
+        }
+        try {
+            Object parsed = JSON.parse(json);
+            if (parsed instanceof List<?> list) {
+                List<Map<String, Object>> out = new ArrayList<>();
+                for (Object item : list) {
+                    if (item instanceof Map<?, ?> map) {
+                        Map<String, Object> rowMap = new java.util.LinkedHashMap<>();
+                        for (Map.Entry<?, ?> e : map.entrySet()) {
+                            if (e.getKey() != null) {
+                                rowMap.put(String.valueOf(e.getKey()), e.getValue());
+                            }
+                        }
+                        out.add(rowMap);
+                    }
+                }
+                return out;
+            }
+        } catch (Exception ignore) {
+            // 补丁列表属于展示数据，解析失败时返回空列表，让其它账本字段仍可被恢复。
+        }
+        return java.util.Collections.emptyList();
+    }
+
+    private String stringValue(Map<String, Object> row, String... keys) {
+        for (String key : keys) {
+            if (row.containsKey(key) && row.get(key) != null) {
+                return String.valueOf(row.get(key));
+            }
+        }
+        return null;
+    }
+
+    private Integer integerValue(Map<String, Object> row, String... keys) {
+        for (String key : keys) {
+            Object value = row.get(key);
+            if (value == null) {
+                continue;
+            }
+            if (value instanceof Number number) {
+                return number.intValue();
+            }
+            try {
+                return Integer.parseInt(String.valueOf(value));
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private Long longValue(Map<String, Object> row, String... keys) {
+        for (String key : keys) {
+            Object value = row.get(key);
+            if (value == null) {
+                continue;
+            }
+            if (value instanceof Number number) {
+                return number.longValue();
+            }
+            try {
+                return Long.parseLong(String.valueOf(value));
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private Boolean booleanValue(Map<String, Object> row, String... keys) {
+        for (String key : keys) {
+            Object value = row.get(key);
+            if (value == null) {
+                continue;
+            }
+            if (value instanceof Boolean booleanValue) {
+                return booleanValue;
+            }
+            if (value instanceof Number number) {
+                return number.intValue() == 1;
+            }
+            return Boolean.parseBoolean(String.valueOf(value));
+        }
+        return null;
+    }
+
+    private LocalDateTime localDateTimeValue(Map<String, Object> row, String... keys) {
+        for (String key : keys) {
+            Object value = row.get(key);
+            if (value == null) {
+                continue;
+            }
+            if (value instanceof LocalDateTime localDateTime) {
+                return localDateTime;
+            }
+            if (value instanceof Timestamp timestamp) {
+                return timestamp.toLocalDateTime();
+            }
+        }
+        return null;
+    }
+}

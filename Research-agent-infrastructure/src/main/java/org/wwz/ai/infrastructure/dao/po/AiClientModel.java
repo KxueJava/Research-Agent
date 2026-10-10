@@ -1,0 +1,74 @@
+package org.wwz.ai.infrastructure.dao.po;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.time.LocalDateTime;
+
+/**
+ * 聊天模型配置表
+ * @description 聊天模型配置表 PO 对象
+ */
+@Data
+@Builder
+@AllArgsConstructor
+@NoArgsConstructor
+public class AiClientModel {
+
+    /**
+     * 自增主键ID
+     */
+    private Long id;
+
+    /**
+     * 模型引用标识；允许多条配置共用
+     */
+    private String modelId;
+
+    /**
+     * 关联的API配置ID
+     */
+    private String apiId;
+
+    /**
+     * 模型名称
+     */
+    private String modelName;
+
+    /**
+     * 模型类型：openai、deepseek、claude
+     */
+    private String modelType;
+
+    /**
+     * 模型用途；fallback/backup/备用模型表示备用模型
+     */
+    private String modelUsage;
+
+    /** 是否支持深度思考（reasoning_effort） */
+    private Integer supportsThinking;
+
+    /** JSON 数组；模型可用推理强度白名单。 */
+    private String supportedReasoningEffortsJson;
+
+    /** 上下文窗口（输入侧 token 上限） */
+    private Integer contextWindow;
+
+    /**
+     * 状态：0-禁用，1-启用
+     */
+    private Integer status;
+
+    /**
+     * 创建时间
+     */
+    private LocalDateTime createTime;
+
+    /**
+     * 更新时间
+     */
+    private LocalDateTime updateTime;
+
+}

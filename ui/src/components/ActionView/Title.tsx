@@ -1,0 +1,24 @@
+import { X } from "lucide-react";
+
+const Title: ResearchType.FC<{
+  onClose?: () => void;
+}> = (props) => {
+  const { children, onClose } = props;
+
+  return (
+    <div className="flex items-center justify-between px-1 pb-4">
+      <h3 className="text-[17px] font-semibold tracking-[-0.01em] text-[#1d1d1f]">
+        {children}
+      </h3>
+      <button
+        onClick={onClose}
+        className="flex h-8 w-8 items-center justify-center rounded-full text-[#86868b] transition-[background-color,color,transform] duration-150 hover:bg-[#f5f5f7] hover:text-[#1d1d1f] active:scale-[0.97]"
+        title="关闭智能体工作区"
+      >
+        <X className="h-4 w-4" />
+      </button>
+    </div>
+  );
+};
+
+export default Title;

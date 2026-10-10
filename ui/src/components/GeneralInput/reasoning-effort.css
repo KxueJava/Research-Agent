@@ -1,0 +1,55 @@
+.reasoning-trigger{color:var(--color-text)!important}
+.reasoning-panel{width:270px;color:var(--color-text);--reasoning-accent:#416ed6}
+.reasoning-heading{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;font-size:15px;font-weight:600}
+.reasoning-reset{display:grid;place-items:center;width:28px;height:28px;border:0;border-radius:50%;background:transparent;color:var(--color-text-muted);cursor:pointer}
+.reasoning-reset:hover{background:var(--color-hover);color:var(--color-text)}
+.reasoning-enable-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;color:var(--color-text);font-size:13px}
+.reasoning-enable-switch{display:flex;align-items:center;width:32px;height:20px;padding:3px;border:0;border-radius:999px;background:var(--color-line-strong);cursor:pointer}
+.reasoning-enable-switch[aria-checked="true"]{background:var(--reasoning-accent)}
+.reasoning-enable-switch span{width:14px;height:14px;border-radius:50%;background:#fff;transform:translateX(0);transition:transform 150ms ease}
+.reasoning-enable-switch[aria-checked="true"] span{transform:translateX(12px)}
+.reasoning-enable-switch:focus-visible{outline:2px solid var(--color-accent);outline-offset:3px}
+.reasoning-enable-switch:disabled,.reasoning-reset:disabled{opacity:.5;cursor:not-allowed}
+
+/*
+ * 轨道几何：原生 input 的 value→位置映射是「滑块中心在 [滑块宽/2, 轨道宽-滑块宽/2] 之间线性移动」。
+ * 填充和自绘滑钮必须用同一条行程公式，否则两端会对不齐（旧实现里 fill 用整宽百分比，边缘是错的）。
+ */
+.reasoning-track{position:relative;height:28px;border-radius:30px;overflow:hidden;background:var(--color-line-strong);
+  --reasoning-thumb-size:28px;
+  --reasoning-travel:calc(100% - var(--reasoning-thumb-size));
+  --reasoning-offset:calc(var(--reasoning-thumb-size) / 2);
+  --reasoning-ratio:0;}
+.reasoning-track:focus-within{outline:2px solid var(--reasoning-accent);outline-offset:-2px}
+
+.reasoning-fill{position:absolute;top:0;bottom:0;left:0;width:calc(var(--reasoning-offset) + var(--reasoning-travel) * var(--reasoning-ratio));background:var(--reasoning-accent);border-radius:inherit;pointer-events:none;transition:width 180ms cubic-bezier(.2,.75,.25,1);will-change:width}
+
+/* 自绘滑钮：原生 thumb 无法做位置过渡，所以隐藏它、用可缓动的元素来画。 */
+.reasoning-thumb{position:absolute;top:0;left:calc(var(--reasoning-offset) + var(--reasoning-travel) * var(--reasoning-ratio));width:var(--reasoning-thumb-size);height:var(--reasoning-thumb-size);border-radius:50%;background:#fff;box-shadow:0 1px 4px #0003;transform:translateX(-50%);pointer-events:none;transition:left 180ms cubic-bezier(.2,.75,.25,1),transform 160ms ease,box-shadow 160ms ease;will-change:left}
+
+/* 拖动中：零延迟跟随指针，只有松手吸附那一下才走缓动 */
+.reasoning-dragging .reasoning-fill{transition:none}
+.reasoning-dragging .reasoning-thumb{transition:transform 160ms ease,box-shadow 160ms ease;transform:translateX(-50%) scale(1.06);box-shadow:0 2px 7px #0004}
+
+.reasoning-stops{position:absolute;inset:0 14px;display:flex;align-items:center;justify-content:space-between;pointer-events:none}
+.reasoning-stops i{width:5px;height:5px;border-radius:50%;background:var(--color-text-faint)}
+.reasoning-stops i.active{background:#adc5ff}
+
+/* input 只负责交互与无障碍语义；thumb 保留 28px 但不可见，以维持上面的位置映射 */
+.reasoning-track input{appearance:none;-webkit-appearance:none;position:absolute;inset:0;width:100%;height:28px;margin:0;background:transparent;cursor:pointer;border:0}
+.reasoning-track input::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:28px;height:28px;border:0;background:transparent;opacity:0}
+.reasoning-track input::-moz-range-thumb{width:28px;height:28px;border:0;background:transparent;opacity:0}
+
+.reasoning-ultra{--reasoning-accent:#9b35dc;color:#8a2bbe!important}
+.dark .reasoning-ultra{color:#c45bff!important}
+.reasoning-ultra .reasoning-fill{background:linear-gradient(100deg,#493bd5,#9150ed 38%,#cd6aff 64%,#7244db);background-size:180% 100%;animation:reasoning-flow 5s ease-in-out infinite}
+.reasoning-ultra .reasoning-fill:after{content:"";position:absolute;inset:0;background:radial-gradient(circle at 8% 64%,#fff9 0 1px,transparent 2px),radial-gradient(circle at 17% 32%,#fff8 0 1.5px,transparent 2.5px),radial-gradient(circle at 34% 58%,#fffb 0 1px,transparent 2px),radial-gradient(circle at 47% 39%,#fffa 0 1.5px,transparent 2.5px),radial-gradient(circle at 62% 72%,#fff9 0 1px,transparent 2px),radial-gradient(circle at 75% 38%,#fffc 0 2px,transparent 3px);animation:reasoning-stars 3.5s ease-in-out infinite}
+.reasoning-ultra .reasoning-stops i.active{background:#e6c7ff}
+@keyframes reasoning-flow{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+@keyframes reasoning-stars{0%,100%{opacity:.45;transform:translateX(-2px)}50%{opacity:1;transform:translateX(3px)}}
+@media(prefers-reduced-motion:reduce){
+  .reasoning-enable-switch span{transition:none}
+  .reasoning-ultra .reasoning-fill,.reasoning-ultra .reasoning-fill:after{animation:none}
+  /* 减少动效时不做吸附动画，直接落位 */
+  .reasoning-fill,.reasoning-thumb{transition:none}
+}

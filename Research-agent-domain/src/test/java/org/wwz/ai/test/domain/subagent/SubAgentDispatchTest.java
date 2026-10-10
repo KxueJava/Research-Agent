@@ -1,0 +1,248 @@
+package org.wwz.ai.test.domain.subagent;
+
+import org.junit.Assert;
+import org.junit.Test;
+import org.mockito.ArgumentCaptor;
+import org.wwz.ai.domain.agent.ledger.AgentExecutionRecorder;
+import org.wwz.ai.domain.agent.ledger.model.AgentRunState;
+import org.wwz.ai.domain.agent.ledger.model.ExecutionLedgerConstants;
+import org.wwz.ai.domain.agent.ledger.model.ToolInvocationFinishRecord;
+import org.wwz.ai.domain.agent.runtime.agent.AgentContext;
+import org.wwz.ai.domain.agent.runtime.enums.AgentType;
+import org.wwz.ai.domain.agent.runtime.printer.Printer;
+import org.wwz.ai.domain.agent.runtime.subagent.SubAgentDefinition;
+import org.wwz.ai.domain.agent.runtime.subagent.SubAgentRegistry;
+import org.wwz.ai.domain.agent.runtime.subagent.SubAgentResult;
+import org.wwz.ai.domain.agent.runtime.subagent.SubAgentRunner;
+import org.wwz.ai.domain.agent.runtime.subagent.SubAgentToolFilter;
+import org.wwz.ai.domain.agent.runtime.tool.BaseTool;
+import org.wwz.ai.domain.agent.runtime.tool.ToolCollection;
+import org.wwz.ai.domain.agent.runtime.tool.ToolResultPayload;
+import org.wwz.ai.domain.agent.runtime.tool.common.AgentDispatchTool;
+import org.wwz.ai.domain.agent.runtime.tasklist.RuntimeBackgroundTask;
+import org.wwz.ai.domain.agent.runtime.tasklist.RuntimeBackgroundTaskRegistry;
+
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+
+/**
+ * 同步 SubAgent 派发：工具过滤、参数校验、防递归。
+ */
+public class SubAgentDispatchTest {
+
+    @Test
+    public void shouldRegisterGeneralPurposeOnly() {
+        SubAgentRegistry registry = new SubAgentRegistry();
+        Assert.assertFalse(registry.find("Explore").isPresent());
+        Assert.assertTrue(registry.find(SubAgentRegistry.TYPE_GENERAL_PURPOSE).isPresent());
+        Assert.assertEquals(SubAgentRegistry.TYPE_GENERAL_PURPOSE,
+                registry.resolveOrDefault(null).getAgentType());
+        Assert.assertEquals(Integer.valueOf(200),
+                registry.require(SubAgentRegistry.TYPE_GENERAL_PURPOSE).getMaxSteps());
+    }
+
+    @Test
+    public void shouldFilterOutAgentAndWriteToolsForReadOnlyDefinition() {
+        ToolCollection parent = new ToolCollection();
+        parent.addTool(new StubTool("workspace_read"));
+        parent.addTool(new StubTool("workspace_write"));
+        parent.addTool(new StubTool("deep_search"));
+        parent.addTool(new StubTool("file_tool"));
+        parent.addTool(new StubTool(AgentDispatchTool.NAME));
+
+        SubAgentDefinition readOnly = SubAgentDefinition.builder()
+                .agentType("read-only")
+                .allowedTools(java.util.Set.of("workspace_read", "deep_search"))
+                .disallowedTools(java.util.Set.of("workspace_write", "file_tool"))
+                .build();
+        ToolCollection child = SubAgentToolFilter.filter(parent, readOnly);
+
+        Assert.assertTrue(child.getToolMap().containsKey("workspace_read"));
+        Assert.assertTrue(child.getToolMap().containsKey("deep_search"));
+        Assert.assertFalse(child.getToolMap().containsKey("workspace_write"));
+        Assert.assertFalse(child.getToolMap().containsKey("file_tool"));
+        Assert.assertFalse(child.getToolMap().containsKey(AgentDispatchTool.NAME));
+    }
+
+    @Test
+    public void shouldAlwaysStripAgentFromGeneralPurpose() {
+        ToolCollection parent = new ToolCollection();
+        parent.addTool(new StubTool("file_tool"));
+        parent.addTool(new StubTool("code_interpreter"));
+        parent.addTool(new StubTool(AgentDispatchTool.NAME));
+
+        SubAgentDefinition gp = new SubAgentRegistry().require(SubAgentRegistry.TYPE_GENERAL_PURPOSE);
+        ToolCollection child = SubAgentToolFilter.filter(parent, gp);
+
+        Assert.assertTrue(child.getToolMap().containsKey("file_tool"));
+        Assert.assertTrue(child.getToolMap().containsKey("code_interpreter"));
+        Assert.assertFalse(child.getToolMap().containsKey(AgentDispatchTool.NAME));
+    }
+
+    @Test
+    public void shouldRejectBlankPromptWithoutCallingRunner() {
+        SubAgentRegistry registry = new SubAgentRegistry();
+        SubAgentRunner runner = new SubAgentRunner(registry);
+        AgentDispatchTool tool = new AgentDispatchTool(runner, registry);
+        tool.setAgentContext(AgentContext.builder()
+                .requestId("req-1")
+                .sessionId("s-1")
+                .query("q")
+                .printer(new NoopPrinter())
+                .toolCollection(new ToolCollection())
+                .build());
+
+        Map<String, Object> input = new LinkedHashMap<>();
+        input.put("description", "test");
+        input.put("prompt", "  ");
+        ToolResultPayload payload = (ToolResultPayload) tool.execute(input);
+
+        Assert.assertTrue(Boolean.TRUE.equals(payload.getFailed()));
+        Assert.assertTrue(payload.getToolResult().contains("prompt"));
+    }
+
+    @Test
+    public void shouldFailWhenParentToolCollectionMissing() {
+        SubAgentRegistry registry = new SubAgentRegistry();
+        SubAgentRunner runner = new SubAgentRunner(registry);
+
+        SubAgentResult result = runner.run(
+                AgentContext.builder()
+                        .requestId("req-2")
+                        .sessionId("s-2")
+                        .query("q")
+                        .printer(new NoopPrinter())
+                        .toolCollection(null)
+                        .build(),
+                "inspect files",
+                "find all controllers",
+                SubAgentRegistry.TYPE_GENERAL_PURPOSE
+        );
+
+        Assert.assertEquals(SubAgentResult.STATUS_FAILED, result.getStatus());
+        Assert.assertTrue(result.getErrorMsg().contains("工具池"));
+    }
+
+    @Test
+    public void agentToolSchemaShouldRequireDescriptionAndPrompt() {
+        AgentDispatchTool tool = new AgentDispatchTool(new SubAgentRunner(new SubAgentRegistry()), new SubAgentRegistry());
+        Map<String, Object> params = tool.toParams();
+        Assert.assertEquals("object", params.get("type"));
+        Assert.assertTrue(((java.util.List<?>) params.get("required")).contains("description"));
+        Assert.assertTrue(((java.util.List<?>) params.get("required")).contains("prompt"));
+        Assert.assertTrue(tool.getDescription().contains(SubAgentRegistry.TYPE_GENERAL_PURPOSE));
+        Assert.assertTrue(tool.getDescription().contains("SendMessage"));
+        Assert.assertTrue(tool.getDescription().contains("禁止用本工具+resume_agent_id"));
+        Assert.assertTrue(String.valueOf(
+                ((java.util.Map<?, ?>) ((java.util.Map<?, ?>) params.get("properties")).get("resume_agent_id"))
+                        .get("description")).contains("运行中请用 SendMessage"));
+        Assert.assertTrue(String.valueOf(
+                ((java.util.Map<?, ?>) ((java.util.Map<?, ?>) params.get("properties")).get("subagent_type"))
+                        .get("description")).contains(SubAgentRegistry.TYPE_GENERAL_PURPOSE));
+    }
+
+    @Test
+    public void terminalBackgroundTaskUpdatesParentLedgerObservation() {
+        RuntimeBackgroundTaskRegistry registry = new RuntimeBackgroundTaskRegistry();
+        RuntimeBackgroundTask task = registry.registerLocalAgent(
+                "探索前端", SubAgentRegistry.TYPE_GENERAL_PURPOSE, "scan ui");
+        registry.complete(task.getId(), SubAgentResult.builder()
+                .status(SubAgentResult.STATUS_COMPLETED)
+                .agentId("agent-1")
+                .agentType(SubAgentRegistry.TYPE_GENERAL_PURPOSE)
+                .content("done")
+                .build());
+
+        AgentExecutionRecorder recorder = mock(AgentExecutionRecorder.class);
+        AgentRunState runState = AgentRunState.builder().runId(42L).build();
+        runState.bindToolInvocationIds(Map.of("parent-tool-1", 99L));
+        AgentContext parent = AgentContext.builder()
+                .requestId("req-ledger")
+                .sessionId("session-ledger")
+                .executionRecorder(recorder)
+                .agentRunState(runState)
+                .backgroundTasks(registry)
+                .build();
+
+        String receipt = com.alibaba.fastjson.JSON.toJSONString(Map.of("task_id", task.getId()));
+        AgentDispatchTool.settleLedgerIfTerminal(parent, "parent-tool-1", receipt);
+
+        ArgumentCaptor<ToolInvocationFinishRecord> captor =
+                ArgumentCaptor.forClass(ToolInvocationFinishRecord.class);
+        verify(recorder).finishToolInvocation(captor.capture());
+        Assert.assertEquals(Integer.valueOf(ExecutionLedgerConstants.STATUS_SUCCESS),
+                captor.getValue().getStatus());
+        Assert.assertTrue(captor.getValue().getLlmObservation().contains("completed"));
+        Assert.assertTrue(captor.getValue().getLlmObservation().contains("done"));
+    }
+
+    private static final class StubTool implements BaseTool {
+        private final String name;
+
+        private StubTool(String name) {
+            this.name = name;
+        }
+
+        @Override
+        public String getName() {
+            return name;
+        }
+
+        @Override
+        public String getDescription() {
+            return name;
+        }
+
+        @Override
+        public Map<String, Object> toParams() {
+            return Collections.emptyMap();
+        }
+
+        @Override
+        public Object execute(Object input) {
+            return "ok";
+        }
+    }
+
+    private static final class NoopPrinter implements Printer {
+        @Override
+        public void send(String messageId, String messageType, Object message, String digitalEmployee, Boolean isFinal) {
+        }
+
+        @Override
+        public void send(String messageId, String messageType, Object message, Map<String, Object> extraResultMap, String digitalEmployee, Boolean isFinal) {
+        }
+
+        @Override
+        public void send(String messageType, Object message) {
+        }
+
+        @Override
+        public void send(String messageType, Object message, String digitalEmployee) {
+        }
+
+        @Override
+        public void send(String messageId, String messageType, Object message, Boolean isFinal) {
+        }
+
+        @Override
+        public void sendWithResultMap(String messageId, String messageType, Object message, Map<String, Object> extraResultMap, Boolean isFinal) {
+        }
+
+        @Override
+        public void sendWithResultMap(String messageType, Object message, Map<String, Object> extraResultMap) {
+        }
+
+        @Override
+        public void close() {
+        }
+
+        @Override
+        public void updateAgentType(AgentType agentType) {
+        }
+    }
+}

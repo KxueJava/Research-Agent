@@ -1,0 +1,21 @@
+package org.wwz.ai.domain.agent.research.config.data;
+
+import lombok.Data;
+
+@Data
+/**
+ * 延期保留的数据库连接配置。
+ */
+public class DbConfig {
+    private String type;
+    /**
+     * 直连 JDBC 地址，优先级高于 host + port + schema 的拼接方式
+     */
+    private String url;
+    private String host;
+    private int port;
+    private String schema;
+    private String username;
+    private String password;
+    private String key = "research-datasource";
+}

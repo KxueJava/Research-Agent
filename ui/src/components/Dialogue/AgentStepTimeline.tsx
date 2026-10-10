@@ -1,0 +1,803 @@
+import {
+  FC,
+  memo,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+import { motion, AnimatePresence } from "motion/react";
+import { ChevronDownIcon } from "lucide-react";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
+  resolveDeepSearchStage,
+  shouldRenderDeepSearchPreview,
+} from "@/utils/deepSearch";
+import { cn } from "@/lib/utils";
+import { DeepSearchPreviewItem, ToolItem } from "./Timeline";
+import {
+  deriveAgentProcessModel,
+  type ProcessSegment,
+  type ProcessStepGroup,
+  type ProcessStepRow,
+} from "./agentProcessModel";
+import UserBriefCard from "./UserBriefCard";
+import MarkdownRenderer from "@/components/ActionPanel/MarkdownRenderer";
+import { resolveTaskSummaryText } from "./contentHelpers";
+import { ThinkingBlock } from "./ThinkingBlock";
+import {
+  isAgentDispatchTask,
+  isRunInBackgroundAgent,
+} from "@/utils/chat/subagent";
+import {
+  ToolCallView,
+  ToolGroup,
+  aggregateToolStatuses,
+  resolveStackPosition,
+} from "./tools";
+
+type AgentStepTimelineProps = {
+  chat: CHAT.ChatItem;
+  isPlanSolveMessage: boolean;
+  thoughtText?: string;
+  thoughtStreaming?: boolean;
+  thoughtVersionLabel?: string;
+  thoughtVersionIndex?: number;
+  thoughtVersionTotal?: number;
+  onThoughtPrev?: () => void;
+  onThoughtNext?: () => void;
+  canThoughtPrev?: boolean;
+  canThoughtNext?: boolean;
+  planSlot?: ReactNode;
+  changeActiveChat: CHAT.OpenTaskHandler;
+  changePlan?: () => void;
+  changeFile?: CHAT.OpenFileHandler;
+  onOpenThinking?: (text: string) => void;
+  onOpenToolDiff?: (task: CHAT.Task, chat: CHAT.ChatItem) => void;
+  onOpenAgent?: (task: CHAT.Task, chat: CHAT.ChatItem) => void;
+};
+
+const RICH_INLINE_TYPES = new Set([
+  "ask_user_question",
+  "plan_approval",
+  "session_tasks",
+  "ui_tree",
+  "ui_patch",
+  "browser",
+  "task_summary",
+]);
+
+function asText(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeComparableText(value: string): string {
+  return value
+    // 保留代码围栏内部源码；纯代码回复也需要参与终答去重比较。
+    .replace(/```[^\r\n]*\r?\n([\s\S]*?)```/g, "$1")
+    .replace(/[`*_#>()]/g, " ")
+    .replace(/\[/g, " ")
+    .replace(/\]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+function textsNearlyEqual(left: string, right: string): boolean {
+  const a = normalizeComparableText(left);
+  const b = normalizeComparableText(right);
+  if (!a || !b) {
+    return false;
+  }
+  if (a === b) {
+    return true;
+  }
+  // 终答流式/结果覆盖时文案可能前后缀略有差异
+  const minLen = Math.min(a.length, b.length);
+  if (minLen < 24) {
+    return false;
+  }
+  return a.includes(b) || b.includes(a);
+}
+
+function resolveSegmentComparableText(segment: ProcessSegment): string {
+  if (segment.type === "final_reply" || segment.type === "assistant_reply") {
+    return segment.text;
+  }
+  if (segment.type === "thinking") {
+    return asText(segment.step.tool.toolThought);
+  }
+  if (segment.type === "group") {
+    // 组内 task_summary / 仅一条与终答同文的过程回复
+    for (const step of segment.group.steps) {
+      if (step.tool.messageType === "task_summary") {
+        return resolveTaskSummaryText(step.tool);
+      }
+      if (step.kind === "assistant_reply") {
+        return asText(step.tool.toolThought);
+      }
+    }
+  }
+  return "";
+}
+
+/** 与底部 conclusion 同文案的时间线条目视为重复（终答不当思考/过程） */
+// eslint-disable-next-line react-refresh/only-export-components
+export function isDuplicateOfConclusion(
+  segment: ProcessSegment,
+  conclusionText: string
+): boolean {
+  if (!normalizeComparableText(conclusionText)) {
+    return false;
+  }
+  // 终答区已有 conclusion 时，时间线不再渲染 final_reply
+  if (segment.type === "final_reply") {
+    return true;
+  }
+  // task_summary 若已作为底部结论，不再在时间线重复
+  if (
+    segment.type === "group" &&
+    segment.group.steps.every((step) => step.tool.messageType === "task_summary")
+  ) {
+    const summary = resolveTaskSummaryText(segment.group.steps[0]?.tool);
+    return !summary || textsNearlyEqual(summary, conclusionText);
+  }
+  const segmentText = resolveSegmentComparableText(segment);
+  return textsNearlyEqual(segmentText, conclusionText);
+}
+
+function isAgentStep(step: ProcessStepRow): boolean {
+  return (
+    step.kind === "agent" ||
+    Boolean(step.tool.children?.length) ||
+    isAgentDispatchTask(step.tool)
+  );
+}
+
+function isRichInlineStep(step: ProcessStepRow): boolean {
+  const messageType = step.tool.messageType || "";
+  if (RICH_INLINE_TYPES.has(messageType)) {
+    return true;
+  }
+  if (isAgentStep(step)) {
+    return true;
+  }
+  if (messageType === "deep_search") {
+    return true;
+  }
+  return false;
+}
+
+const DurationBadge: FC<{ label?: string; active?: boolean }> = ({
+  label,
+  active,
+}) => {
+  if (!label && !active) {
+    return null;
+  }
+  return (
+    <span
+      className={cn(
+        "timeline-duration ml-auto shrink-0 text-[13px] font-normal text-[var(--chat-text-muted)]"
+      )}
+    >
+      {active && !label ? "…" : label}
+    </span>
+  );
+};
+
+/** 多轮规划思考版本切换，嵌在 ThinkingBlock 标题行 */
+const ThoughtVersionSwitcher: FC<{
+  versionLabel: string;
+  onPrev?: () => void;
+  onNext?: () => void;
+  canPrev?: boolean;
+  canNext?: boolean;
+}> = ({ versionLabel, onPrev, onNext, canPrev, canNext }) => (
+  <div className="inline-flex items-center gap-0.5 rounded-full bg-[var(--chat-surface-soft)] px-1.5 py-0.5 text-[11px] text-[var(--chat-text-muted)]">
+    <button
+      type="button"
+      className="rounded px-0.5 disabled:opacity-30"
+      onClick={(event) => {
+        event.stopPropagation();
+        onPrev?.();
+      }}
+      disabled={!canPrev}
+      aria-label="上一版思考"
+    >
+      {"<"}
+    </button>
+    <span>{versionLabel}</span>
+    <button
+      type="button"
+      className="rounded px-0.5 disabled:opacity-30"
+      onClick={(event) => {
+        event.stopPropagation();
+        onNext?.();
+      }}
+      disabled={!canNext}
+      aria-label="下一版思考"
+    >
+      {">"}
+    </button>
+  </div>
+);
+
+type StepRowContext = {
+  chat: CHAT.ChatItem;
+  changeActiveChat: CHAT.OpenTaskHandler;
+  changePlan?: () => void;
+  changeFile?: CHAT.OpenFileHandler;
+  onOpenThinking?: (text: string) => void;
+  onOpenToolDiff?: (task: CHAT.Task, chat: CHAT.ChatItem) => void;
+  onOpenAgent?: (task: CHAT.Task, chat: CHAT.ChatItem) => void;
+};
+
+const CompactStepRow: FC<{
+  step: ProcessStepRow;
+  ctx: StepRowContext;
+}> = memo(({ step, ctx }) => {
+  const isThought = step.kind === "thinking";
+  const thoughtText = asText(step.tool.toolThought);
+  const rich = isRichInlineStep(step);
+
+  // 组内原生 CoT：标题点击折叠，流式完自动收起
+  if (isThought) {
+    return (
+      <div className="timeline-segment-enter py-0.5 pl-1" data-testid="llm-reasoning-step">
+        <ThinkingBlock
+          text={thoughtText || "…"}
+          streaming={step.active}
+          durationLabel={step.durationLabel}
+        />
+      </div>
+    );
+  }
+
+  if (step.kind === "assistant_reply") {
+    const text = thoughtText;
+    if (!text) {
+      return null;
+    }
+    return (
+      <div className="timeline-assistant-reply timeline-segment-enter px-1 py-1 pl-7">
+        {text}
+      </div>
+    );
+  }
+
+  // 前台子 Agent：时间线内联卡；后台 run_in_background 只进 Dock。
+  // 子工具轨迹只在右侧 AgentDetailPanel，不泄漏进主时间线。
+  if (isAgentStep(step)) {
+    if (isRunInBackgroundAgent(step.tool)) {
+      return null;
+    }
+    return (
+      <div className="py-0.5">
+        <ToolCallView
+          tool={step.tool}
+          chat={ctx.chat}
+          durationMs={step.durationMs}
+          durationLabel={step.durationLabel}
+          defaultExpanded={step.active}
+          changeActiveChat={ctx.changeActiveChat}
+          changeFile={ctx.changeFile}
+          changePlan={ctx.changePlan}
+          onOpenAgent={ctx.onOpenAgent}
+          onOpenToolDiff={ctx.onOpenToolDiff}
+        />
+      </div>
+    );
+  }
+
+  if (rich) {
+    const stage =
+      step.tool.messageType === "deep_search"
+        ? resolveDeepSearchStage(step.tool.resultMap?.messageType)
+        : undefined;
+    const showDeepSearchPreview =
+      step.tool.messageType === "deep_search" &&
+      shouldRenderDeepSearchPreview(stage);
+
+    return (
+      <div className="relative py-0.5">
+        <div className="pointer-events-none absolute right-1 top-3 z-[1]">
+          <DurationBadge label={step.durationLabel} active={step.active} />
+        </div>
+        {showDeepSearchPreview ? (
+          <DeepSearchPreviewItem
+            tool={step.tool}
+            chat={ctx.chat}
+            changeActiveChat={ctx.changeActiveChat}
+          />
+        ) : (
+          <ToolItem
+            tool={step.tool}
+            chat={ctx.chat}
+            changePlan={ctx.changePlan}
+            changeActiveChat={ctx.changeActiveChat}
+            changeFile={ctx.changeFile}
+          />
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="py-0.5">
+      <ToolCallView
+        tool={step.tool}
+        chat={ctx.chat}
+        durationMs={step.durationMs}
+        durationLabel={step.durationLabel}
+        defaultExpanded={step.active}
+        changeActiveChat={ctx.changeActiveChat}
+        changeFile={ctx.changeFile}
+        changePlan={ctx.changePlan}
+        onOpenToolDiff={ctx.onOpenToolDiff}
+        onOpenAgent={ctx.onOpenAgent}
+      />
+    </div>
+  );
+});
+
+CompactStepRow.displayName = "CompactStepRow";
+
+const StepGroupBlock: FC<{
+  group: ProcessStepGroup;
+  defaultOpen: boolean;
+  forceOpen: boolean;
+  ctx: StepRowContext;
+}> = memo(({ group, defaultOpen, forceOpen, ctx }) => {
+  const [open, setOpen] = useState(defaultOpen);
+  const canCollapse = group.collapsible !== false && group.stepCount > 0;
+  const wasForcedRef = useRef(false);
+
+  useEffect(() => {
+    const shouldForce = forceOpen || group.active;
+    if (shouldForce && !wasForcedRef.current) {
+      setOpen(true);
+    }
+    wasForcedRef.current = shouldForce;
+  }, [forceOpen, group.active]);
+
+  const toolCardSteps = group.steps.filter(
+    (step) =>
+      step.kind !== "thinking" &&
+      step.kind !== "assistant_reply" &&
+      !isRichInlineStep(step) &&
+      !isRunInBackgroundAgent(step.tool)
+  );
+  const allToolCards =
+    toolCardSteps.length > 0 && toolCardSteps.length === group.steps.length;
+
+  if (allToolCards) {
+    const tools = toolCardSteps.map((step) => step.tool);
+    return (
+      <div className="timeline-segment-enter w-full py-0.5">
+        <ToolGroup
+          count={toolCardSteps.length}
+          aggregateStatus={aggregateToolStatuses(tools)}
+          defaultOpen={forceOpen || open || group.active || !group.completed}
+        >
+          {toolCardSteps.map((step, index) => (
+            <ToolCallView
+              key={step.id}
+              tool={step.tool}
+              chat={ctx.chat}
+              durationMs={step.durationMs}
+              durationLabel={step.durationLabel}
+              stackPosition={resolveStackPosition(index, toolCardSteps.length)}
+              defaultExpanded={step.active}
+              changeActiveChat={ctx.changeActiveChat}
+              changeFile={ctx.changeFile}
+              changePlan={ctx.changePlan}
+              onOpenToolDiff={ctx.onOpenToolDiff}
+              onOpenAgent={ctx.onOpenAgent}
+            />
+          ))}
+        </ToolGroup>
+      </div>
+    );
+  }
+
+  const stepsBody = (
+    <div className="timeline-rail relative ml-[7px] pl-3.5">
+      <AnimatePresence initial={false}>
+        {group.steps.map((step, index) => (
+          <motion.div
+            key={step.id}
+            initial={{
+              opacity: 0,
+              y: 4,
+            }}
+            animate={{
+              opacity: 1,
+              y: 0,
+            }}
+            transition={{
+              duration: 0.2,
+              delay: Math.min(index * 0.03, 0.18),
+              ease: [0.22, 1, 0.36, 1],
+            }}
+          >
+            <CompactStepRow step={step} ctx={ctx} />
+          </motion.div>
+        ))}
+      </AnimatePresence>
+    </div>
+  );
+
+  if (!canCollapse) {
+    return <div className="timeline-segment-enter w-full">{stepsBody}</div>;
+  }
+
+  return (
+    <Collapsible
+      open={open}
+      onOpenChange={setOpen}
+      className="timeline-segment-enter w-full"
+    >
+      <CollapsibleTrigger
+        className={cn(
+          "group flex w-full items-center gap-2 py-1.5 text-left transition-colors",
+          "text-[var(--chat-text-muted)] hover:text-[var(--chat-text)]"
+        )}
+      >
+        <span
+          className={cn(
+            "timeline-group-title min-w-0 flex-1 truncate text-[14.5px] font-medium",
+            group.active && "thinking-shimmer"
+          )}
+        >
+          {group.title}
+        </span>
+        {group.digitalEmployee ? (
+          <span className="hidden shrink-0 text-[12px] text-[var(--chat-text-muted)] sm:inline">
+            {group.digitalEmployee}
+          </span>
+        ) : null}
+        <motion.div
+          animate={{ rotate: open ? 180 : 0 }}
+          transition={{
+            duration: 0.2,
+            ease: [0.25, 0.46, 0.45, 0.94],
+          }}
+          className="shrink-0"
+        >
+          <ChevronDownIcon className="size-3.5 text-current opacity-70" />
+        </motion.div>
+        <DurationBadge label={group.durationLabel} active={group.active} />
+      </CollapsibleTrigger>
+
+      <CollapsibleContent>{stepsBody}</CollapsibleContent>
+    </Collapsible>
+  );
+});
+
+StepGroupBlock.displayName = "StepGroupBlock";
+
+const UserMessageSegment: FC<{ step: ProcessStepRow }> = memo(({ step }) => (
+  <div className="my-2 w-full" data-testid="process-user-message">
+    <UserBriefCard tool={step.tool} />
+  </div>
+));
+
+UserMessageSegment.displayName = "UserMessageSegment";
+
+/** 分段深度思考：标题点击折叠，流式完自动收起 */
+const ThinkingSegment: FC<{
+  step: ProcessStepRow;
+}> = memo(({ step }) => {
+  const thoughtText = asText(step.tool.toolThought);
+  const streaming = step.active;
+
+  return (
+    <div className="timeline-segment-enter py-0.5" data-testid="process-thinking">
+      <ThinkingBlock
+        text={thoughtText || "…"}
+        streaming={streaming}
+        durationLabel={step.durationLabel}
+      />
+    </div>
+  );
+});
+
+ThinkingSegment.displayName = "ThinkingSegment";
+
+/** 助手过程回复：深度思考下方常显 */
+const AssistantReplySegment: FC<{ text: string; streaming?: boolean }> = memo(
+  ({ text, streaming }) => (
+    <div
+      className="timeline-assistant-reply timeline-segment-enter mt-0.5 mb-2 w-full max-w-[94%] px-1"
+      data-testid="process-assistant-reply"
+    >
+      <MarkdownRenderer
+        markDownContent={text}
+        isStreaming={Boolean(streaming)}
+        className="chat-markdown kimi-md"
+      />
+    </div>
+  )
+);
+
+AssistantReplySegment.displayName = "AssistantReplySegment";
+
+const FinalReplySegment: FC<{ text: string }> = memo(({ text }) => (
+  <div
+    className="timeline-segment-enter mt-3 w-full px-1"
+    data-testid="process-final-reply"
+  >
+    <MarkdownRenderer
+      markDownContent={text}
+      className="chat-markdown conclusion-markdown kimi-md"
+    />
+  </div>
+));
+
+FinalReplySegment.displayName = "FinalReplySegment";
+
+function filterConclusionDuplicateSteps(
+  steps: ProcessStepRow[],
+  conclusionText: string
+): ProcessStepRow[] {
+  if (!conclusionText) {
+    return steps;
+  }
+  return steps.filter((step) => {
+    if (step.tool.messageType === "task_summary") {
+      return !textsNearlyEqual(
+        resolveTaskSummaryText(step.tool),
+        conclusionText
+      );
+    }
+    if (step.kind === "assistant_reply") {
+      return !textsNearlyEqual(asText(step.tool.toolThought), conclusionText);
+    }
+    return true;
+  });
+}
+
+const ProcessSegmentView: FC<{
+  segment: ProcessSegment;
+  isLast: boolean;
+  loading: boolean;
+  conclusionText?: string;
+  ctx: StepRowContext;
+}> = memo(({ segment, isLast, loading, conclusionText = "", ctx }) => {
+  if (segment.type === "thinking") {
+    return <ThinkingSegment step={segment.step} />;
+  }
+  if (segment.type === "assistant_reply") {
+    return (
+      <AssistantReplySegment
+        text={segment.text}
+        streaming={loading && isLast && segment.step.active}
+      />
+    );
+  }
+  if (segment.type === "user_message") {
+    return <UserMessageSegment step={segment.step} />;
+  }
+  if (segment.type === "final_reply") {
+    return <FinalReplySegment text={segment.text} />;
+  }
+
+  const visibleSteps = filterConclusionDuplicateSteps(
+    segment.group.steps,
+    conclusionText
+  );
+  if (!visibleSteps.length) {
+    return null;
+  }
+  const visibleGroup = {
+    ...segment.group,
+    steps: visibleSteps,
+    stepCount: visibleSteps.filter((step) => step.kind !== "thinking" && step.kind !== "assistant_reply").length || visibleSteps.length,
+    active: visibleSteps.some((step) => step.active),
+    completed: visibleSteps.every((step) => step.completed) && !visibleSteps.some((step) => step.active),
+  };
+
+  const hasDeepSearch = visibleGroup.steps.some(
+    (step) => step.tool.messageType === "deep_search"
+  );
+
+  // 单步且已完成：直接展示工具行；进行中/多步走可折叠组。
+  // deep_search 查询卡始终展开，避免 URL / 章节总结被折叠吞掉。
+  if (visibleGroup.stepCount <= 1 && visibleGroup.completed && !hasDeepSearch) {
+    return (
+      <div className="w-full">
+        {visibleGroup.steps.map((step) => (
+          <CompactStepRow key={step.id} step={step} ctx={ctx} />
+        ))}
+      </div>
+    );
+  }
+  return (
+    <StepGroupBlock
+      group={visibleGroup}
+      defaultOpen={
+        visibleGroup.active || !visibleGroup.completed || hasDeepSearch
+      }
+      forceOpen={visibleGroup.active}
+      ctx={ctx}
+    />
+  );
+});
+
+ProcessSegmentView.displayName = "ProcessSegmentView";
+
+/**
+ * 产品级 Agent 过程时间线：
+ * 深度思考 → 意图句 → 可折叠步骤组（左轨竖线 + 图标 + 耗时）
+ * 富交互步骤内联复用 Timeline.ToolItem；工具卡统一走 ToolCallView（registry 分发）。
+ */
+const AgentStepTimelineComponent: FC<AgentStepTimelineProps> = (props) => {
+  const {
+    chat,
+    isPlanSolveMessage,
+    thoughtText = "",
+    thoughtStreaming = false,
+    thoughtVersionLabel,
+    thoughtVersionIndex = 0,
+    thoughtVersionTotal = 0,
+    onThoughtPrev,
+    onThoughtNext,
+    canThoughtPrev,
+    canThoughtNext,
+    planSlot,
+    changeActiveChat,
+    changePlan,
+    changeFile,
+    onOpenThinking,
+    onOpenToolDiff,
+    onOpenAgent,
+  } = props;
+
+  const model = useMemo(
+    () =>
+      deriveAgentProcessModel({
+        chat,
+        isPlanSolve: isPlanSolveMessage,
+        thoughtText,
+        thoughtStreaming,
+        thoughtVersionLabel,
+        thoughtVersionIndex,
+        thoughtVersionTotal,
+      }),
+    [
+      chat,
+      isPlanSolveMessage,
+      thoughtText,
+      thoughtStreaming,
+      thoughtVersionLabel,
+      thoughtVersionIndex,
+      thoughtVersionTotal,
+    ]
+  );
+
+  const ctx = useMemo<StepRowContext>(
+    () => ({
+      chat,
+      changeActiveChat,
+      changePlan,
+      changeFile,
+      onOpenThinking,
+      onOpenToolDiff,
+      onOpenAgent,
+    }),
+    [
+      chat,
+      changeActiveChat,
+      changePlan,
+      changeFile,
+      onOpenThinking,
+      onOpenToolDiff,
+      onOpenAgent,
+    ]
+  );
+
+  if (!model.hasProcess && !planSlot) {
+    return null;
+  }
+
+  return (
+    <div
+      className="agent-step-timeline w-full max-w-[min(960px,100%)]"
+      data-testid="agent-step-timeline"
+      aria-label="Agent 执行过程"
+    >
+      {model.thought ? (
+        <div className="timeline-segment-enter mb-2">
+          <ThinkingBlock
+            text={model.thought.text}
+            streaming={model.thought.streaming}
+            durationLabel={model.thought.durationLabel}
+            headerExtra={
+              model.thought.versionLabel ? (
+                <ThoughtVersionSwitcher
+                  versionLabel={model.thought.versionLabel}
+                  onPrev={onThoughtPrev}
+                  onNext={onThoughtNext}
+                  canPrev={canThoughtPrev}
+                  canNext={canThoughtNext}
+                />
+              ) : null
+            }
+          />
+          {!model.thought.streaming && model.intentLine ? (
+            <p className="timeline-assistant-reply mt-1 text-[13px] leading-6">
+              {model.intentLine}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
+      {planSlot ? <div className="mb-3 w-full">{planSlot}</div> : null}
+
+      {model.segments.length ? (
+        <div className="flex flex-col gap-1">
+          {model.segments.map((segment, index) => {
+            const conclusionText = resolveTaskSummaryText(chat.conclusion);
+            // 终答区已有 conclusion：时间线里不再重复同文案（含误标成思考/过程回复）
+            if (conclusionText && isDuplicateOfConclusion(segment, conclusionText)) {
+              return null;
+            }
+            const key =
+              segment.type === "group"
+                ? segment.group.id
+                : segment.type === "thinking"
+                  ? `think-${segment.step.id}`
+                  : segment.type === "assistant_reply"
+                    ? `reply-${segment.step.id}`
+                    : segment.type === "user_message"
+                      ? `msg-${segment.step.id}`
+                      : `final-${segment.step.id}`;
+            return (
+              <ProcessSegmentView
+                key={key}
+                segment={segment}
+                isLast={index === model.segments.length - 1}
+                loading={chat.loading}
+                conclusionText={conclusionText}
+                ctx={ctx}
+              />
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
+};
+
+export const AgentStepTimeline = memo(
+  AgentStepTimelineComponent,
+  (prev, next) =>
+    prev.chat === next.chat &&
+    prev.isPlanSolveMessage === next.isPlanSolveMessage &&
+    prev.thoughtText === next.thoughtText &&
+    prev.thoughtStreaming === next.thoughtStreaming &&
+    prev.thoughtVersionLabel === next.thoughtVersionLabel &&
+    prev.thoughtVersionIndex === next.thoughtVersionIndex &&
+    prev.thoughtVersionTotal === next.thoughtVersionTotal &&
+    prev.planSlot === next.planSlot &&
+    prev.changeActiveChat === next.changeActiveChat &&
+    prev.changePlan === next.changePlan &&
+    prev.changeFile === next.changeFile &&
+    prev.onOpenThinking === next.onOpenThinking &&
+    prev.onOpenToolDiff === next.onOpenToolDiff &&
+    prev.onOpenAgent === next.onOpenAgent &&
+    prev.onThoughtPrev === next.onThoughtPrev &&
+    prev.onThoughtNext === next.onThoughtNext &&
+    prev.canThoughtPrev === next.canThoughtPrev &&
+    prev.canThoughtNext === next.canThoughtNext
+);
+
+AgentStepTimeline.displayName = "AgentStepTimeline";
+
+export default AgentStepTimeline;

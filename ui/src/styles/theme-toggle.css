@@ -1,0 +1,23 @@
+.global-theme-toggle {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border: 1px solid var(--color-line);
+  border-radius: 11px;
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: background-color 160ms, border-color 160ms, transform 160ms;
+}
+.global-theme-toggle:hover { background: var(--color-hover); border-color: var(--color-line-strong); }
+.global-theme-toggle:active { transform: scale(.94); }
+.global-theme-toggle:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 3px; }
+.global-theme-toggle svg { position: absolute; width: 19px; height: 19px; stroke-width: 1.7; transition: opacity 180ms, transform 220ms ease; }
+.global-theme-toggle .theme-sun { opacity: 0; transform: rotate(-50deg) scale(.65); }
+.global-theme-toggle .theme-moon { opacity: 1; transform: rotate(0) scale(1); }
+.dark .global-theme-toggle .theme-sun { opacity: 1; transform: rotate(0) scale(1); }
+.dark .global-theme-toggle .theme-moon { opacity: 0; transform: rotate(40deg) scale(.65); }
+@media (prefers-reduced-motion: reduce) { .global-theme-toggle, .global-theme-toggle svg { transition: none; } }

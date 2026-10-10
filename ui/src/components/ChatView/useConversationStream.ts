@@ -1,0 +1,2381 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { Dispatch, SetStateAction } from "react";
+import { useMemoizedFn } from "ahooks";
+import { message as antdMessage } from "antd";
+import { getUniqId } from "@/utils";
+import { buildAgentStreamRequest } from "@/utils/agentRequest";
+import { readConversationModelState } from "@/utils/conversationModelConfig";
+import {
+  clearActiveRun,
+  readActiveRun,
+  saveActiveRun,
+  updateActiveRunSeq,
+  updateActiveRunEvent,
+} from "@/utils/activeRunStorage";
+import {
+  buildConversationTaskData,
+  buildTaskFromEventData,
+  combineData,
+  handleTaskData,
+  normalizeEventData,
+} from "@/utils/chat";
+import { resolveParentToolUseId } from "@/utils/chat/subagent";
+import {
+  hydrateConversationFromReplayFrames,
+} from "@/utils/conversationHistory";
+import { restoreHitlForSession } from "@/utils/hitlRestore";
+import querySSE from "@/utils/querySSE";
+import { parseAgentAnswer } from "@/utils/sseParsers";
+import { conversationHistoryApi } from "@/services/agentConversation";
+import { AGENT_RUN_FOLLOW_SSE_URL } from "@/services/agentRun";
+import {
+  ASK_USER_RESUME_EVENT,
+  ASK_USER_RESUME_SSE_URL,
+  type AskUserResumeEventDetail,
+} from "@/services/askUser";
+import {
+  PLAN_APPROVAL_RESUME_EVENT,
+  PLAN_APPROVAL_RESUME_SSE_URL,
+  type PlanApprovalResumeEventDetail,
+} from "@/services/planApproval";
+import type {
+  ActiveRunState,
+  ConversationDraftController,
+  ConversationListKey,
+  ThrottledStreamController,
+} from "./chatView.types";
+import {
+  applyWaitingUserInputState,
+  cloneWorkspaceTask,
+  getLatestRenderableTask,
+  hasPendingAskUserQuestion,
+  isHitlYieldEvent,
+  markAskUserQuestionsAnswered,
+  markPlanApprovalsDecided,
+  resolveActionPanelVisibility,
+  resolveLatestRunState,
+  resolveRunPresence,
+  resolveWorkspaceCaption,
+  shouldRefreshWorkspaceTask,
+  WAITING_USER_HELP_HINT,
+} from "./streamState";
+
+function isLlmRetryEvent(eventData?: MESSAGE.EventData | null): boolean {
+  return (
+    eventData?.messageType === "llm_retry" ||
+    eventData?.resultMap?.messageType === "llm_retry"
+  );
+}
+
+function isLlmRetryTip(tip?: string): boolean {
+  return !!tip && tip.includes("正在重试");
+}
+
+type UseConversationStreamOptions = {
+  conversation: CHAT.ConversationHistory;
+  onConversationChange: (
+    conversationId: string,
+    nextConversation: CHAT.ConversationHistory
+  ) => void;
+  onPrepareStreamingWorkspace?: () => void;
+  onModelConfigSubmitted?: (input: CHAT.TInputInfo) => void;
+  onTokenUseUp?: () => void;
+};
+
+type UseConversationStreamResult = {
+  taskList: CHAT.Task[];
+  workspaceStreamTask?: CHAT.Task;
+  workspaceCaption?: string;
+  activeRunState?: ActiveRunState;
+  setActiveRunState: Dispatch<SetStateAction<ActiveRunState | undefined>>;
+  plan?: CHAT.Plan;
+  showAction: boolean;
+  changeActionStatus: (status: boolean) => void;
+  loading: boolean;
+  streamingThoughtMap: Record<string, string>;
+  sendMessage: (inputInfo: CHAT.TInputInfo) => void;
+  stopActiveRun: () => Promise<void>;
+  /** 向进行中的 run 注入用户指导（不开新 SSE） */
+  injectActiveRun: (text: string) => Promise<boolean>;
+  regenerateLastMessage: () => void;
+  /** 撤销末轮并返回 user query；busy 时返回 null */
+  undoLastUserTurn: () => string | null;
+};
+
+const CONNECTION_LOST_HINT = "连接暂时断开，任务仍在后台执行";
+const CONCURRENT_RUN_HINT =
+  "已有任务在进行中，请等待完成或先停止后再试";
+const FOLLOW_RECONNECT_BASE_DELAY = 800;
+
+function isChatItemRunning(chat?: CHAT.ChatItem | null) {
+  if (!chat) {
+    return false;
+  }
+  if (chat.loading) {
+    return true;
+  }
+  return String(chat.metrics?.status || "").toUpperCase() === "RUNNING";
+}
+const FOLLOW_RECONNECT_MAX_DELAY = 15_000;
+/** RUNNING 期间允许持续退避；不再在 6 次后永久放弃 */
+const FOLLOW_RECONNECT_ATTEMPT_CAP = 20;
+
+/** 每个会话至多一条活 SSE；切会话不 abort，后台继续写回对应 conversation。 */
+type LiveStreamEntry = {
+  conversationId: string;
+  requestId: string;
+  controller: AbortController;
+};
+
+/** 断流后后台会话也能 follow：不依赖当前前台 conversationRef。 */
+type FollowReconnectContext = {
+  conversationId: string;
+  sessionId: string;
+  requestId: string;
+  productType?: string;
+  deepThink?: boolean;
+  seedChat: CHAT.ChatItem;
+};
+
+function useRafThrottle<TValue>(
+  initialValue: TValue,
+  interval: number,
+  onFlush: (value: TValue) => void
+): ThrottledStreamController<TValue> {
+  const frameRef = useRef<number | null>(null);
+  const pendingRef = useRef(initialValue);
+  const lastFlushAtRef = useRef(0);
+
+  const cancel = useMemoizedFn(() => {
+    if (frameRef.current !== null) {
+      cancelAnimationFrame(frameRef.current);
+      frameRef.current = null;
+    }
+  });
+
+  const flush = useMemoizedFn((force = false) => {
+    const now = performance.now();
+    if (!force && now - lastFlushAtRef.current < interval) {
+      return;
+    }
+    lastFlushAtRef.current = now;
+    const nextValue = pendingRef.current;
+    pendingRef.current = initialValue;
+    onFlush(nextValue);
+  });
+
+  const schedule = useMemoizedFn((
+    updater: TValue | ((current: TValue) => TValue),
+    force = false
+  ) => {
+    pendingRef.current =
+      typeof updater === "function"
+        ? (updater as (current: TValue) => TValue)(pendingRef.current)
+        : updater;
+
+    if (force) {
+      cancel();
+      flush(true);
+      return;
+    }
+
+    if (frameRef.current !== null) {
+      return;
+    }
+
+    const requestNextFrame = () => {
+      frameRef.current = requestAnimationFrame(() => {
+        frameRef.current = null;
+        const now = performance.now();
+        if (now - lastFlushAtRef.current < interval) {
+          requestNextFrame();
+          return;
+        }
+        flush(true);
+      });
+    };
+
+    requestNextFrame();
+  });
+
+  const reset = useMemoizedFn((value: TValue) => {
+    cancel();
+    pendingRef.current = value;
+    lastFlushAtRef.current = 0;
+  });
+
+  return useMemo(() => ({
+    pendingRef,
+    cancel,
+    flush,
+    schedule,
+    reset,
+  }), [cancel, flush, reset, schedule]);
+}
+
+function replaceConversationListLastItem<TItem>(
+  conversation: CHAT.ConversationHistory,
+  key: ConversationListKey,
+  item: TItem
+) {
+  const nextList = [...(conversation[key] as TItem[])];
+  nextList.splice(nextList.length - 1, 1, item);
+  return {
+    ...conversation,
+    [key]: nextList,
+  } as CHAT.ConversationHistory;
+}
+
+export function createConversationDraftController<TItem>(
+  conversationId: string,
+  initialConversation: CHAT.ConversationHistory,
+  listKey: ConversationListKey,
+  commit: (conversationId: string, nextConversation: CHAT.ConversationHistory) => void
+): ConversationDraftController<TItem> {
+  let snapshot = initialConversation;
+
+  return {
+    conversationId,
+    getSnapshot: () => snapshot,
+    replaceLastItem: (item) => {
+      snapshot = replaceConversationListLastItem(snapshot, listKey, item);
+      return snapshot;
+    },
+    commit: (nextConversation) => {
+      snapshot = nextConversation;
+      commit(conversationId, snapshot);
+    },
+  };
+}
+
+export function createDraftConversation(
+  baseConversation: CHAT.ConversationHistory,
+  overrides: Partial<CHAT.ConversationHistory>
+) {
+  return {
+    ...baseConversation,
+    chatTitle: baseConversation.chatTitle || overrides.chatTitle || "",
+    title:
+      baseConversation.title === "新对话" && overrides.chatTitle
+        ? overrides.chatTitle.slice(0, 30)
+        : baseConversation.title,
+    ...overrides,
+  };
+}
+
+function createRunningChat(
+  inputInfo: CHAT.TInputInfo,
+  sessionId: string,
+  requestId: string,
+  deepThink?: boolean
+): CHAT.ChatItem {
+  return {
+    query: inputInfo.message!,
+    files: inputInfo.files!,
+    responseType: "txt",
+    sessionId,
+    requestId,
+    agentType: deepThink ? 3 : 5,
+    loading: true,
+    forceStop: false,
+    tasks: [],
+    thought: "",
+    response: "",
+    taskStatus: 0,
+    tip: "",
+    multiAgent: { tasks: [] },
+    metrics: { status: "RUNNING" },
+  };
+}
+
+/** 新一轮尚未收到模型 usage 前，沿用上一轮最近的真实上下文快照。 */
+export function resolveLatestContextUsage(
+  chatList: readonly CHAT.ChatItem[]
+): CHAT.ContextUsage | undefined {
+  for (let index = chatList.length - 1; index >= 0; index -= 1) {
+    const usage = chatList[index]?.contextUsage;
+    if (
+      usage &&
+      typeof usage.promptTokens === "number" &&
+      Number.isFinite(usage.promptTokens) &&
+      usage.promptTokens >= 0
+    ) {
+      return { ...usage };
+    }
+  }
+  return undefined;
+}
+
+/**
+ * guard error 没有结构化 eventData 时，前端需要补一条失败总结，
+ * 否则多智能体对话会停留在 loading 态，看不到明确的失败结论。
+ */
+export function applyGuardError(
+  currentChat: CHAT.ChatItem,
+  errorText: string
+): CHAT.ChatItem {
+  const nextErrorText = errorText || "当前请求处理失败，请稍后重试";
+
+  return {
+    ...currentChat,
+    loading: false,
+    tip: nextErrorText,
+    metrics: {
+      ...(currentChat.metrics || {}),
+      status: "FAILED",
+    },
+    conclusion: {
+      id: `${currentChat.requestId}-guard-error`,
+      messageId: `${currentChat.requestId}-guard-error`,
+      requestId: currentChat.requestId,
+      messageTime: String(Date.now()),
+      messageType: "task_summary",
+      finish: true,
+      isFinal: true,
+      result: nextErrorText,
+      resultMap: {
+        taskSummary: nextErrorText,
+        fileList: [],
+        isFinal: true,
+      },
+    } as CHAT.Task,
+  };
+}
+
+export function useConversationStream(
+  options: UseConversationStreamOptions
+): UseConversationStreamResult {
+  const {
+    conversation,
+    onConversationChange,
+    onPrepareStreamingWorkspace,
+    onModelConfigSubmitted,
+    onTokenUseUp,
+  } = options;
+
+  const [taskList, setTaskList] = useState<CHAT.Task[]>([]);
+  const [workspaceStreamTask, setWorkspaceStreamTask] = useState<CHAT.Task>();
+  const [activeRunState, setActiveRunState] = useState<ActiveRunState>();
+  const [plan, setPlan] = useState<CHAT.Plan>();
+  const [showAction, setShowAction] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [streamingThoughtMap, setStreamingThoughtMap] = useState<Record<string, string>>({});
+  const conversationRef = useRef(conversation);
+  const activeRequestIdRef = useRef<string | null>(null);
+  const streamAbortControllerRef = useRef<AbortController | null>(null);
+  const liveStreamsRef = useRef<Map<string, LiveStreamEntry>>(new Map());
+  const followReconnectTimersRef = useRef<Map<string, number>>(new Map());
+  const followReconnectAttemptsRef = useRef<Map<string, number>>(new Map());
+  const followReconnectContextsRef = useRef<Map<string, FollowReconnectContext>>(
+    new Map()
+  );
+  /** 各会话最新快照，供后台 follow 重连时 draft 使用（避免用前台 conversation 覆盖）。 */
+  const conversationSnapshotsRef = useRef<Map<string, CHAT.ConversationHistory>>(
+    new Map()
+  );
+  const lastEventSeqRef = useRef<Map<string, number>>(new Map());
+
+  const clearFollowReconnectTimer = useMemoizedFn((requestId?: string) => {
+    if (requestId) {
+      const timer = followReconnectTimersRef.current.get(requestId);
+      if (timer != null) {
+        window.clearTimeout(timer);
+        followReconnectTimersRef.current.delete(requestId);
+      }
+      return;
+    }
+    followReconnectTimersRef.current.forEach((timer) => window.clearTimeout(timer));
+    followReconnectTimersRef.current.clear();
+  });
+
+  const bindForegroundStream = useMemoizedFn(
+    (conversationId: string, requestId: string, controller: AbortController) => {
+      liveStreamsRef.current.set(conversationId, {
+        conversationId,
+        requestId,
+        controller,
+      });
+      if (conversationRef.current.id === conversationId) {
+        streamAbortControllerRef.current = controller;
+        activeRequestIdRef.current = requestId;
+      }
+    }
+  );
+
+  const unbindLiveStream = useMemoizedFn(
+    (conversationId: string, controller?: AbortController) => {
+      const entry = liveStreamsRef.current.get(conversationId);
+      if (!entry) {
+        return;
+      }
+      if (controller && entry.controller !== controller) {
+        return;
+      }
+      liveStreamsRef.current.delete(conversationId);
+      if (streamAbortControllerRef.current === entry.controller) {
+        streamAbortControllerRef.current = null;
+      }
+      if (
+        conversationRef.current.id === conversationId &&
+        activeRequestIdRef.current === entry.requestId
+      ) {
+        activeRequestIdRef.current = null;
+      }
+    }
+  );
+
+  const hasLiveStream = useMemoizedFn(
+    (conversationId: string, requestId: string) => {
+      const entry = liveStreamsRef.current.get(conversationId);
+      return (
+        !!entry &&
+        entry.requestId === requestId &&
+        !entry.controller.signal.aborted
+      );
+    }
+  );
+
+  const workspaceTaskThrottle = useRafThrottle<CHAT.Task | undefined>(
+    undefined,
+    32,
+    (task) => setWorkspaceStreamTask(task)
+  );
+  const thoughtThrottle = useRafThrottle<Record<string, string>>(
+    {},
+    48,
+    (pendingThoughtMap) => {
+      const pendingEntries = Object.entries(pendingThoughtMap);
+      if (!pendingEntries.length) {
+        return;
+      }
+
+      setStreamingThoughtMap((previous) => {
+        let changed = false;
+        const next = { ...previous };
+
+        pendingEntries.forEach(([requestId, thought]) => {
+          if (next[requestId] !== thought) {
+            next[requestId] = thought;
+            changed = true;
+          }
+        });
+
+        return changed ? next : previous;
+      });
+    }
+  );
+  const resetWorkspaceTaskThrottle = workspaceTaskThrottle.reset;
+  const resetThoughtThrottle = thoughtThrottle.reset;
+  const cancelWorkspaceTaskThrottle = workspaceTaskThrottle.cancel;
+  const cancelThoughtThrottle = thoughtThrottle.cancel;
+
+  const commitConversation = useMemoizedFn(
+    (conversationId: string, nextConversation: CHAT.ConversationHistory) => {
+      const stamped = {
+        ...nextConversation,
+        updatedAt: Date.now(),
+      };
+      conversationSnapshotsRef.current.set(conversationId, stamped);
+      onConversationChange(conversationId, stamped);
+    }
+  );
+
+  useEffect(() => {
+    conversationSnapshotsRef.current.set(conversation.id, conversation);
+  }, [conversation]);
+
+  const scheduleStreamingThought = useMemoizedFn((requestId: string, thought: string, force = false) => {
+    thoughtThrottle.schedule((current) => ({
+      ...current,
+      [requestId]: thought,
+    }), force);
+  });
+
+  const scheduleWorkspaceStreamTask = useMemoizedFn((chat: CHAT.ChatItem, force = false) => {
+    const latestTask = getLatestRenderableTask(chat);
+    if (!latestTask) {
+      return;
+    }
+
+    workspaceTaskThrottle.schedule(cloneWorkspaceTask(latestTask), force);
+  });
+
+  const changeActionStatus = useMemoizedFn((status: boolean) => {
+    setShowAction(status);
+  });
+
+  useEffect(() => {
+    conversationRef.current = conversation;
+  }, [conversation]);
+
+  useEffect(() => {
+    // 切会话只切换前台 UI；后台会话的 SSE / follow 重连继续跑，禁止 abort、禁止清重连定时器。
+    resetWorkspaceTaskThrottle(undefined);
+    resetThoughtThrottle({});
+    setTaskList([]);
+    setWorkspaceStreamTask(undefined);
+    setActiveRunState(undefined);
+    setPlan(undefined);
+    setShowAction(false);
+    setStreamingThoughtMap({});
+
+    const conversationId = conversation.id;
+    const latestRunningChat = [...conversationRef.current.chatList]
+      .reverse()
+      .find((chat) => chat.loading && chat.requestId);
+    const live = liveStreamsRef.current.get(conversationId);
+
+    if (latestRunningChat?.requestId) {
+      // 刷新后由 Home 从 Ledger 恢复的 RUNNING run 仍然可以被用户显式停止，
+      // 但网络断开本身不会在这里被改写成 STOPPED。
+      activeRequestIdRef.current = latestRunningChat.requestId;
+      setLoading(true);
+      if (
+        live &&
+        live.requestId === latestRunningChat.requestId &&
+        !live.controller.signal.aborted
+      ) {
+        streamAbortControllerRef.current = live.controller;
+      } else {
+        streamAbortControllerRef.current = null;
+      }
+    } else {
+      activeRequestIdRef.current = null;
+      streamAbortControllerRef.current = null;
+      setLoading(false);
+    }
+  }, [
+    conversation.id,
+    resetThoughtThrottle,
+    resetWorkspaceTaskThrottle,
+  ]);
+
+  const runningFollowKey = useMemo(() => {
+    const latestRunningChat = [...conversation.chatList]
+      .reverse()
+      .find((chat) => chat.loading && chat.requestId);
+    if (!latestRunningChat?.requestId) {
+      return null;
+    }
+    return `${conversation.id}::${latestRunningChat.requestId}`;
+  }, [conversation.chatList, conversation.id]);
+
+  useEffect(() => {
+    if (!conversation.chatList.length || loading) {
+      return;
+    }
+
+    const latestChatSnapshot = [...conversation.chatList]
+      .reverse()
+      .find(
+        (chat) =>
+          (chat.multiAgent?.tasks?.length || 0) > 0 ||
+          !!chat.multiAgent?.plan ||
+          !!chat.timeline?.length
+      );
+
+    if (!latestChatSnapshot) {
+      return;
+    }
+
+    const conversationTaskData = buildConversationTaskData(
+      latestChatSnapshot,
+      conversation.deepThink
+    );
+    const latestTask = getLatestRenderableTask(conversationTaskData.currentChat);
+
+    setTaskList(conversationTaskData.taskList);
+    setPlan(conversationTaskData.plan);
+    setWorkspaceStreamTask(latestTask ? cloneWorkspaceTask(latestTask) : undefined);
+    setActiveRunState(resolveLatestRunState(latestChatSnapshot));
+    setShowAction(resolveActionPanelVisibility({
+      plan: conversationTaskData.plan,
+      taskList: conversationTaskData.taskList,
+    }));
+  }, [conversation.chatList, conversation.deepThink, conversation.id, loading]);
+
+  useEffect(() => {
+    const referenceChat = conversation.chatList[conversation.chatList.length - 1];
+    if (!referenceChat) {
+      setActiveRunState(undefined);
+      return;
+    }
+
+    setActiveRunState(resolveLatestRunState(referenceChat));
+  }, [conversation.chatList]);
+
+  useEffect(() => {
+    return () => {
+      clearFollowReconnectTimer();
+      followReconnectContextsRef.current.clear();
+      liveStreamsRef.current.forEach((entry) => {
+        entry.controller.abort();
+      });
+      liveStreamsRef.current.clear();
+      streamAbortControllerRef.current = null;
+      activeRequestIdRef.current = null;
+      cancelWorkspaceTaskThrottle();
+      cancelThoughtThrottle();
+    };
+  }, [
+    cancelThoughtThrottle,
+    cancelWorkspaceTaskThrottle,
+    clearFollowReconnectTimer,
+  ]);
+
+  /**
+   * 历史 hydrate 出 RUNNING 后，续绑服务端仍在执行的 run（不重发 query）。
+   * 与 sendMessage 共用同一套 combineData / handleTaskData 语义。
+   * reconnectContext 用于后台会话断流后续绑（不依赖前台 conversationRef）。
+   */
+  const followActiveRun = useMemoizedFn((
+    targetRequestId: string,
+    reconnectContext?: FollowReconnectContext
+  ) => {
+    const cached = reconnectContext || followReconnectContextsRef.current.get(targetRequestId);
+    const baseConversation = conversationRef.current;
+    const conversationId = cached?.conversationId || baseConversation.id;
+    const seedChat =
+      cached?.seedChat ||
+      [...baseConversation.chatList]
+        .reverse()
+        .find((chat) => chat.requestId === targetRequestId && chat.loading);
+    if (!seedChat?.requestId) {
+      return;
+    }
+    if (hasLiveStream(conversationId, targetRequestId)) {
+      return;
+    }
+    clearFollowReconnectTimer(targetRequestId);
+
+    const requestId = seedChat.requestId;
+    const sessionId = cached?.sessionId || baseConversation.sessionId;
+    const productType = cached?.productType ?? baseConversation.productType;
+    const normalizedDeepThink = Boolean(cached?.deepThink ?? baseConversation.deepThink);
+
+    followReconnectContextsRef.current.set(requestId, {
+      conversationId,
+      sessionId,
+      requestId,
+      productType,
+      deepThink: normalizedDeepThink,
+      seedChat: {
+        ...seedChat,
+        loading: true,
+        metrics: {
+          ...(seedChat.metrics || {}),
+          status: "RUNNING",
+        },
+      },
+    });
+    const previous = liveStreamsRef.current.get(conversationId);
+    if (previous && previous.requestId !== requestId) {
+      previous.controller.abort();
+    }
+    const abortController = new AbortController();
+    bindForegroundStream(conversationId, requestId, abortController);
+    const storedCheckpoint = readActiveRun();
+    const initialEventSeq = storedCheckpoint?.requestId === requestId
+      ? storedCheckpoint.lastEventSeq
+      : (lastEventSeqRef.current.get(requestId) || 0);
+    lastEventSeqRef.current.set(requestId, initialEventSeq);
+    if (!storedCheckpoint || storedCheckpoint.requestId !== requestId) {
+      saveActiveRun(sessionId, requestId);
+    }
+    if (conversationRef.current.id === conversationId) {
+      setLoading(true);
+      onPrepareStreamingWorkspace?.();
+    }
+
+    // 前台才刷本组件 UI；后台会话只通过 commitConversation 写回历史状态。
+    const isActiveStream = () =>
+      conversationRef.current.id === conversationId &&
+      activeRequestIdRef.current === requestId;
+
+    let currentChat: CHAT.ChatItem = {
+      ...seedChat,
+      loading: true,
+      metrics: {
+        ...(seedChat.metrics || {}),
+        status: "RUNNING",
+      },
+    };
+
+    const draftBase: CHAT.ConversationHistory =
+      conversationSnapshotsRef.current.get(conversationId) ||
+      (conversationRef.current.id === conversationId
+        ? conversationRef.current
+        : {
+            ...conversationRef.current,
+            id: conversationId,
+            sessionId,
+            productType: productType || conversationRef.current.productType,
+            deepThink: normalizedDeepThink,
+            chatList: [currentChat],
+          });
+
+    const draftController = createConversationDraftController<CHAT.ChatItem>(
+      conversationId,
+      draftBase,
+      "chatList",
+      commitConversation
+    );
+
+    const syncRunningConversation = () => {
+      draftController.commit(draftController.replaceLastItem({ ...currentChat }));
+    };
+
+    const syncDerivedConversationSnapshot = (nextChat: CHAT.ChatItem) => {
+      pendingConversation = draftController.replaceLastItem({ ...nextChat });
+    };
+
+    let pendingConversation: CHAT.ConversationHistory | null = null;
+    let pendingTaskData: ReturnType<typeof handleTaskData> | null = null;
+    let taskDataDirty = false;
+    let pendingFlushFrame: number | null = null;
+    let lastConversationFlushAt = 0;
+    let lastTaskFlushAt = 0;
+    const CONVERSATION_FLUSH_INTERVAL = 16;
+    const TASK_FLUSH_INTERVAL = 96;
+
+    const flushNonChatUpdates = (force = false) => {
+      if (!pendingConversation && !pendingTaskData && !taskDataDirty) {
+        return;
+      }
+      const now = performance.now();
+      if (taskDataDirty) {
+        const derived = handleTaskData(
+          currentChat,
+          normalizedDeepThink,
+          currentChat.multiAgent
+        );
+        syncDerivedConversationSnapshot(derived.currentChat);
+        taskDataDirty = false;
+        if (force || now - lastTaskFlushAt >= TASK_FLUSH_INTERVAL) {
+          pendingTaskData = derived;
+        }
+      }
+      const shouldFlushConversation =
+        !!pendingConversation &&
+        (force || now - lastConversationFlushAt >= CONVERSATION_FLUSH_INTERVAL);
+      const shouldFlushTask =
+        !!pendingTaskData && (force || now - lastTaskFlushAt >= TASK_FLUSH_INTERVAL);
+      const streamStillActive = isActiveStream();
+      if (shouldFlushTask && pendingTaskData) {
+        if (streamStillActive) {
+          setTaskList(pendingTaskData.taskList);
+          setPlan(pendingTaskData.plan);
+          setShowAction(
+            resolveActionPanelVisibility({
+              plan: pendingTaskData.plan,
+              taskList: pendingTaskData.taskList,
+            })
+          );
+        }
+        pendingTaskData = null;
+        lastTaskFlushAt = now;
+      }
+      if (shouldFlushConversation && pendingConversation) {
+        commitConversation(conversationId, pendingConversation);
+        pendingConversation = null;
+        lastConversationFlushAt = now;
+      }
+    };
+
+    const scheduleNonChatFlush = (force = false) => {
+      if (force) {
+        if (pendingFlushFrame) {
+          cancelAnimationFrame(pendingFlushFrame);
+          pendingFlushFrame = null;
+        }
+        flushNonChatUpdates(true);
+        return;
+      }
+      if (pendingFlushFrame) {
+        return;
+      }
+      pendingFlushFrame = requestAnimationFrame(() => {
+        pendingFlushFrame = null;
+        flushNonChatUpdates(false);
+        if (pendingConversation || pendingTaskData || taskDataDirty) {
+          scheduleNonChatFlush(false);
+        }
+      });
+    };
+
+    const markFollowEnded = (nextStatus?: string) => {
+      const streamStillActive = isActiveStream();
+      clearFollowReconnectTimer(requestId);
+      followReconnectAttemptsRef.current.delete(requestId);
+      followReconnectContextsRef.current.delete(requestId);
+      clearActiveRun(requestId);
+      unbindLiveStream(conversationId, abortController);
+      currentChat = {
+        ...currentChat,
+        loading: false,
+        tip: "",
+        metrics: {
+          ...(currentChat.metrics || {}),
+          status:
+            nextStatus ||
+            (currentChat.conclusion || currentChat.metrics?.status === "SUCCESS"
+              ? "SUCCESS"
+              : currentChat.metrics?.status === "STOPPED"
+                ? "STOPPED"
+                : "FAILED"),
+        },
+      };
+      if (streamStillActive) {
+        setLoading(false);
+      }
+      syncRunningConversation();
+    };
+
+    /**
+     * follow_idle 表示进程内已无该 requestId。
+     * 不能直接标 FAILED：任务可能已在后端跑完，只是观察流断了；刷新能好就是因为重新 hydrate ledger。
+     * 这里主动拉 session detail 同步终态；若仍 RUNNING 则继续 follow。
+     */
+    const resyncAfterFollowIdle = async () => {
+      const streamStillActive = isActiveStream();
+      clearFollowReconnectTimer(requestId);
+      unbindLiveStream(conversationId, abortController);
+      currentChat = {
+        ...currentChat,
+        tip: "正在同步任务结果…",
+      };
+      pendingConversation = draftController.replaceLastItem({ ...currentChat });
+      scheduleNonChatFlush(true);
+
+      try {
+        const detail = await conversationHistoryApi.getSessionDetail(sessionId);
+        const history = await restoreHitlForSession(
+          hydrateConversationFromReplayFrames(detail)
+        );
+        const hydrated = (history.chatList || []).find(
+          (item) => item.requestId === requestId
+        );
+        if (!hydrated) {
+          markFollowEnded(
+            currentChat.conclusion || currentChat.multiAgent?.tasks?.length
+              ? "SUCCESS"
+              : "FAILED"
+          );
+          return;
+        }
+
+        if (
+          String(hydrated.metrics?.status || "").toUpperCase() === "WAITING_INPUT" ||
+          hasPendingAskUserQuestion(hydrated)
+        ) {
+          currentChat = applyWaitingUserInputState(hydrated);
+          clearActiveRun(requestId);
+          followReconnectContextsRef.current.delete(requestId);
+          if (streamStillActive) {
+            setLoading(false);
+          }
+          draftController.commit(draftController.replaceLastItem({ ...currentChat }));
+          return;
+        }
+
+        const hydratedStatus = String(hydrated.metrics?.status || "").toUpperCase();
+        // follow_idle 已表示进程内无 run 且 ledger 非 RUNNING。hydrate 若仍像 RUNNING，
+        // 只是回放滞后，不能再当成断线重连。
+        clearFollowReconnectTimer(requestId);
+        followReconnectAttemptsRef.current.delete(requestId);
+        followReconnectContextsRef.current.delete(requestId);
+        clearActiveRun(requestId);
+        currentChat = {
+          ...hydrated,
+          loading: false,
+          tip: "",
+          metrics: {
+            ...(hydrated.metrics || {}),
+            status: ["SUCCESS", "FAILED", "STOPPED"].includes(hydratedStatus)
+              ? hydrated.metrics?.status
+              : "SUCCESS",
+          },
+        };
+        const snapshot = conversationSnapshotsRef.current.get(conversationId);
+        const baseList =
+          snapshot?.chatList ||
+          draftController.getSnapshot().chatList ||
+          [];
+        const nextList = baseList.map((item) =>
+          item.requestId === requestId ? { ...currentChat } : item
+        );
+        const hasItem = nextList.some((item) => item.requestId === requestId);
+        const mergedList = hasItem
+          ? nextList
+          : [...nextList, { ...currentChat }];
+        commitConversation(conversationId, {
+          ...(snapshot || draftController.getSnapshot()),
+          ...history,
+          id: conversationId,
+          chatList: mergedList,
+        });
+        if (streamStillActive) {
+          setLoading(false);
+          const taskData = handleTaskData(
+            currentChat,
+            normalizedDeepThink,
+            currentChat.multiAgent
+          );
+          setTaskList(taskData.taskList);
+          setPlan(taskData.plan);
+          setShowAction(
+            resolveActionPanelVisibility({
+              plan: taskData.plan,
+              taskList: taskData.taskList,
+            })
+          );
+        }
+      } catch (error) {
+        console.warn("resync after follow_idle failed", error);
+        markFollowEnded(
+          currentChat.conclusion || currentChat.multiAgent?.tasks?.length
+            ? "SUCCESS"
+            : undefined
+        );
+      }
+    };
+
+    const handleMessage = (data: MESSAGE.Answer) => {
+      const eventSeq = Number(data.eventSeq || 0);
+      const lastEventSeq = lastEventSeqRef.current.get(requestId) || 0;
+      if (eventSeq > 0 && eventSeq <= lastEventSeq) {
+        return;
+      }
+      if (eventSeq > 0) {
+        lastEventSeqRef.current.set(requestId, eventSeq);
+        updateActiveRunSeq(requestId, eventSeq);
+      }
+      // 收到任意有效帧说明观察流已经恢复，下一次断开从最短退避重新开始。
+      followReconnectAttemptsRef.current.set(requestId, 0);
+      const { finished, resultMap, packageType } = data;
+      const streamStillActive = isActiveStream();
+
+      if (packageType === "follow_idle") {
+        void resyncAfterFollowIdle();
+        return;
+      }
+
+      if (packageType === "follow_pending") {
+        // registry 暂无但 ledger 仍 RUNNING：保持 loading，退避后续绑
+        const live = liveStreamsRef.current.get(conversationId);
+        if (live && live.controller !== abortController) {
+          return;
+        }
+        unbindLiveStream(conversationId, abortController);
+        currentChat = {
+          ...currentChat,
+          tip: CONNECTION_LOST_HINT,
+        };
+        pendingConversation = draftController.replaceLastItem({ ...currentChat });
+        scheduleNonChatFlush(false);
+        const retryMs = Number(data.retryMs);
+        scheduleFollowReconnect(
+          conversationId,
+          requestId,
+          Number.isFinite(retryMs) && retryMs > 0 ? retryMs : undefined
+        );
+        return;
+      }
+
+      if (packageType === "heartbeat") {
+        if (streamStillActive && currentChat.loading) {
+          const presence = resolveRunPresence({
+            loading: true,
+            chat: currentChat,
+            deepThink: normalizedDeepThink,
+            plan: currentChat.plan || currentChat.multiAgent?.plan,
+          });
+          // 重试等待期间心跳不要冲掉「正在重试」提示
+          if (
+            presence.hint &&
+            currentChat.tip !== presence.hint &&
+            !isLlmRetryTip(currentChat.tip)
+          ) {
+            currentChat = {
+              ...currentChat,
+              tip: presence.hint,
+            };
+            pendingConversation = draftController.replaceLastItem({ ...currentChat });
+            scheduleNonChatFlush(false);
+          }
+        }
+        return;
+      }
+
+      const isTerminalGuardError =
+        Boolean(finished) &&
+        packageType === "result" &&
+        Boolean(data.errorMsg) &&
+        !resultMap?.eventData;
+      if (isTerminalGuardError) {
+        const errorText = data.errorMsg || "当前请求处理失败，请稍后重试";
+        currentChat = applyGuardError(currentChat, errorText);
+        clearActiveRun(requestId);
+        followReconnectContextsRef.current.delete(requestId);
+        unbindLiveStream(conversationId, abortController);
+        if (streamStillActive) {
+          setLoading(false);
+        }
+        draftController.commit(draftController.replaceLastItem({ ...currentChat }));
+        return;
+      }
+
+      const eventData = normalizeEventData(resultMap?.eventData);
+      if (!eventData) {
+        if (finished) {
+          clearActiveRun(requestId);
+          followReconnectContextsRef.current.delete(requestId);
+          followReconnectAttemptsRef.current.delete(requestId);
+          clearFollowReconnectTimer(requestId);
+          unbindLiveStream(conversationId, abortController);
+          if (hasPendingAskUserQuestion(currentChat)) {
+            currentChat = applyWaitingUserInputState(currentChat);
+          } else {
+            currentChat.loading = false;
+            currentChat.tip = "";
+            currentChat.metrics = {
+              ...(currentChat.metrics || {}),
+              status: "SUCCESS",
+            };
+          }
+          if (streamStillActive) {
+            setLoading(false);
+          }
+          draftController.replaceLastItem({ ...currentChat });
+          pendingConversation = draftController.getSnapshot();
+          scheduleNonChatFlush(true);
+        }
+        return;
+      }
+      const isPlanThoughtEvent = eventData.messageType === "plan_thought";
+      const isPlanThoughtFinal = Boolean(eventData.resultMap?.isFinal || finished);
+      currentChat = combineData(eventData, currentChat);
+      // 子 Agent result 带 parentToolUseId，只挂工作区，不能覆盖主对话终答。
+      // 有后台任务时后端会推迟 finished；这里仍收口主对话 loading，SSE 继续接收结算事件。
+      const isRootResult =
+        eventData.resultMap?.messageType === "result" &&
+        !resolveParentToolUseId(eventData);
+      if (isRootResult) {
+        currentChat.conclusion = buildTaskFromEventData(eventData) as CHAT.Task;
+        if (!finished) {
+          currentChat.loading = false;
+          currentChat.tip = "";
+          if (streamStillActive) {
+            setLoading(false);
+          }
+        }
+      }
+      if (streamStillActive && shouldRefreshWorkspaceTask(eventData)) {
+        scheduleWorkspaceStreamTask(currentChat, finished);
+      }
+      if (streamStillActive && normalizedDeepThink && isPlanThoughtEvent) {
+        const latestThought = currentChat.thought || currentChat.multiAgent.plan_thought || "";
+        scheduleStreamingThought(currentChat.requestId, latestThought, isPlanThoughtFinal);
+      }
+      if (!isPlanThoughtEvent) {
+        taskDataDirty = true;
+      }
+      if (finished) {
+        clearActiveRun(requestId);
+        followReconnectContextsRef.current.delete(requestId);
+        followReconnectAttemptsRef.current.delete(requestId);
+        clearFollowReconnectTimer(requestId);
+        unbindLiveStream(conversationId, abortController);
+        if (isHitlYieldEvent(eventData) || hasPendingAskUserQuestion(currentChat)) {
+          currentChat = applyWaitingUserInputState(currentChat);
+        } else {
+          currentChat.loading = false;
+          currentChat.tip = "";
+          currentChat.metrics = {
+            ...(currentChat.metrics || {}),
+            status: "SUCCESS",
+          };
+        }
+        if (streamStillActive) {
+          setLoading(false);
+        }
+        if (streamStillActive && normalizedDeepThink) {
+          const finalThought = currentChat.thought || currentChat.multiAgent.plan_thought || "";
+          scheduleStreamingThought(currentChat.requestId, finalThought, true);
+        }
+      } else if (isLlmRetryEvent(eventData)) {
+        // combineData 已写入重试 tip，勿被 presence 覆盖
+        currentChat = {
+          ...currentChat,
+          tip: currentChat.tip,
+        };
+      } else if (isHitlYieldEvent(eventData) || hasPendingAskUserQuestion(currentChat)) {
+        currentChat = {
+          ...currentChat,
+          tip: WAITING_USER_HELP_HINT,
+        };
+      } else {
+        const presence = resolveRunPresence({
+          loading: true,
+          chat: currentChat,
+          deepThink: normalizedDeepThink,
+          plan: currentChat.plan || currentChat.multiAgent?.plan,
+        });
+        currentChat = {
+          ...currentChat,
+          tip: presence.hint,
+        };
+      }
+      draftController.replaceLastItem({ ...currentChat });
+      if (!isPlanThoughtEvent || isPlanThoughtFinal) {
+        pendingConversation = draftController.getSnapshot();
+        const forceTimeline =
+          finished ||
+          isLlmRetryEvent(eventData) ||
+          eventData.messageType === "tool_thought" ||
+          eventData.messageType === "llm_reasoning" ||
+          eventData.messageType === "tool_call" ||
+          eventData.messageType === "tool_result" ||
+          eventData.messageType === "subagent_progress" ||
+          eventData.resultMap?.messageType === "tool_call" ||
+          eventData.resultMap?.messageType === "tool_result" ||
+          eventData.resultMap?.messageType === "tool_thought" ||
+          eventData.resultMap?.messageType === "llm_reasoning" ||
+          eventData.resultMap?.messageType === "subagent_progress" ||
+          eventData.resultMap?.messageType === "context_usage" ||
+          eventData.resultMap?.messageType === "ui_tree" ||
+          eventData.resultMap?.messageType === "ui_patch";
+        scheduleNonChatFlush(forceTimeline);
+      }
+    };
+
+    querySSE(
+      {
+        body: {
+          sessionId,
+          requestId,
+          lastEventSeq: initialEventSeq,
+        },
+        signal: abortController.signal,
+        retryOnError: false,
+        handleEventId: (eventId) => updateActiveRunEvent(requestId, eventId),
+        parser: parseAgentAnswer,
+        handleMessage,
+        handleError: (error) => {
+          console.error("follow SSE error", error);
+          if (!currentChat.loading) {
+            return;
+          }
+          const live = liveStreamsRef.current.get(conversationId);
+          if (live && live.controller !== abortController) {
+            return;
+          }
+          unbindLiveStream(conversationId, abortController);
+          if (hasPendingAskUserQuestion(currentChat)) {
+            currentChat = applyWaitingUserInputState(currentChat);
+            clearActiveRun(requestId);
+            followReconnectContextsRef.current.delete(requestId);
+            clearFollowReconnectTimer(requestId);
+            if (isActiveStream()) {
+              setLoading(false);
+            }
+            pendingConversation = draftController.replaceLastItem({ ...currentChat });
+            scheduleNonChatFlush(true);
+            return;
+          }
+          currentChat = {
+            ...currentChat,
+            tip: CONNECTION_LOST_HINT,
+          };
+          pendingConversation = draftController.replaceLastItem({ ...currentChat });
+          scheduleNonChatFlush(false);
+          scheduleFollowReconnect(conversationId, requestId);
+        },
+        handleClose: () => {
+          scheduleNonChatFlush(true);
+          queueMicrotask(() => {
+            if (!currentChat.loading) {
+              return;
+            }
+            const live = liveStreamsRef.current.get(conversationId);
+            if (live && live.controller !== abortController) {
+              return;
+            }
+            unbindLiveStream(conversationId, abortController);
+            if (hasPendingAskUserQuestion(currentChat)) {
+              currentChat = applyWaitingUserInputState(currentChat);
+              clearActiveRun(requestId);
+              followReconnectContextsRef.current.delete(requestId);
+              clearFollowReconnectTimer(requestId);
+              if (isActiveStream()) {
+                setLoading(false);
+              }
+              pendingConversation = draftController.replaceLastItem({ ...currentChat });
+              scheduleNonChatFlush(true);
+              return;
+            }
+            // EOF 也可能来自代理/浏览器提前收流；只要没有收到 follow_idle，
+            // 就继续续绑，避免把仍在后台执行的 run 错误收口为失败。
+            currentChat = {
+              ...currentChat,
+              tip: CONNECTION_LOST_HINT,
+            };
+            pendingConversation = draftController.replaceLastItem({ ...currentChat });
+            scheduleNonChatFlush(false);
+            scheduleFollowReconnect(conversationId, requestId, 300);
+          });
+        },
+      },
+      AGENT_RUN_FOLLOW_SSE_URL
+    );
+  });
+
+  const scheduleFollowReconnect = useMemoizedFn((
+    conversationId: string,
+    requestId: string,
+    delay?: number
+  ) => {
+    if (followReconnectTimersRef.current.has(requestId)) {
+      return;
+    }
+    if (hasLiveStream(conversationId, requestId)) {
+      return;
+    }
+
+    const ctx = followReconnectContextsRef.current.get(requestId);
+    if (ctx) {
+      followReconnectContextsRef.current.set(requestId, {
+        ...ctx,
+        conversationId,
+        seedChat: {
+          ...ctx.seedChat,
+          loading: true,
+          tip: CONNECTION_LOST_HINT,
+        },
+      });
+    }
+
+    const attempt = followReconnectAttemptsRef.current.get(requestId) ?? 0;
+    const retryDelay =
+      delay ??
+      Math.min(
+        FOLLOW_RECONNECT_BASE_DELAY * 2 ** Math.min(attempt, 6),
+        FOLLOW_RECONNECT_MAX_DELAY
+      );
+    followReconnectAttemptsRef.current.set(
+      requestId,
+      Math.min(attempt + 1, FOLLOW_RECONNECT_ATTEMPT_CAP)
+    );
+    const timer = window.setTimeout(() => {
+      followReconnectTimersRef.current.delete(requestId);
+      if (hasLiveStream(conversationId, requestId)) {
+        return;
+      }
+      // 前台/后台均可续绑：用 reconnect context，不依赖当前 conversationRef
+      const reconnectCtx = followReconnectContextsRef.current.get(requestId);
+      followActiveRun(requestId, reconnectCtx);
+    }, retryDelay);
+    followReconnectTimersRef.current.set(requestId, timer);
+  });
+
+  useEffect(() => {
+    if (!runningFollowKey) {
+      return;
+    }
+    const [conversationId, requestId] = runningFollowKey.split("::");
+    if (!requestId || !conversationId) {
+      return;
+    }
+    // 同会话已有活流时不要再 follow。
+    if (hasLiveStream(conversationId, requestId)) {
+      return;
+    }
+    followActiveRun(requestId);
+  }, [followActiveRun, hasLiveStream, runningFollowKey]);
+
+  const resumeHitlRun = useMemoizedFn((
+    detail: AskUserResumeEventDetail | PlanApprovalResumeEventDetail,
+    options: {
+      sseUrl: string;
+      markDecided: (
+        chat: CHAT.ChatItem,
+        questionId?: string,
+        answers?: Record<string, string>,
+        approved?: boolean
+      ) => CHAT.ChatItem;
+      errorLabel: string;
+    }
+  ) => {
+    const resumeRequestId = String(detail?.resumeRequestId || "").trim();
+    if (!resumeRequestId) {
+      return;
+    }
+    const baseConversation = conversationRef.current;
+    const conversationId = baseConversation.id;
+    const sessionId = detail.sessionId || baseConversation.sessionId;
+    const seedChat =
+      [...baseConversation.chatList].reverse().find(
+        (chat) =>
+          chat.loading ||
+          String(chat.metrics?.status || "").toUpperCase() === "WAITING_INPUT"
+      ) || baseConversation.chatList[baseConversation.chatList.length - 1];
+    if (!seedChat) {
+      console.warn(`${options.errorLabel} resume skipped: empty chatList`);
+      return;
+    }
+    if (hasLiveStream(conversationId, resumeRequestId)) {
+      return;
+    }
+
+    const previous = liveStreamsRef.current.get(conversationId);
+    if (previous && previous.requestId !== resumeRequestId) {
+      previous.controller.abort();
+    }
+    const abortController = new AbortController();
+    bindForegroundStream(conversationId, resumeRequestId, abortController);
+    saveActiveRun(sessionId, resumeRequestId);
+    lastEventSeqRef.current.set(resumeRequestId, 0);
+    setLoading(true);
+    onPrepareStreamingWorkspace?.();
+
+    // 续跑开始即把 HITL 卡片标为已决，避免仍被当成 WAITING_INPUT
+    const questionId = "questionId" in detail ? detail.questionId : undefined;
+    const approvalId = "approvalId" in detail ? detail.approvalId : undefined;
+    const answers = "answers" in detail ? detail.answers : undefined;
+    const approved = "approved" in detail ? detail.approved : undefined;
+    let currentChat: CHAT.ChatItem = options.markDecided({
+      ...seedChat,
+      requestId: resumeRequestId,
+      loading: true,
+      tip: "正在推进任务…",
+      metrics: {
+        ...(seedChat.metrics || {}),
+        status: "RUNNING",
+      },
+    }, questionId || approvalId, answers, approved);
+
+    const draftController = createConversationDraftController<CHAT.ChatItem>(
+      conversationId,
+      {
+        ...baseConversation,
+        sessionId,
+        chatList: baseConversation.chatList.map((item, index) =>
+          index === baseConversation.chatList.length - 1 ? currentChat : item
+        ),
+      },
+      "chatList",
+      commitConversation
+    );
+    draftController.commit(draftController.replaceLastItem({ ...currentChat }));
+
+    const isActiveStream = () =>
+      conversationRef.current.id === conversationId &&
+      activeRequestIdRef.current === resumeRequestId;
+
+    let resumeSettled = false;
+    const settleResumeSuccess = () => {
+      if (resumeSettled) {
+        return;
+      }
+      resumeSettled = true;
+      // 必须先读 isActiveStream，再 unbind（unbind 会清空 activeRequestIdRef）
+      const streamStillActive = isActiveStream();
+      clearActiveRun(resumeRequestId);
+      followReconnectContextsRef.current.delete(resumeRequestId);
+      clearFollowReconnectTimer(resumeRequestId);
+      unbindLiveStream(conversationId, abortController);
+      currentChat = {
+        ...currentChat,
+        loading: false,
+        tip: "",
+        metrics: {
+          ...(currentChat.metrics || {}),
+          status: "SUCCESS",
+        },
+      };
+      if (streamStillActive) {
+        setLoading(false);
+      }
+    };
+
+    const parkResumeStream = (delay?: number) => {
+      if (resumeSettled) {
+        return;
+      }
+      const live = liveStreamsRef.current.get(conversationId);
+      if (live && live.controller !== abortController) {
+        return;
+      }
+      const streamStillActive = isActiveStream();
+      unbindLiveStream(conversationId, abortController);
+      currentChat = {
+        ...currentChat,
+        loading: true,
+        tip: CONNECTION_LOST_HINT,
+        metrics: {
+          ...(currentChat.metrics || {}),
+          status: "RUNNING",
+        },
+      };
+      followReconnectContextsRef.current.set(resumeRequestId, {
+        conversationId,
+        sessionId,
+        requestId: resumeRequestId,
+        productType: baseConversation.productType,
+        deepThink: Boolean(baseConversation.deepThink),
+        seedChat: { ...currentChat },
+      });
+      if (streamStillActive) {
+        setLoading(true);
+      }
+      draftController.commit(draftController.replaceLastItem({ ...currentChat }));
+      scheduleFollowReconnect(conversationId, resumeRequestId, delay);
+    };
+
+    const handleMessage = (data: MESSAGE.Answer) => {
+      const eventSeq = Number(data.eventSeq || 0);
+      const lastEventSeq = lastEventSeqRef.current.get(resumeRequestId) || 0;
+      if (eventSeq > 0 && eventSeq <= lastEventSeq) {
+        return;
+      }
+      if (eventSeq > 0) {
+        lastEventSeqRef.current.set(resumeRequestId, eventSeq);
+        updateActiveRunSeq(resumeRequestId, eventSeq);
+      }
+      followReconnectAttemptsRef.current.set(resumeRequestId, 0);
+      const { finished, resultMap, packageType } = data;
+      if (packageType === "heartbeat" || packageType === "follow_idle" || packageType === "follow_pending") {
+        if (packageType === "heartbeat" && currentChat.loading && isActiveStream()) {
+          const presence = resolveRunPresence({
+            loading: true,
+            chat: currentChat,
+            deepThink: Boolean(baseConversation.deepThink),
+            plan: currentChat.plan || currentChat.multiAgent?.plan,
+          });
+          if (presence.hint && currentChat.tip !== presence.hint) {
+            currentChat = {
+              ...currentChat,
+              tip: presence.hint,
+            };
+            draftController.commit(draftController.replaceLastItem({ ...currentChat }));
+          }
+        }
+        return;
+      }
+
+      const isTerminalGuardError =
+        Boolean(finished) &&
+        packageType === "result" &&
+        Boolean(data.errorMsg) &&
+        !resultMap?.eventData;
+      if (isTerminalGuardError) {
+        const streamStillActive = isActiveStream();
+        clearActiveRun(resumeRequestId);
+        followReconnectContextsRef.current.delete(resumeRequestId);
+        clearFollowReconnectTimer(resumeRequestId);
+        unbindLiveStream(conversationId, abortController);
+        currentChat = applyGuardError(
+          currentChat,
+          data.errorMsg || "当前请求处理失败，请稍后重试"
+        );
+        if (streamStillActive) {
+          setLoading(false);
+        }
+        draftController.commit(draftController.replaceLastItem({ ...currentChat }));
+        return;
+      }
+
+      const eventData = normalizeEventData(resultMap?.eventData);
+      if (eventData) {
+        currentChat = combineData(eventData, currentChat);
+        if (eventData.resultMap?.messageType === "result") {
+          currentChat.conclusion = buildTaskFromEventData(eventData) as CHAT.Task;
+        }
+        if (isActiveStream() && shouldRefreshWorkspaceTask(eventData)) {
+          scheduleWorkspaceStreamTask(currentChat, Boolean(finished));
+        }
+        if (!finished && !resumeSettled) {
+          const presence = resolveRunPresence({
+            loading: true,
+            chat: currentChat,
+            deepThink: Boolean(baseConversation.deepThink),
+            plan: currentChat.plan || currentChat.multiAgent?.plan,
+          });
+          currentChat = {
+            ...currentChat,
+            tip: presence.hint,
+          };
+        }
+      }
+
+      // 与主链路一致：任意 finished 帧都应收口，不能只认 packageType=result
+      // 业务 finished 后仍可能短暂保持 SSE（后端 markAnswered 后再关流），勿重复 settle。
+      if (finished) {
+        if (isHitlYieldEvent(eventData) || hasPendingAskUserQuestion(currentChat)) {
+          currentChat = applyWaitingUserInputState(currentChat);
+          clearActiveRun(resumeRequestId);
+          followReconnectContextsRef.current.delete(resumeRequestId);
+          clearFollowReconnectTimer(resumeRequestId);
+          const streamStillActive = isActiveStream();
+          unbindLiveStream(conversationId, abortController);
+          if (streamStillActive) {
+            setLoading(false);
+          }
+        } else {
+          settleResumeSuccess();
+        }
+      }
+
+      const taskData = handleTaskData(
+        currentChat,
+        Boolean(baseConversation.deepThink),
+        currentChat.multiAgent
+      );
+      if (isActiveStream()) {
+        setTaskList(taskData.taskList);
+      }
+      draftController.commit(draftController.replaceLastItem({ ...currentChat }));
+    };
+
+    querySSE(
+      {
+        body: { resumeRequestId },
+        signal: abortController.signal,
+        retryOnError: false,
+        handleEventId: (eventId) => updateActiveRunEvent(resumeRequestId, eventId),
+        parser: parseAgentAnswer,
+        handleMessage,
+        handleError: (error) => {
+          console.error(`${options.errorLabel} resume SSE error`, error);
+          queueMicrotask(() => {
+            if (resumeSettled) {
+              return;
+            }
+            // 恢复请求断开不代表 continuation 已结束；沿用主流的 follow 观察同一个 run。
+            parkResumeStream();
+          });
+        },
+        handleClose: () => {
+          queueMicrotask(() => {
+            if (resumeSettled) {
+              return;
+            }
+            // clean EOF 也可能发生在终态帧到达前；先让同 tick 的 result 帧把 resumeSettled 置上。
+            parkResumeStream(300);
+          });
+        },
+      },
+      options.sseUrl
+    );
+  });
+
+  const resumeAskUserRun = useMemoizedFn((detail: AskUserResumeEventDetail) => {
+    resumeHitlRun(detail, {
+      sseUrl: ASK_USER_RESUME_SSE_URL,
+      markDecided: markAskUserQuestionsAnswered,
+      errorLabel: "ask-user",
+    });
+  });
+
+  const resumePlanApprovalRun = useMemoizedFn((detail: PlanApprovalResumeEventDetail) => {
+    resumeHitlRun(detail, {
+      sseUrl: PLAN_APPROVAL_RESUME_SSE_URL,
+      markDecided: markPlanApprovalsDecided,
+      errorLabel: "plan-approval",
+    });
+  });
+
+  useEffect(() => {
+    const onAskResume = (event: Event) => {
+      const detail = (event as CustomEvent<AskUserResumeEventDetail>).detail;
+      resumeAskUserRun(detail);
+    };
+    const onPlanResume = (event: Event) => {
+      const detail = (event as CustomEvent<PlanApprovalResumeEventDetail>).detail;
+      resumePlanApprovalRun(detail);
+    };
+    window.addEventListener(ASK_USER_RESUME_EVENT, onAskResume as EventListener);
+    window.addEventListener(PLAN_APPROVAL_RESUME_EVENT, onPlanResume as EventListener);
+    return () => {
+      window.removeEventListener(ASK_USER_RESUME_EVENT, onAskResume as EventListener);
+      window.removeEventListener(PLAN_APPROVAL_RESUME_EVENT, onPlanResume as EventListener);
+    };
+  }, [resumeAskUserRun, resumePlanApprovalRun]);
+
+  // 页签恢复 / 网络恢复时，立即对所有仍 RUNNING 的断流 run 触发 follow。
+  useEffect(() => {
+    const kickReconnect = () => {
+      followReconnectContextsRef.current.forEach((ctx, requestId) => {
+        if (hasLiveStream(ctx.conversationId, requestId)) {
+          return;
+        }
+        if (followReconnectTimersRef.current.has(requestId)) {
+          clearFollowReconnectTimer(requestId);
+        }
+        scheduleFollowReconnect(ctx.conversationId, requestId, 0);
+      });
+    };
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") {
+        kickReconnect();
+      }
+    };
+    window.addEventListener("online", kickReconnect);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("online", kickReconnect);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [clearFollowReconnectTimer, hasLiveStream, scheduleFollowReconnect]);
+
+  const sendMessage = useMemoizedFn((inputInfo: CHAT.TInputInfo) => {
+    const baseConversation = conversationRef.current;
+    // Actions that bypass the composer (for example GenUI) use the session's
+    // next-turn selection too. Explicit composer parameters remain authoritative.
+    if (inputInfo.model === undefined) {
+      const selected = readConversationModelState(baseConversation.sessionId).selected;
+      if (selected) inputInfo = { ...selected, ...inputInfo };
+    }
+    const conversationId = baseConversation.id;
+    const { message, deepThink } = inputInfo;
+    const normalizedDeepThink = Boolean(deepThink);
+
+    // 开 SSE 之前拦截：任意其它会话仍在跑（活流 / follow 上下文 / 快照 loading）则直接拒绝。
+    // 本会话内允许覆盖重发；跨会话禁止，避免双 SSE 互挤。
+    let blockedByOtherRun = false;
+    liveStreamsRef.current.forEach((entry, otherId) => {
+      if (otherId !== conversationId && !entry.controller.signal.aborted) {
+        blockedByOtherRun = true;
+      }
+    });
+    if (!blockedByOtherRun) {
+      followReconnectContextsRef.current.forEach((ctx) => {
+        if (
+          ctx.conversationId !== conversationId &&
+          isChatItemRunning(ctx.seedChat)
+        ) {
+          blockedByOtherRun = true;
+        }
+      });
+    }
+    if (!blockedByOtherRun) {
+      conversationSnapshotsRef.current.forEach((snapshot, otherId) => {
+        if (otherId === conversationId) {
+          return;
+        }
+        if ((snapshot.chatList || []).some((chat) => isChatItemRunning(chat))) {
+          blockedByOtherRun = true;
+        }
+      });
+    }
+    if (blockedByOtherRun) {
+      antdMessage.warning(CONCURRENT_RUN_HINT);
+      return;
+    }
+
+    const requestId = getUniqId();
+    onModelConfigSubmitted?.(inputInfo);
+    clearFollowReconnectTimer(requestId);
+    followReconnectAttemptsRef.current.delete(requestId);
+    followReconnectContextsRef.current.delete(requestId);
+    // 只替换本会话旧流，不影响其他会话后台 SSE。
+    const previous = liveStreamsRef.current.get(conversationId);
+    previous?.controller.abort();
+    const abortController = new AbortController();
+    bindForegroundStream(conversationId, requestId, abortController);
+    saveActiveRun(baseConversation.sessionId, requestId);
+    lastEventSeqRef.current.set(requestId, 0);
+    const isActiveStream = () =>
+      conversationRef.current.id === conversationId &&
+      activeRequestIdRef.current === requestId;
+    const previousContextUsage = resolveLatestContextUsage(
+      baseConversation.chatList || []
+    );
+    let currentChat = createRunningChat(
+      inputInfo,
+      baseConversation.sessionId,
+      requestId,
+      normalizedDeepThink
+    );
+    if (previousContextUsage) {
+      currentChat.contextUsage = previousContextUsage;
+    }
+
+    if (normalizedDeepThink) {
+      currentChat = {
+        ...currentChat,
+        tip: resolveRunPresence({
+          loading: true,
+          chat: currentChat,
+          deepThink: normalizedDeepThink,
+        }).hint,
+      };
+    }
+
+    followReconnectContextsRef.current.set(requestId, {
+      conversationId,
+      sessionId: baseConversation.sessionId,
+      requestId,
+      productType: baseConversation.productType,
+      deepThink: normalizedDeepThink,
+      seedChat: { ...currentChat },
+    });
+
+    if (normalizedDeepThink) {
+      setStreamingThoughtMap((previous) => ({
+        ...previous,
+        [requestId]: "",
+      }));
+    }
+
+    const initialConversation = createDraftConversation(baseConversation, {
+      chatTitle: message || "",
+      productType: baseConversation.productType,
+      deepThink: normalizedDeepThink,
+      chatList: [...baseConversation.chatList, { ...currentChat }],
+    });
+    const draftController = createConversationDraftController<CHAT.ChatItem>(
+      conversationId,
+      initialConversation,
+      "chatList",
+      commitConversation
+    );
+
+    draftController.commit(initialConversation);
+    setLoading(true);
+    onPrepareStreamingWorkspace?.();
+
+    /**
+     * 流式任务会先把原始事件累积在 multiAgent.tasks，再由 handleTaskData 派生出左侧时间线需要的 chat.tasks。
+     * 这里在节流刷新任务视图时，把派生后的 chat 一并回写到会话快照，避免左侧对话区一直停留在旧数据。
+     */
+    const syncDerivedConversationSnapshot = (nextChat: CHAT.ChatItem) => {
+      pendingConversation = draftController.replaceLastItem({ ...nextChat });
+    };
+
+    const params = buildAgentStreamRequest({
+      sessionId: baseConversation.sessionId,
+      requestId,
+      message,
+      deepThink: normalizedDeepThink,
+      outputStyle: inputInfo.outputStyle === "dataAgent" ? "dataAgent" : undefined,
+      files: inputInfo.files,
+      model: inputInfo.model,
+      thinking: inputInfo.thinking,
+      thinkingEffort: inputInfo.thinkingEffort,
+      forcePlanMode: inputInfo.forcePlanMode,
+    });
+    let pendingConversation: CHAT.ConversationHistory | null = null;
+    let pendingTaskData: ReturnType<typeof handleTaskData> | null = null;
+    let taskDataDirty = false;
+    // 原始事件先写入 currentChat.multiAgent，再由 handleTaskData 派生工作区/时间线；两类状态不能混为一谈。
+    let pendingFlushFrame: number | null = null;
+    let lastConversationFlushAt = 0;
+    let lastTaskFlushAt = 0;
+    const CONVERSATION_FLUSH_INTERVAL = 16;
+    /** 工作区 taskList 可略节流；时间线 chat.tasks 必须随事件即时派生 */
+    const TASK_FLUSH_INTERVAL = 96;
+
+    const flushNonChatUpdates = (force = false) => {
+      if (!pendingConversation && !pendingTaskData && !taskDataDirty) {
+        return;
+      }
+
+      const now = performance.now();
+      // 会话快照与任务面板使用不同刷新频率：前者保持响应，后者避免每个 SSE chunk 都触发重渲染。
+      // 只要有新事件就重建 chat.tasks，避免 multiAgent 已更新但时间线仍停在旧快照
+      if (taskDataDirty) {
+        const derived = handleTaskData(
+          currentChat,
+          normalizedDeepThink,
+          currentChat.multiAgent
+        );
+        syncDerivedConversationSnapshot(derived.currentChat);
+        taskDataDirty = false;
+        if (force || now - lastTaskFlushAt >= TASK_FLUSH_INTERVAL) {
+          pendingTaskData = derived;
+        }
+      }
+
+      const shouldFlushConversation =
+        !!pendingConversation &&
+        (force || now - lastConversationFlushAt >= CONVERSATION_FLUSH_INTERVAL);
+      const shouldFlushTask =
+        !!pendingTaskData && (force || now - lastTaskFlushAt >= TASK_FLUSH_INTERVAL);
+      const streamStillActive = isActiveStream();
+
+      if (shouldFlushTask && pendingTaskData) {
+        if (streamStillActive) {
+          setTaskList(pendingTaskData.taskList);
+          setPlan(pendingTaskData.plan);
+          setShowAction(resolveActionPanelVisibility({
+            plan: pendingTaskData.plan,
+            taskList: pendingTaskData.taskList,
+          }));
+        }
+        pendingTaskData = null;
+        lastTaskFlushAt = now;
+      }
+
+      if (shouldFlushConversation && pendingConversation) {
+        commitConversation(conversationId, pendingConversation);
+        pendingConversation = null;
+        lastConversationFlushAt = now;
+      }
+    };
+
+    const scheduleNonChatFlush = (force = false) => {
+      if (force) {
+        if (pendingFlushFrame) {
+          cancelAnimationFrame(pendingFlushFrame);
+          pendingFlushFrame = null;
+        }
+        flushNonChatUpdates(true);
+        return;
+      }
+
+      if (pendingFlushFrame) {
+        return;
+      }
+
+      pendingFlushFrame = requestAnimationFrame(() => {
+        pendingFlushFrame = null;
+        flushNonChatUpdates(false);
+        if (pendingConversation || pendingTaskData || taskDataDirty) {
+          scheduleNonChatFlush(false);
+        }
+      });
+    };
+
+    const handleMessage = (data: MESSAGE.Answer) => {
+      const eventSeq = Number(data.eventSeq || 0);
+      const lastEventSeq = lastEventSeqRef.current.get(requestId) || 0;
+      if (eventSeq > 0 && eventSeq <= lastEventSeq) {
+        return;
+      }
+      if (eventSeq > 0) {
+        lastEventSeqRef.current.set(requestId, eventSeq);
+        updateActiveRunSeq(requestId, eventSeq);
+      }
+      // 收到任意有效帧说明主观察流正常，后续断开不应沿用旧的退避次数。
+      followReconnectAttemptsRef.current.set(requestId, 0);
+      const { finished, resultMap, packageType, status } = data;
+      const streamStillActive = isActiveStream();
+      const isTerminalGuardError =
+        Boolean(finished) &&
+        packageType === "result" &&
+        Boolean(data.errorMsg) &&
+        !resultMap?.eventData;
+
+      // 结束错误、角色不可用、token 耗尽和普通事件是互斥处理分支；终态分支必须先停止 loading 再落快照。
+      if (isTerminalGuardError) {
+        const errorText = data.errorMsg || "当前请求处理失败，请稍后重试";
+        clearActiveRun(requestId);
+        unbindLiveStream(conversationId, abortController);
+        if (streamStillActive) {
+          setLoading(false);
+        }
+
+        currentChat = applyGuardError(currentChat, errorText);
+        const taskData = handleTaskData(
+          currentChat,
+          normalizedDeepThink,
+          currentChat.multiAgent
+        );
+        if (streamStillActive) {
+          setTaskList(taskData.taskList);
+        }
+        draftController.commit(
+          draftController.replaceLastItem({ ...currentChat })
+        );
+        return;
+      }
+
+      if (status === "tokenUseUp") {
+        clearActiveRun(requestId);
+        unbindLiveStream(conversationId, abortController);
+        if (streamStillActive) {
+          onTokenUseUp?.();
+        }
+        const taskData = handleTaskData(
+          currentChat,
+          normalizedDeepThink,
+          currentChat.multiAgent
+        );
+        currentChat = {
+          ...currentChat,
+          loading: false,
+          metrics: {
+            ...(currentChat.metrics || {}),
+            status: "FAILED",
+          },
+        };
+        if (streamStillActive) {
+          setLoading(false);
+          setTaskList(taskData.taskList);
+        }
+        draftController.commit(
+          draftController.replaceLastItem({ ...currentChat })
+        );
+        return;
+      }
+
+      if (packageType === "heartbeat") {
+        if (streamStillActive && currentChat.loading) {
+          const presence = resolveRunPresence({
+            loading: true,
+            chat: currentChat,
+            deepThink: normalizedDeepThink,
+            plan: currentChat.plan || currentChat.multiAgent?.plan,
+          });
+          // 重试等待期间心跳不要冲掉「正在重试」提示
+          if (
+            presence.hint &&
+            currentChat.tip !== presence.hint &&
+            !isLlmRetryTip(currentChat.tip)
+          ) {
+            currentChat = {
+              ...currentChat,
+              tip: presence.hint,
+            };
+            pendingConversation = draftController.replaceLastItem({ ...currentChat });
+            scheduleNonChatFlush(false);
+          }
+        }
+        return;
+      }
+
+      const eventData = normalizeEventData(resultMap?.eventData);
+      if (!eventData) {
+        // stream_settle / 空 eventData 仍可能带 finished=true，必须收口 loading。
+        if (finished) {
+          clearActiveRun(requestId);
+          followReconnectContextsRef.current.delete(requestId);
+          followReconnectAttemptsRef.current.delete(requestId);
+          clearFollowReconnectTimer(requestId);
+          unbindLiveStream(conversationId, abortController);
+          if (hasPendingAskUserQuestion(currentChat)) {
+            currentChat = applyWaitingUserInputState(currentChat);
+          } else {
+            currentChat = {
+              ...currentChat,
+              loading: false,
+              tip: "",
+              metrics: {
+                ...(currentChat.metrics || {}),
+                status: "SUCCESS",
+              },
+            };
+          }
+          if (streamStillActive) {
+            setLoading(false);
+          }
+          pendingConversation = draftController.replaceLastItem({ ...currentChat });
+          scheduleNonChatFlush(true);
+        }
+        return;
+      }
+
+      const isPlanThoughtEvent = eventData.messageType === "plan_thought";
+      const isPlanThoughtFinal = Boolean(eventData.resultMap?.isFinal || finished);
+      // combineData 只负责把事件合并进原始会话，后续再根据事件类型触发工作区同步和最终结论覆盖。
+      currentChat = combineData(eventData, currentChat);
+      // 实时收到最终 result 时覆盖 agent_stream 结论；$$$ 点名由 ConclusionSection 剥离并映射会话文件。
+      // 子 Agent result 带 parentToolUseId，只挂工作区，不能覆盖主对话终答。
+      // 有后台任务时后端会推迟 finished；这里仍收口主对话 loading，SSE 继续接收结算事件。
+      const isRootResult =
+        eventData.resultMap?.messageType === "result" &&
+        !resolveParentToolUseId(eventData);
+      if (isRootResult) {
+        currentChat.conclusion = buildTaskFromEventData(eventData) as CHAT.Task;
+        if (!finished) {
+          currentChat.loading = false;
+          currentChat.tip = "";
+          // 保持 RUNNING，供后台 SSE 断线后仍可 follow
+          currentChat.metrics = {
+            ...(currentChat.metrics || {}),
+            status: currentChat.metrics?.status || "RUNNING",
+          };
+          if (streamStillActive) {
+            setLoading(false);
+          }
+        }
+      }
+      if (streamStillActive && shouldRefreshWorkspaceTask(eventData)) {
+        scheduleWorkspaceStreamTask(currentChat, finished);
+      }
+      if (streamStillActive && normalizedDeepThink && isPlanThoughtEvent) {
+        const latestThought = currentChat.thought || currentChat.multiAgent.plan_thought || "";
+        scheduleStreamingThought(currentChat.requestId, latestThought, isPlanThoughtFinal);
+      }
+      if (!isPlanThoughtEvent) {
+        taskDataDirty = true;
+      }
+      if (finished) {
+        clearActiveRun(requestId);
+        followReconnectContextsRef.current.delete(requestId);
+        followReconnectAttemptsRef.current.delete(requestId);
+        clearFollowReconnectTimer(requestId);
+        unbindLiveStream(conversationId, abortController);
+        // plan_approval / ask_user_question 让步后的 finished 必须进 WAITING_INPUT，不能标 SUCCESS
+        if (isHitlYieldEvent(eventData) || hasPendingAskUserQuestion(currentChat)) {
+          currentChat = applyWaitingUserInputState(currentChat);
+        } else {
+          currentChat.loading = false;
+          currentChat.tip = "";
+          currentChat.metrics = {
+            ...(currentChat.metrics || {}),
+            status: "SUCCESS",
+          };
+        }
+        if (streamStillActive) {
+          setLoading(false);
+        }
+        if (streamStillActive && normalizedDeepThink) {
+          const finalThought = currentChat.thought || currentChat.multiAgent.plan_thought || "";
+          scheduleStreamingThought(currentChat.requestId, finalThought, true);
+        }
+      } else if (isLlmRetryEvent(eventData)) {
+        currentChat = {
+          ...currentChat,
+          tip: currentChat.tip,
+        };
+        followReconnectContextsRef.current.set(requestId, {
+          conversationId,
+          sessionId: baseConversation.sessionId,
+          requestId,
+          productType: baseConversation.productType,
+          deepThink: normalizedDeepThink,
+          seedChat: { ...currentChat },
+        });
+      } else if (isHitlYieldEvent(eventData) || hasPendingAskUserQuestion(currentChat)) {
+        currentChat = {
+          ...currentChat,
+          tip: WAITING_USER_HELP_HINT,
+        };
+        followReconnectContextsRef.current.set(requestId, {
+          conversationId,
+          sessionId: baseConversation.sessionId,
+          requestId,
+          productType: baseConversation.productType,
+          deepThink: normalizedDeepThink,
+          seedChat: { ...currentChat },
+        });
+      } else {
+        const presence = resolveRunPresence({
+          loading: true,
+          chat: currentChat,
+          deepThink: normalizedDeepThink,
+          plan: currentChat.plan || currentChat.multiAgent?.plan,
+        });
+        currentChat = {
+          ...currentChat,
+          tip: presence.hint,
+        };
+        followReconnectContextsRef.current.set(requestId, {
+          conversationId,
+          sessionId: baseConversation.sessionId,
+          requestId,
+          productType: baseConversation.productType,
+          deepThink: normalizedDeepThink,
+          seedChat: { ...currentChat },
+        });
+      }
+
+      draftController.replaceLastItem({ ...currentChat });
+      if (!isPlanThoughtEvent || isPlanThoughtFinal) {
+        pendingConversation = draftController.getSnapshot();
+        // 过程文 / 工具占位 / 工具结果：强制刷新，避免等工具跑完才整块冒泡
+        const forceTimeline =
+          finished ||
+          isLlmRetryEvent(eventData) ||
+          eventData.messageType === "ask_user_question" ||
+          eventData.messageType === "plan_approval" ||
+          eventData.messageType === "tool_thought" ||
+          eventData.messageType === "llm_reasoning" ||
+          eventData.messageType === "tool_call" ||
+          eventData.messageType === "tool_result" ||
+          eventData.messageType === "subagent_progress" ||
+          eventData.resultMap?.messageType === "ask_user_question" ||
+          eventData.resultMap?.messageType === "plan_approval" ||
+          eventData.resultMap?.messageType === "tool_call" ||
+          eventData.resultMap?.messageType === "tool_result" ||
+          eventData.resultMap?.messageType === "tool_thought" ||
+          eventData.resultMap?.messageType === "llm_reasoning" ||
+          eventData.resultMap?.messageType === "subagent_progress" ||
+          eventData.resultMap?.messageType === "context_usage" ||
+          eventData.resultMap?.messageType === "ui_tree" ||
+          eventData.resultMap?.messageType === "ui_patch";
+        scheduleNonChatFlush(forceTimeline);
+      }
+    };
+
+    const shouldKeepObserving = () => {
+      if (currentChat.loading) return true;
+      if (followReconnectContextsRef.current.has(requestId)) return true;
+      const runStatus = String(currentChat.metrics?.status || "").toUpperCase();
+      if (runStatus === "RUNNING") return true;
+      return (currentChat.multiAgent?.tasks || []).flat().some((task) => {
+        if (!task) return false;
+        const map = (task.resultMap || {}) as Record<string, unknown>;
+        const background =
+          map.run_in_background === true || map.runInBackground === true;
+        if (!background) return false;
+        const obs = String(
+          task.toolResult?.toolResult || map.toolResult || map.answer || ""
+        );
+        return (
+          String(map.status || "").toLowerCase() === "running" ||
+          /"status"\s*:\s*"running"/i.test(obs)
+        );
+      });
+    };
+
+    let streamOpened = false;
+    const failBeforeStreamOpened = () => {
+      const streamStillActive = isActiveStream();
+      clearActiveRun(requestId);
+      followReconnectContextsRef.current.delete(requestId);
+      clearFollowReconnectTimer(requestId);
+      unbindLiveStream(conversationId, abortController);
+      currentChat = applyGuardError(currentChat, "请求未能建立，请稍后重试");
+      if (streamStillActive) {
+        setLoading(false);
+      }
+      pendingConversation = draftController.replaceLastItem({ ...currentChat });
+      scheduleNonChatFlush(true);
+    };
+
+    const handleError = (error: unknown) => {
+      console.error("SSE stream error", error);
+      // HTTP 绑定/网关错误发生在 SSE 建立前，后端尚未创建 session/run，不能进入 follow。
+      if (!streamOpened) {
+        failBeforeStreamOpened();
+        return;
+      }
+      // 主结论已收口 loading=false，但后台子 Agent 仍可能在跑；不能因 loading 关掉 follow。
+      if (!shouldKeepObserving()) {
+        return;
+      }
+      const live = liveStreamsRef.current.get(conversationId);
+      if (live && live.controller !== abortController) {
+        return;
+      }
+      const streamStillActive = isActiveStream();
+      unbindLiveStream(conversationId, abortController);
+      // AskUserQuestion / ExitPlanMode 让步后 SSE 正常结束：进入等待输入，不要当成断线 follow
+      if (hasPendingAskUserQuestion(currentChat)) {
+        currentChat = applyWaitingUserInputState(currentChat);
+        clearActiveRun(requestId);
+        followReconnectContextsRef.current.delete(requestId);
+        clearFollowReconnectTimer(requestId);
+        if (streamStillActive) {
+          setLoading(false);
+        }
+        pendingConversation = draftController.replaceLastItem({ ...currentChat });
+        scheduleNonChatFlush(true);
+        return;
+      }
+      // 原始 POST 断开后不能重发 query，否则会创建第二个 Agent；先释放旧观察流，
+      // 再通过 follow 接口续绑同一个 requestId。
+      currentChat = {
+        ...currentChat,
+        tip: CONNECTION_LOST_HINT,
+      };
+      followReconnectContextsRef.current.set(requestId, {
+        conversationId,
+        sessionId: baseConversation.sessionId,
+        requestId,
+        productType: baseConversation.productType,
+        deepThink: normalizedDeepThink,
+        seedChat: { ...currentChat },
+      });
+      pendingConversation = draftController.replaceLastItem({ ...currentChat });
+      scheduleNonChatFlush(false);
+      scheduleFollowReconnect(conversationId, requestId);
+    };
+
+    const handleClose = () => {
+      scheduleNonChatFlush(true);
+      queueMicrotask(() => {
+        if (!shouldKeepObserving()) {
+          return;
+        }
+        const live = liveStreamsRef.current.get(conversationId);
+        if (live && live.controller !== abortController) {
+          return;
+        }
+        const streamStillActive = isActiveStream();
+        unbindLiveStream(conversationId, abortController);
+        // AskUserQuestion / ExitPlanMode 让步后 SSE 正常结束：进入等待输入，不要当成断线 follow
+        if (hasPendingAskUserQuestion(currentChat)) {
+          currentChat = applyWaitingUserInputState(currentChat);
+          clearActiveRun(requestId);
+          followReconnectContextsRef.current.delete(requestId);
+          clearFollowReconnectTimer(requestId);
+          if (streamStillActive) {
+            setLoading(false);
+          }
+          pendingConversation = draftController.replaceLastItem({ ...currentChat });
+          scheduleNonChatFlush(true);
+          return;
+        }
+        // 服务端/代理可能以 EOF 结束响应但没有触发 onerror，同样切到 follow。
+        currentChat = {
+          ...currentChat,
+          tip: CONNECTION_LOST_HINT,
+        };
+        followReconnectContextsRef.current.set(requestId, {
+          conversationId,
+          sessionId: baseConversation.sessionId,
+          requestId,
+          productType: baseConversation.productType,
+          deepThink: normalizedDeepThink,
+          seedChat: { ...currentChat },
+        });
+        pendingConversation = draftController.replaceLastItem({ ...currentChat });
+        scheduleNonChatFlush(false);
+        scheduleFollowReconnect(conversationId, requestId, 300);
+      });
+    };
+
+    querySSE({
+      body: params,
+      signal: abortController.signal,
+      retryOnError: false,
+      handleOpen: () => {
+        streamOpened = true;
+      },
+      handleEventId: (eventId) => updateActiveRunEvent(requestId, eventId),
+      parser: parseAgentAnswer,
+      handleMessage,
+      handleError,
+      handleClose,
+    });
+  });
+
+  const regenerateLastMessage = useMemoizedFn(() => {
+    const last = conversation.chatList[conversation.chatList.length - 1];
+    if (!last || loading) {
+      return;
+    }
+
+    sendMessage({
+      message: last.query,
+       deepThink: conversation.deepThink,
+    });
+  });
+
+  /** Kimi 式 Undo：删除末轮对话，返回 user query 供回填输入框 */
+  const undoLastUserTurn = useMemoizedFn((): string | null => {
+    if (loading) {
+      return null;
+    }
+    const activeConversation = conversationRef.current;
+    const chatList = activeConversation.chatList || [];
+    const last = chatList[chatList.length - 1];
+    if (!last?.query) {
+      return null;
+    }
+    const query = last.query;
+    onConversationChange(activeConversation.id, {
+      ...activeConversation,
+      chatList: chatList.slice(0, -1),
+      updatedAt: Date.now(),
+    });
+    return query;
+  });
+
+  const stopActiveRun = useMemoizedFn(async () => {
+    const requestId = activeRequestIdRef.current;
+    const activeConversation = conversationRef.current;
+    if (!requestId || !loading) {
+      return;
+    }
+    clearFollowReconnectTimer(requestId);
+    followReconnectAttemptsRef.current.delete(requestId);
+    try {
+      const { agentRunApi } = await import("@/services/agentRun");
+      await agentRunApi.stop({
+        sessionId: activeConversation.sessionId,
+        requestId,
+      });
+    } catch (error) {
+      console.warn("stop run failed", error);
+    } finally {
+      clearActiveRun(requestId);
+      const live = liveStreamsRef.current.get(activeConversation.id);
+      if (live && live.requestId === requestId) {
+        live.controller.abort();
+        unbindLiveStream(activeConversation.id, live.controller);
+      }
+      if (conversationRef.current.id === activeConversation.id) {
+        setLoading(false);
+      }
+      const chatList = activeConversation.chatList || [];
+      const last = chatList[chatList.length - 1];
+      if (last && last.requestId === requestId) {
+        last.loading = false;
+        last.forceStop = true;
+        last.tip = "";
+        last.metrics = {
+          ...(last.metrics || {}),
+          status: "STOPPED",
+        };
+        onConversationChange(activeConversation.id, {
+          ...activeConversation,
+          chatList: [...chatList],
+          updatedAt: Date.now(),
+        });
+      }
+    }
+  });
+
+  const injectActiveRun = useMemoizedFn(async (text: string) => {
+    const requestId = activeRequestIdRef.current;
+    const activeConversation = conversationRef.current;
+    const trimmed = (text || "").trim();
+    if (!requestId || !loading || !trimmed) {
+      return false;
+    }
+    try {
+      const { agentRunApi } = await import("@/services/agentRun");
+      const data = await agentRunApi.inject({
+        sessionId: activeConversation.sessionId,
+        requestId,
+        text: trimmed,
+      });
+      // request 拦截器已解包为 data 字段
+      if (!data || data.accepted !== true) {
+        console.warn("inject run rejected", data);
+        return false;
+      }
+      return true;
+    } catch (error) {
+      console.warn("inject run failed", error);
+      return false;
+    }
+  });
+
+  const workspaceCaption = useMemo(() => {
+    return resolveWorkspaceCaption(workspaceStreamTask, loading);
+  }, [loading, workspaceStreamTask]);
+
+  return {
+    taskList,
+    workspaceStreamTask,
+    workspaceCaption,
+    activeRunState,
+    setActiveRunState,
+    plan,
+    showAction,
+    changeActionStatus,
+    loading,
+    streamingThoughtMap,
+    sendMessage,
+    stopActiveRun,
+    injectActiveRun,
+    regenerateLastMessage,
+    undoLastUserTurn,
+  };
+}
