@@ -49,8 +49,22 @@ export function useKnowledgeBaseFiles(
   // 浏览器资源，不参与业务数据本身的渲染。
   const delayedRefreshTimerRef = useRef<number | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const filesSequenceRef = useRef(0);
+  const contentSequenceRef = useRef(0);
+  const mountedRef = useRef(true);
+  const scopeRef = useRef({ toolBaseUrl, selectedKnowledgeBaseId });
+  if (scopeRef.current.toolBaseUrl !== toolBaseUrl
+      || scopeRef.current.selectedKnowledgeBaseId !== selectedKnowledgeBaseId) {
+    scopeRef.current = { toolBaseUrl, selectedKnowledgeBaseId };
+  }
+  const scope = scopeRef.current;
+  const activeFullContentFileIdRef = useRef(activeFullContentFileId);
+  activeFullContentFileIdRef.current = activeFullContentFileId;
+  const isCurrentScope = useCallback(() => mountedRef.current && scopeRef.current === scope, [scope]);
 
   const resetFullContentState = useCallback(() => {
+    contentSequenceRef.current += 1;
+    activeFullContentFileIdRef.current = "";
     // 切换知识库、删除当前文件或列表请求失败时，全文抽屉必须和文件列表
     // 一起失效，避免继续展示已经不属于当前知识库的旧内容。
     setActiveFullContentFileId("");
@@ -63,7 +77,11 @@ export function useKnowledgeBaseFiles(
   }, []);
 
   useEffect(() => {
+    mountedRef.current = true;
     return () => {
+      mountedRef.current = false;
+      filesSequenceRef.current += 1;
+      contentSequenceRef.current += 1;
       if (delayedRefreshTimerRef.current) {
         window.clearTimeout(delayedRefreshTimerRef.current);
       }
@@ -72,6 +90,9 @@ export function useKnowledgeBaseFiles(
 
   const refreshFiles = useCallback(
     async (knowledgeBaseId: string, options?: RefreshFilesOptions) => {
+      if (!isCurrentScope() || !knowledgeBaseId || knowledgeBaseId !== selectedKnowledgeBaseId) return;
+      const sequence = ++filesSequenceRef.current;
+      const isCurrent = () => isCurrentScope() && filesSequenceRef.current === sequence;
       // 轮询使用 silent 模式，避免后台状态刷新让整个工作台反复显示 loading；
       // 只有用户主动进入知识库时才显示列表级加载状态。
       if (!options?.silent) {
@@ -80,30 +101,33 @@ export function useKnowledgeBaseFiles(
 
       try {
         const nextFiles = await listKnowledgeBaseFiles(toolBaseUrl, knowledgeBaseId);
+        if (!isCurrent()) return;
         setFiles(nextFiles);
         setFilesError("");
 
         // 当前全文抽屉依赖列表中的文件 ID。删除或切换知识库后，先清理抽屉，
         // 再保留新列表，避免异步请求返回顺序造成悬空详情。
         if (
-          activeFullContentFileId &&
-          !nextFiles.some((file) => file.id === activeFullContentFileId)
+          activeFullContentFileIdRef.current &&
+          !nextFiles.some((file) => file.id === activeFullContentFileIdRef.current)
         ) {
           resetFullContentState();
         }
       } catch (error) {
+        if (!isCurrent()) return;
         setFilesError(mapMragError(error));
         setFiles([]);
         resetFullContentState();
       } finally {
-        setFilesLoading(false);
+        if (isCurrent()) setFilesLoading(false);
       }
     },
-    [activeFullContentFileId, resetFullContentState, toolBaseUrl]
+    [isCurrentScope, selectedKnowledgeBaseId, resetFullContentState, toolBaseUrl]
   );
 
   const scheduleDelayedFileRefresh = useCallback(
     (knowledgeBaseId: string) => {
+      if (!isCurrentScope() || knowledgeBaseId !== selectedKnowledgeBaseId) return;
       if (delayedRefreshTimerRef.current) {
         window.clearTimeout(delayedRefreshTimerRef.current);
       }
@@ -113,7 +137,7 @@ export function useKnowledgeBaseFiles(
         void refreshFiles(knowledgeBaseId, { silent: true });
       }, MRAG_FILE_REFRESH_DELAY_MS);
     },
-    [refreshFiles]
+    [isCurrentScope, refreshFiles, selectedKnowledgeBaseId]
   );
 
   const handleFileInputChange = useCallback(
@@ -138,17 +162,19 @@ export function useKnowledgeBaseFiles(
           selectedKnowledgeBaseId,
           inputFiles
         );
+        if (!isCurrentScope()) return;
         showMessage()?.success(`已提交 ${inputFiles.length} 个文件的入库任务`);
         await refreshFiles(selectedKnowledgeBaseId, { silent: true });
         // 后端只在后台任务启动后才写入完整状态，因此首刷后再补一次延迟刷新。
         scheduleDelayedFileRefresh(selectedKnowledgeBaseId);
       } catch (error) {
+        if (!isCurrentScope()) return;
         showMessage()?.error(mapMragError(error));
       } finally {
-        setUploadingFiles(false);
+        if (isCurrentScope()) setUploadingFiles(false);
       }
     },
-    [refreshFiles, scheduleDelayedFileRefresh, selectedKnowledgeBaseId, toolBaseUrl]
+    [isCurrentScope, refreshFiles, scheduleDelayedFileRefresh, selectedKnowledgeBaseId, toolBaseUrl]
   );
 
   const handleUploadFiles = useCallback(() => {
@@ -178,16 +204,19 @@ export function useKnowledgeBaseFiles(
         kbId: selectedKnowledgeBaseId,
         url: normalizedUrl,
       });
+      if (!isCurrentScope()) return;
       setWebUrl("");
       showMessage()?.success("网页链接已提交入库");
       await refreshFiles(selectedKnowledgeBaseId, { silent: true });
       scheduleDelayedFileRefresh(selectedKnowledgeBaseId);
     } catch (error) {
+      if (!isCurrentScope()) return;
       showMessage()?.error(mapMragError(error));
     } finally {
-      setAddingWebUrl(false);
+      if (isCurrentScope()) setAddingWebUrl(false);
     }
   }, [
+    isCurrentScope,
     refreshFiles,
     scheduleDelayedFileRefresh,
     selectedKnowledgeBaseId,
@@ -215,6 +244,7 @@ export function useKnowledgeBaseFiles(
             fileIds: [fileId],
           });
           showMessage()?.success("资料已删除");
+          if (!isCurrentScope()) return;
           if (activeFullContentFileId === fileId) {
             resetFullContentState();
           }
@@ -223,6 +253,7 @@ export function useKnowledgeBaseFiles(
       });
     },
     [
+      isCurrentScope,
       activeFullContentFileId,
       refreshFiles,
       resetFullContentState,
@@ -233,6 +264,7 @@ export function useKnowledgeBaseFiles(
 
   const handleOpenFullContent = useCallback(
     async (fileId: string) => {
+      if (!isCurrentScope()) return;
       if (!selectedKnowledgeBaseId) {
         showMessage()?.error("请先选择知识库");
         return;
@@ -241,6 +273,9 @@ export function useKnowledgeBaseFiles(
       // 先打开抽屉并显示可识别的标题，再异步请求正文；请求失败仍保留抽屉，
       // 由 FAILED 状态承载错误，避免把网络异常误处理成“没有正文”。
       const targetFile = files.find((file) => file.id === fileId);
+      const sequence = ++contentSequenceRef.current;
+      const isCurrent = () => isCurrentScope() && contentSequenceRef.current === sequence;
+      activeFullContentFileIdRef.current = fileId;
       setActiveFullContentFileId(fileId);
       setFullContentDrawerOpen(true);
       setFullContentLoading(true);
@@ -254,30 +289,43 @@ export function useKnowledgeBaseFiles(
           kbId: selectedKnowledgeBaseId,
           fileId,
         });
+        if (!isCurrent()) return;
         setFullContentTitle(fullContent.title || targetFile?.title || "");
         setFullContentStatus(fullContent.contentStatus);
         setFullContentError(fullContent.errorMessage);
         setFullContentMarkdown(fullContent.content);
       } catch (error) {
+        if (!isCurrent()) return;
         setFullContentStatus("FAILED");
         setFullContentError(mapMragError(error));
         setFullContentMarkdown("");
       } finally {
-        setFullContentLoading(false);
+        if (isCurrent()) setFullContentLoading(false);
       }
     },
-    [files, selectedKnowledgeBaseId, toolBaseUrl]
+    [isCurrentScope, files, selectedKnowledgeBaseId, toolBaseUrl]
   );
 
   const handleCloseFullContent = useCallback(() => {
+    contentSequenceRef.current += 1;
+    setFullContentLoading(false);
     setFullContentDrawerOpen(false);
   }, []);
 
   useEffect(() => {
+    // 切换数据范围时立即隐藏旧资料，并废弃详情和延迟刷新。
+    filesSequenceRef.current += 1;
+    setFiles([]);
+    setFilesError("");
+    setFilesLoading(false);
+    setUploadingFiles(false);
+    setAddingWebUrl(false);
+    resetFullContentState();
+    if (delayedRefreshTimerRef.current !== null) {
+      window.clearTimeout(delayedRefreshTimerRef.current);
+      delayedRefreshTimerRef.current = null;
+    }
     if (!selectedKnowledgeBaseId) {
-      setFiles([]);
-      setFilesError("");
-      resetFullContentState();
       return;
     }
 

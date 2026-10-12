@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   createKnowledgeBase,
@@ -21,9 +21,28 @@ export function useKnowledgeBaseCatalog(toolBaseUrl: string) {
   const [createKnowledgeBaseDesc, setCreateKnowledgeBaseDesc] = useState("");
   const [creatingKnowledgeBase, setCreatingKnowledgeBase] = useState(false);
   const [deletingKnowledgeBaseId, setDeletingKnowledgeBaseId] = useState("");
+  const requestSequenceRef = useRef(0);
+  const currentUrlRef = useRef(toolBaseUrl);
+  currentUrlRef.current = toolBaseUrl;
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    mountedRef.current = true;
+    setKnowledgeBases([]);
+    setKnowledgeBasesError("");
+    setKnowledgeBasesLoading(false);
+    return () => {
+      mountedRef.current = false;
+      requestSequenceRef.current += 1;
+    };
+  }, [toolBaseUrl]);
 
   const refreshKnowledgeBases = useCallback(
     async (options?: RefreshKnowledgeBaseOptions) => {
+      if (!mountedRef.current || currentUrlRef.current !== toolBaseUrl) return;
+      const sequence = ++requestSequenceRef.current;
+      const isCurrent = () => mountedRef.current && currentUrlRef.current === toolBaseUrl
+        && requestSequenceRef.current === sequence;
       // silent 刷新保留页面交互，非 silent 刷新才显示全局 loading；失败时清空旧列表避免误操作。
       if (!options?.silent) {
         setKnowledgeBasesLoading(true);
@@ -31,15 +50,17 @@ export function useKnowledgeBaseCatalog(toolBaseUrl: string) {
 
       try {
         const nextKnowledgeBases = await listKnowledgeBases(toolBaseUrl);
+        if (!isCurrent()) return;
         setKnowledgeBases(nextKnowledgeBases);
         setKnowledgeBasesError("");
         return nextKnowledgeBases;
       } catch (error) {
+        if (!isCurrent()) return;
         setKnowledgeBasesError(mapMragError(error));
         setKnowledgeBases([]);
         return [];
       } finally {
-        setKnowledgeBasesLoading(false);
+        if (isCurrent()) setKnowledgeBasesLoading(false);
       }
     },
     [toolBaseUrl]

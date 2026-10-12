@@ -76,6 +76,7 @@ const WorkspaceMRag: ResearchType.FC<WorkspaceMRagProps> = ({ embedded }) => {
 
     bootstrappedToolBaseUrlRef.current = toolBaseUrl;
     void catalog.refreshKnowledgeBases().then((nextKnowledgeBases) => {
+      if (!nextKnowledgeBases) return;
       setSelectedKnowledgeBaseId((previous) =>
         resolveSelectedKnowledgeBaseId(
           nextKnowledgeBases,
@@ -111,6 +112,7 @@ const WorkspaceMRag: ResearchType.FC<WorkspaceMRagProps> = ({ embedded }) => {
         onSelectKnowledgeBase={setSelectedKnowledgeBaseId}
         onRefreshKnowledgeBases={() => {
           void catalog.refreshKnowledgeBases().then((nextKnowledgeBases) => {
+            if (!nextKnowledgeBases) return;
             setSelectedKnowledgeBaseId((previous) =>
               resolveSelectedKnowledgeBaseId(nextKnowledgeBases, previous)
             );
@@ -132,6 +134,7 @@ const WorkspaceMRag: ResearchType.FC<WorkspaceMRagProps> = ({ embedded }) => {
               }
 
               const nextKnowledgeBases = await catalog.refreshKnowledgeBases({ silent: true });
+              if (!nextKnowledgeBases) return;
               setSelectedKnowledgeBaseId((previous) =>
                 resolveKnowledgeBaseAfterDeletion(nextKnowledgeBases, previous, kbId)
               );
@@ -159,6 +162,7 @@ const WorkspaceMRag: ResearchType.FC<WorkspaceMRagProps> = ({ embedded }) => {
             void catalog
               .refreshKnowledgeBases()
               .then((nextKnowledgeBases) => {
+                if (!nextKnowledgeBases) return;
                 setSelectedKnowledgeBaseId(
                   resolveSelectedKnowledgeBaseId(
                     nextKnowledgeBases,
