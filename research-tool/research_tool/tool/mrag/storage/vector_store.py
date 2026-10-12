@@ -456,9 +456,16 @@ class VectorStore:
 
     # ==================== 删除向量 ====================
 
+    @staticmethod
+    def _require_delete_success(result, collection: str) -> bool:
+        """Only an explicit confirmation allows metadata deletion upstream."""
+        if result is not True:
+            raise RuntimeError(f"Vector deletion failed for {collection}")
+        return True
+
     def delete_text_by_kb_id(self, kb_id: str):
         """根据知识库ID删除文本向量"""
-        return self.text_store.delete_by_kb_id(kb_id)
+        return self._require_delete_success(self.text_store.delete_by_kb_id(kb_id), "text")
 
     def delete_text_by_doc_ids(self, doc_ids: List[int]):
         """根据文档ID列表删除文本向量"""
@@ -471,8 +478,11 @@ class VectorStore:
     def delete_image_by_kb_id(self, kb_id: str):
         """根据知识库ID删除图像向量"""
         if not self.image_vector_enabled:
-            return True
-        return self.image_store.delete_by_kb_id(kb_id)
+            return self._require_delete_success(self.base_store.delete_vectors(
+                collection_name=self.config.image_collection,
+                filter_conditions={"kb_id": kb_id},
+            ), "image")
+        return self._require_delete_success(self.image_store.delete_by_kb_id(kb_id), "image")
 
     def delete_image_by_doc_ids(self, doc_ids: List[int]):
         """根据文档ID列表删除图像向量"""
@@ -483,8 +493,11 @@ class VectorStore:
     def delete_page_by_kb_id(self, kb_id: str):
         """根据知识库ID删除页面向量"""
         if not self.image_vector_enabled:
-            return True
-        return self.page_store.delete_by_kb_id(kb_id)
+            return self._require_delete_success(self.base_store.delete_vectors(
+                collection_name=self.config.page_collection,
+                filter_conditions={"kb_id": kb_id},
+            ), "page")
+        return self._require_delete_success(self.page_store.delete_by_kb_id(kb_id), "page")
 
     def delete_page_by_doc_ids(self, doc_ids: List[int]):
         """根据文档ID列表删除页面向量"""
@@ -538,11 +551,23 @@ class VectorStore:
             return 0
         return self.base_store.count_vectors(self.config.page_collection, filter_conditions)
 
-    def delete_by_file_ids(self, kb_id: str, file_ids: List[str]):
-        self.text_store.delete_by_file_ids(kb_id, file_ids)
+    def delete_by_file_ids(self, kb_id: str, file_ids: List[str]) -> bool:
+        """Delete all enabled modalities before confirming file cleanup."""
+        if not file_ids:
+            return True
+        self._require_delete_success(self.text_store.delete_by_file_ids(kb_id, file_ids), "text")
         if self.image_vector_enabled:
-            self.image_store.delete_by_file_ids(kb_id, file_ids)
-            self.page_store.delete_by_file_ids(kb_id, file_ids)
+            self._require_delete_success(self.image_store.delete_by_file_ids(kb_id, file_ids), "image")
+            self._require_delete_success(self.page_store.delete_by_file_ids(kb_id, file_ids), "page")
+        else:
+            # Indexing/query mode must not retain vectors from an earlier mode.
+            # Bypass disabled wrappers so cleanup does not initialize collections.
+            for name in ("image", "page"):
+                self._require_delete_success(self.base_store.delete_vectors(
+                    collection_name=getattr(self.config, f"{name}_collection"),
+                    filter_conditions={"kb_id": kb_id, "file_id": file_ids},
+                ), name)
+        return True
 
     def scroll_text_payloads(self, kb_id: str, limit: int = 100, offset: Optional[str] = None):
         """滚动读取文本 payload。"""

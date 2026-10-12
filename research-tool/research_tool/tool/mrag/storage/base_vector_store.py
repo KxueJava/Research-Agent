@@ -288,8 +288,8 @@ class BaseCollectionVectorStore(ABC):
         pass
 
     def delete_by_file_ids(self, kb_id: str, file_ids: List[str]) -> bool:
-        """根据文件ID列表删除向量"""
-        pass
+        """根据文件ID列表删除向量；成功返回 True，失败必须显式报错。"""
+        raise NotImplementedError("File deletion is not implemented for this vector store")
 
     def scroll_payloads(self,
                         kb_id: str,

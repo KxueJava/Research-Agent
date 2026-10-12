@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """知识库本体元数据 SQLite 实现（表 t_knowledge_base）。"""
 from datetime import datetime
-from typing import List
+from typing import List, Optional
 
 from sqlalchemy import Column, Integer, String, DATETIME
 from sqlalchemy.ext.declarative import declarative_base
@@ -77,6 +77,19 @@ class KBStoreSQLite(KBStore):
             modify_time=kb_orm.modify_time,
             creator=kb_orm.creator
         )
+
+    @override
+    def get_kb(self, kb_id: str, include_deleted: bool = False) -> Optional[KBModel]:
+        session = self._get_session()
+        try:
+            query = session.query(KnowledgeBase).filter_by(kb_id=kb_id)
+            if not include_deleted:
+                query = query.filter_by(deleted=0)
+            # 同一 ID 可在软删除后重建；优先活动记录，历史 tombstone 仅用于重试。
+            record = query.order_by(KnowledgeBase.deleted.asc(), KnowledgeBase.id.desc()).first()
+            return self._orm_to_kb_model(record) if record else None
+        finally:
+            session.close()
 
     @override
     def create_kb(self, kb_model: KBModel) -> bool:

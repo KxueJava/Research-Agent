@@ -205,12 +205,16 @@ class MragDocumentRoutesTest(unittest.TestCase):
 
     def test_should_delete_knowledge_base_and_cleanup_related_records(self):
         kb_store = MagicMock()
+        kb_store.get_kb.return_value = document_module.KBModel(kb_id="kb-1", deleted=0)
         kb_store.delete_kb.return_value = True
         file_store = MagicMock()
         file_store.delete_by_kb_id.return_value = 2
         doc_store = MagicMock()
         doc_store.delete_by_kb_id.return_value = 2
         vector_store = MagicMock()
+        vector_store.delete_text_by_kb_id.return_value = True
+        vector_store.delete_image_by_kb_id.return_value = True
+        vector_store.delete_page_by_kb_id.return_value = True
 
         with patch.object(document_module, "get_kb_store", return_value=kb_store):
             with patch.object(

@@ -336,21 +336,30 @@ class QdrantVectorStore(BaseVectorStore):
         try:
             query_filter = self._build_filter(filter_conditions)
             if query_filter is None:
-                logger.error("Invalid filter conditions for deletion")
-                return False
+                raise ValueError("Invalid filter conditions for deletion")
 
-            self.client.delete(
+            # Use the client's explicit existence endpoint: the wrapper's
+            # collection_exists() turns connection/permission errors into False.
+            exists = self.client.collection_exists(collection_name=collection_name)
+            if exists is False:
+                return True
+            if exists is not True:
+                raise RuntimeError(f"Collection existence was not confirmed for {collection_name}")
+
+            result = self.client.delete(
                 collection_name=collection_name,
                 points_selector=query_filter,
                 wait=True
             )
+            if getattr(result, "status", None) != models.UpdateStatus.COMPLETED:
+                raise RuntimeError(f"Vector deletion was not completed for {collection_name}")
 
             logger.info(f"Successfully deleted vectors from {collection_name}")
             return True
 
         except Exception as e:
             logger.error(f"Failed to delete vectors from {collection_name}: {e}")
-            return False
+            raise
 
     def count_vectors(self,
                       collection_name: str,
@@ -644,6 +653,8 @@ class QdrantTextVectorStore(BaseCollectionVectorStore):
         )
 
     def delete_by_file_ids(self, kb_id: str, file_ids: List[str]) -> bool:
+        if not file_ids:
+            return True
         return self.vector_store.delete_vectors(
             collection_name=self.collection_name,
             filter_conditions={"kb_id": kb_id, "file_id": file_ids}
@@ -773,6 +784,15 @@ class QdrantGenericVectorStore(BaseCollectionVectorStore):
         return self.vector_store.delete_vectors(
             collection_name=self.collection_name,
             filter_conditions={key: values}
+        )
+
+    def delete_by_file_ids(self, kb_id: str, file_ids: List[str]) -> bool:
+        """Delete image/page payloads within the requested knowledge base."""
+        if not file_ids:
+            return True
+        return self.vector_store.delete_vectors(
+            collection_name=self.collection_name,
+            filter_conditions={"kb_id": kb_id, "file_id": file_ids}
         )
 
     def scroll_payloads(self,

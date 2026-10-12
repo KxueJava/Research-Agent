@@ -1,13 +1,18 @@
 # -*- coding: utf-8 -*-
 """知识库（KB）元数据仓储接口。"""
 from abc import abstractmethod, ABC
-from typing import List
+from typing import List, Optional
 
 from .models.kb_model import KBModel
 
 
 class KBStore(ABC):
     """知识库 CRUD 抽象。"""
+
+    @abstractmethod
+    def get_kb(self, kb_id: str, include_deleted: bool = False) -> Optional[KBModel]:
+        """读取指定知识库；删除重试可以包含软删除记录。"""
+        pass
 
     @abstractmethod
     def create_kb(self, kb_model: KBModel) -> bool:

@@ -451,18 +451,28 @@ async def delete_knowledge_base(request: DeleteKnowledgeBaseRequest):
     kb_store = get_kb_store()
     kb_file_store = get_kb_file_store()
     kb_doc_store = get_kb_doc_store()
-    if not request.kb_id:
+    if not request.kb_id or not request.kb_id.strip():
         raise HTTPException(status_code=400, detail="kb_id 不能为空")
-    kb_model = KBModel(kb_id=request.kb_id)
-    deleted = kb_store.delete_kb(kb_model)
-    if not deleted:
-        raise HTTPException(status_code=404, detail="知识库不存在或已删除")
+    kb_model = kb_store.get_kb(request.kb_id, include_deleted=True)
+    if kb_model is None:
+        raise HTTPException(status_code=404, detail="知识库不存在")
 
-    deleted_file_count = kb_file_store.delete_by_kb_id(request.kb_id)
-    kb_doc_store.delete_by_kb_id(request.kb_id)
-    VectorStore().delete_text_by_kb_id(request.kb_id)
-    VectorStore().delete_image_by_kb_id(request.kb_id)
-    VectorStore().delete_page_by_kb_id(request.kb_id)
+    try:
+        # 外部索引先清理，元数据最后提交；失败保留 KB 作为可重试入口。
+        # 软删除 KB 也允许再次清理，以修复旧版本留下的残余索引。
+        vector_store = VectorStore()
+        for delete_vectors in (vector_store.delete_text_by_kb_id,
+                               vector_store.delete_image_by_kb_id,
+                               vector_store.delete_page_by_kb_id):
+            if delete_vectors(request.kb_id) is not True:
+                raise RuntimeError("Vector deletion did not complete")
+        kb_doc_store.delete_by_kb_id(request.kb_id)
+        deleted_file_count = kb_file_store.delete_by_kb_id(request.kb_id)
+        if kb_model.deleted != 1 and not kb_store.delete_kb(KBModel(kb_id=request.kb_id)):
+            raise RuntimeError("Knowledge base metadata deletion did not complete")
+    except Exception:
+        logger.exception("知识库删除未完成: kb_id={}", request.kb_id)
+        raise HTTPException(status_code=503, detail="知识库删除未完成，请稍后重试") from None
 
     return {
         "code": 200,
@@ -687,12 +697,18 @@ async def delete_files(request: DeleteFileRequest):
     file_ids = request.file_ids
     kb_id = request.kb_id
 
-    kb_file_store = get_kb_file_store()
-    kb_file_store.delete_by_file_ids(kb_id, file_ids)
-    get_kb_doc_store().delete_by_file_ids(kb_id, file_ids)
-
-    vector_store = VectorStore()
-    vector_store.delete_by_file_ids(kb_id, file_ids)
+    if not kb_id or not kb_id.strip() or not file_ids or any(not file_id.strip() for file_id in file_ids):
+        raise HTTPException(status_code=400, detail="kb_id 和 file_ids 不能为空")
+    try:
+        # 不先隐藏文件记录：向量或正文清理失败时，用户仍能重试删除。
+        vector_store = VectorStore()
+        if vector_store.delete_by_file_ids(kb_id, file_ids) is not True:
+            raise RuntimeError("Vector deletion did not complete")
+        get_kb_doc_store().delete_by_file_ids(kb_id, file_ids)
+        get_kb_file_store().delete_by_file_ids(kb_id, file_ids)
+    except Exception:
+        logger.exception("知识库资料删除未完成: kb_id={}", kb_id)
+        raise HTTPException(status_code=503, detail="资料删除未完成，请稍后重试") from None
 
     return {"code": 200, "msg": "success", "data": {}}
 
