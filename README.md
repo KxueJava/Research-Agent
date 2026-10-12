@@ -32,19 +32,40 @@
 
 <p align="center"><em>工作台主页</em></p>
 <p align="center">
-  <img src="assets/readme/主页.png" alt="Research 工作台主页" width="960">
+  <img src="assets/readme/current-home.jpg" alt="Research Agent 当前对话工作台与每日推荐" width="960">
 </p>
 
-<p align="center"><em>多 Agent 协作</em></p>
+<p align="center"><em>图片工作室</em></p>
 <p align="center">
-  <img src="assets/readme/multi_agent.png" alt="多 Agent 协作" width="960">
+  <img src="assets/readme/current-image-studio.jpg" alt="图片工作室：画面描述、参考图片、尺寸与作品记录" width="960">
 </p>
 
-<p align="center"><em>前端界面</em></p>
+<details>
+<summary>更多当前页面：登录、子 Agent、模型配置与能力库</summary>
+
+<p align="center"><em>账号登录</em></p>
 <p align="center">
-  <img src="assets/readme/效果.jpg" alt="研究报告与产物效果" width="960">
+  <img src="assets/readme/current-login.jpg" alt="Research Agent 当前登录页面" width="960">
 </p>
 
+<p align="center"><em>子 Agent 装配</em></p>
+<p align="center">
+  <img src="assets/readme/current-sub-agents.jpg" alt="子 Agent 装配：角色指令、模型配置与工具边界" width="960">
+</p>
+
+<p align="center"><em>模型配置</em></p>
+<p align="center">
+  <img src="assets/readme/current-models.jpg" alt="模型配置：OpenAI 兼容接入与 qwen-plus 配置（密钥已隐藏）" width="960">
+</p>
+
+<p align="center"><em>能力库</em></p>
+<p align="center">
+  <img src="assets/readme/current-capabilities.jpg" alt="能力库：技能包与 MCP 连接器管理" width="960">
+</p>
+
+</details>
+
+<p align="center"><em>以上为当前本地项目实拍页面；下方案例保留研究产物与执行示例。</em></p>
 
 - **全域采集**：调度多个智能体并行采集网页信息、Reddit 社区讨论、X 平台动态、YouTube 字幕内容、小红书互动数据，以及由真实资金与内幕信息定价的 Polymarket 预测赔率。
 - **私有文档证据链**：通过多模态 RAG 解析用户私有的 PDF、Word、PPT 与图片，把公域情报与内部知识放进同一条证据链。
@@ -221,7 +242,11 @@ Text2SQL 智能取数 → CodeAct 数据分析 Agent → Canvas 画布展示。
 
 <p align="center">
   <img src="assets/readme/deepsearch.png" alt="深度研究" width="49%">
-  <img src="assets/readme/RAG.png" alt="Agentic RAG" width="49%">
+</p>
+
+<p align="center"><em>当前 MRAG 智能问答工作台：基于模拟差旅报销资料的回答与来源引用</em></p>
+<p align="center">
+  <img src="assets/readme/current-mrag.jpg" alt="MRAG 智能问答：知识库测试回答、结构化表格与证据引用" width="960">
 </p>
 
 #### 4. Text2SQL 智能问数界面
@@ -461,10 +486,10 @@ mvn -pl Research-agent-app -am package '-Dmaven.test.skip=true'
 java -jar Research-agent-app/target/Research-agent-app.jar
 ```
 
-Backend 默认监听 `http://127.0.0.1:8100`。健康检查：
+Backend 默认监听 `http://127.0.0.1:8101`。健康检查：
 
 ```bash
-curl http://127.0.0.1:8100/web/health
+curl http://127.0.0.1:8101/web/health
 ```
 
 ### 5. 启动 React 工作台
@@ -475,7 +500,7 @@ pnpm install
 pnpm dev
 ```
 
-打开 [http://localhost:3000](http://localhost:3000)。本地开发环境通过 `ui/.env` 中的 `SERVICE_BASE_URL` 连接 Java Backend。
+打开 [http://localhost:3001](http://localhost:3001)。本地开发环境通过 `ui/.env` 中的 `SERVICE_BASE_URL` 连接 Java Backend。
 
 ### Docker Compose 部署
 
