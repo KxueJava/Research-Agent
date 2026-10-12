@@ -1,498 +1,342 @@
-<p align="center">
-  <img src="assets/brand/logo.svg" alt="Research logo" width="104" height="104">
-</p>
+# Research Agent
 
-<h1 align="center">Research</h1>
+基于大模型的智能研究与知识库问答平台，集成 Agent 任务编排、工具调用、资料检索、图片生成和研究产物展示。
 
-<p align="center">
-  <strong>让世界的变化进入你的工作流</strong>
-</p>
+项目采用 **React 工作台 + Java Agent 后端 + Python 工具服务** 的结构。Java 管理任务与执行过程，Python 提供检索、文档处理和数据分析能力，前端展示对话、证据与文件产物。
 
-<p align="center">
-  一个面向全网研究与复杂数据分析的云端智能体，能在公开网络、YouTube、BiliBili、X、小红书、Hacker News上研究任何主题
-</p>
+> 本项目是以 Java 后端为主的 AI Agent 应用工程。各项 AI 能力需要配置对应的模型、工具或外部服务。
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Java-21-ED8B00?style=flat-square&logo=openjdk&logoColor=white" alt="Java 21">
-  <img src="https://img.shields.io/badge/Spring%20Boot-3.4.3-6DB33F?style=flat-square&logo=springboot&logoColor=white" alt="Spring Boot 3.4.3">
-  <img src="https://img.shields.io/badge/Spring%20AI-1.1.4-6DB33F?style=flat-square" alt="Spring AI 1.1.4">
-  <img src="https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=111827" alt="React 19">
-  <img src="https://img.shields.io/badge/Python-3.11%2B-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python 3.11+">
-  <img src="https://img.shields.io/badge/MySQL-8-4479A1?style=flat-square&logo=mysql&logoColor=white" alt="MySQL 8">
-</p>
+## 目录
 
-<p align="center"> ·
-  <a href="#项目定位">项目定位</a> ·
-  <a href="#落地案例展示">落地案例</a> ·
-  <a href="#核心亮点">核心亮点</a> ·
-  <a href="#系统架构">系统架构</a> ·
-  <a href="#快速开始">快速开始</a> ·
-  <a href="https://github.com/OWWZO/ai-agent">GitHub</a>
-</p>
+- [项目定位](#项目定位)
+- [信息来源](#信息来源)
+- [核心功能](#核心功能)
+- [页面展示](#页面展示)
+- [研究成果与报告展示](#研究成果与报告展示)
+- [技术栈](#技术栈)
+- [系统架构](#系统架构)
+- [项目结构](#项目结构)
+- [快速开始](#快速开始)
+- [配置说明](#配置说明)
+- [开发与验证](#开发与验证)
 
-<p align="center"><em>工作台主页</em></p>
-<p align="center">
-  <img src="assets/readme/current-home.jpg" alt="Research Agent 当前对话工作台与每日推荐" width="960">
-</p>
+## 项目定位
 
-<p align="center"><em>图片工作室</em></p>
-<p align="center">
-  <img src="assets/readme/current-image-studio.jpg" alt="图片工作室：画面描述、参考图片、尺寸与作品记录" width="960">
-</p>
+- **多源信息研究**：通过主 Agent 与子 Agent 分工，结合网页搜索、正文提取和已配置的公开信息或登录态工具，收集研究资料，并整理来源、观点与信息缺口。
+- **私有资料证据链**：通过 MRAG 处理文件与网页资料。根据解析器、视觉模型和检索服务配置，支持 PDF、Word、PPT、文本及图片等资料；回答中保留相关片段与来源引用。
+- **记忆与流程复用**：通过工作记忆、上下文压缩和长期记忆保存有用上下文，并利用技能包与子 Agent 定义复用任务流程。
+- **分析与产物交付**：结合 Python 数据分析、已配置的代码执行环境及文档生成工具，完成资料整理、统计和可视化，以 GenUI 交互内容、图表或 HTML、PDF、Word、PPT 等文件交付结果。E2B 沙箱需要单独配置。
 
-<details>
-<summary>更多当前页面：登录、子 Agent、模型配置与能力库</summary>
+### 把分散资料组织成可追溯的研究
 
-<p align="center"><em>账号登录</em></p>
-<p align="center">
-  <img src="assets/readme/current-login.jpg" alt="Research Agent 当前登录页面" width="960">
-</p>
+技术文档、社区讨论、视频内容与企业内部资料分散在不同来源中。一次研究往往需要反复搜索、阅读、整理和对比，结论与原始依据也容易脱节。
 
-<p align="center"><em>子 Agent 装配</em></p>
-<p align="center">
-  <img src="assets/readme/current-sub-agents.jpg" alt="子 Agent 装配：角色指令、模型配置与工具边界" width="960">
-</p>
+Research Agent 将这些步骤放进同一工作台：用户提出目标，Agent 拆解任务并调用可用工具，知识库提供私有资料，分析工具处理数据，前端呈现回答、证据与文件产物。执行过程保留在会话与账本中，方便回看和继续研究。
 
-<p align="center"><em>模型配置</em></p>
-<p align="center">
-  <img src="assets/readme/current-models.jpg" alt="模型配置：OpenAI 兼容接入与 qwen-plus 配置（密钥已隐藏）" width="960">
-</p>
+不同渠道通过搜索工具、公开来源技能、登录态只读工具或 MCP 接入。可访问范围取决于平台接口、凭据、网络和依赖配置；配置一个渠道不会自动开启全部来源。
 
-<p align="center"><em>能力库</em></p>
-<p align="center">
-  <img src="assets/readme/current-capabilities.jpg" alt="能力库：技能包与 MCP 连接器管理" width="960">
-</p>
+### 为什么做这个项目
 
-</details>
+项目面向技术研究、资料问答和数据分析中的重复工作：从多个来源寻找材料，将零散信息组织成结论，再制作可以阅读、编辑或分享的报告。
 
-<p align="center"><em>以上为当前本地项目实拍页面；下方案例保留研究产物与执行示例。</em></p>
+Research Agent 把大模型的推理与工具执行连接起来，提供任务编排、知识库、子 Agent、模型管理与产物展示，让用户可以在同一工作台完成从提问到交付的过程。
 
-- **全域采集**：调度多个智能体并行采集网页信息、Reddit 社区讨论、X 平台动态、YouTube 字幕内容、小红书互动数据，以及由真实资金与内幕信息定价的 Polymarket 预测赔率。
-- **私有文档证据链**：通过多模态 RAG 解析用户私有的 PDF、Word、PPT 与图片，把公域情报与内部知识放进同一条证据链。
-- **长期记忆**：沉淀偏好、关键事实与可复用流程，让下一次任务不必从头开始。
-- **分析与交付**：结合 E2B 沙箱的代码执行能力与专属数据分析 Agent，完成数据清洗、交叉验证与深度分析，最终以 GenUI 交互画布和 PDF、Word、PPT、HTML 等多格式报告自动交付。
+### 典型使用场景
 
-### 打破平台信息孤岛
+以下是可提交的任务示例，不是已经完成或验证的真实案例。
 
-当前主流搜索引擎与大模型均存在天然的信息边界，各大平台各自形成封闭的信息围墙，拥有独立的接口体系、鉴权机制与数据生态，没有任何一款 AI 产品能原生覆盖全部渠道：
+1. **技术选型前**：比较候选技术的官方文档、版本记录与社区讨论，整理功能差异、适用条件和待验证问题，交付带来源的对比报告。
+2. **知识库问答时**：导入制度、产品说明或技术资料，提问并获取基于材料的回答，查看引用片段，减少反复翻阅文件的工作。
+3. **数据复盘时**：上传销售数据，统计月度收入、产品占比和环比变化，生成图表与 HTML 分析报告，并保留处理脚本。[销售 CSV 示例](assets/examples/sales-demo.csv)包含 144 条模拟订单，可用于测试。
+4. **研究报告交付时**：将收集到的资料整理为摘要、章节、对比表与来源清单，根据任务输出 HTML、PDF、Word 或 PPT。
+5. **重复任务执行时**：为搜索、分析和报告生成配置专用子 Agent，结合技能包限定职责与工具范围，复用已有流程。
 
-| 产品 | 信息边界 |
-| :--- | :--- |
-| 谷歌搜索 | 无法穿透 Reddit 评论与 X 平台原生内容 |
-| ChatGPT | 仅接入 Reddit 生态，缺失 X、TikTok 等平台数据 |
-| Gemini | 可访问 YouTube 资源，却无法获取 Reddit 社区内容 |
-| Claude | 原生不支持上述任一平台的实时检索 |
-| Grok | 原生深度打通 X 平台实时数据，却无法原生覆盖 Reddit 等更多平台生态 |
+## 信息来源
 
-而 Research 支持导入用户自定义密钥与浏览器会话凭证，打通全部平台数据源。它不止于跨平台全域检索，更能对多源信息进行交叉权重评分，过滤噪音与重复信息，精准提炼真正有价值的核心情报。
+项目同时提供 Python 工具和运行时技能。下表区分了直接工具能力与需要上游依赖的公开来源技能，列出的渠道不代表当前部署全部可用。
 
-### 为何存在
+| 信息渠道 | 可用于研究的内容 | 接入方式与条件 |
+| --- | --- | --- |
+| 公开网页 | 搜索结果、页面正文、官方文档与公告 | 网页搜索和正文提取工具，按所选服务配置 |
+| 私有文件与网页知识库 | 制度、产品资料、技术文档及引用片段 | MRAG；需要解析、Embedding 和检索配置 |
+| Reddit | 帖子、社区列表、搜索结果与评论 | 登录态只读工具；公开 RSS 可经来源技能读取 |
+| Twitter / X | 推文、线程、文章与用户公开动态 | 登录态只读工具，需要配置服务端凭据 |
+| 雪球 | 行情、搜索结果与社区内容 | 登录态只读工具或公开来源技能；受接口与时效限制 |
+| RSS / Atom | 新闻、博客和站点更新 | 公开来源技能，需要有效订阅地址与相应依赖 |
+| YouTube | 公开视频信息、字幕及评论 | 公开来源技能，需要上游工具且内容可访问 |
+| Bilibili | 公开视频信息、字幕及社区内容 | 公开来源技能，需要上游工具与可访问内容 |
+| Hacker News | 技术新闻、故事与讨论 | 公开来源技能 |
+| V2EX | 公开主题与开发者讨论 | 公开来源技能 |
+| GitHub | 仓库、版本、Issue 与 PR 等公开信息 | 公开来源技能，需要相应 CLI 或接口配置 |
+| LinkedIn | 可公开访问的个人或企业页面 | 公开来源技能，受页面可访问性限制 |
+| Telegram | 公开频道内容 | 公开来源技能，不包含私有频道 |
+| Stack Exchange | 公开问题、答案与社区信息 | 公开来源技能 |
+| 业务数据库 | 已授权的数据与分析结果 | 按 Table RAG / NL2SQL 和数据分析工具配置接入 |
 
-Research 最初诞生于程序员群体的信息焦虑：在技术迭代日新月异的当下，Reddit、X 平台的极客社区始终站在行业最前沿，第一时间涌现最新的技术实践、工具拆解与方向讨论。但各大平台彼此割裂、各自形成封闭的围墙花园，零散的一手经验与技术动态散落在一座座信息孤岛上，没有单一入口可以高效聚合全域信息，我们很难及时、完整地捕捉全社区的原生技术情报，同步跟进最前沿的技术方向。
+小红书、Polymarket 等未在本节确认为当前项目直接提供的渠道，不作默认支持承诺。新增来源可通过技能或 MCP 扩展，并以实际调用结果验证可用性。
 
-从解决自身的技术信息痛点出发，Research 逐步进化为一款通用全域情报工具，覆盖更多高价值决策场景：
+## 核心功能
 
-1. **行业会议前**  
-   一键梳理发言嘉宾的近期观点、公开言论与项目动态，一键聚合目标人物全平台真实动态：
+| 功能 | 说明 |
+| --- | --- |
+| 智能对话与任务执行 | ReAct、计划执行策略、多轮对话及执行过程展示 |
+| 子 Agent | 配置角色、系统指令、模型、工具范围与执行步数，由主 Agent 调度 |
+| 知识库问答（MRAG） | 导入文件和网页，解析、分片、向量化、检索并生成带引用的回答 |
+| 图片工作室 | 文字生成、参考图片编辑、比例尺寸、生成数量与作品记录 |
+| 模型配置 | OpenAI 兼容接入、模型启停和连接测试，支持配置 qwen-plus 等模型 |
+| 技能与 MCP | 管理技能包与 MCP 连接器，按需扩展 Agent 工具能力 |
+| 研究与数据分析 | 通过已配置工具完成搜索、网页提取、代码计算和报告生成 |
+| 产物预览 | 展示 HTML、图表、图片和文档，支持 GenUI 与 3D 内容渲染 |
+| 会话与运行管理 | SSE 推送、执行账本、历史回放、运行控制及人机协作节点 |
+| 记忆与上下文管理 | 工作记忆、上下文压缩与长期记忆相关能力 |
+| 每日推荐 | 后台生成推荐任务，支持启动补生成、每日调度与失败重试 |
+| 账号与工作台管理 | 登录、个人资料、精品对话和用量统计，后端按身份控制访问 |
 
-   > Peter Steinberger加入OpenAI Codex团队、推动对抗Anthropic第三方智能体禁令、GitHub累计合并23个PR（合并率85%）、主导研发跨设备智能体控制系统LobsterOS。同时覆盖ClaudeCode社区热议：“自OpenClaw发布以来，业内都清楚绕开API运行迟早会被封禁”（获227赞）。
-
-2. **出行规划前**  
-   掌握目的地设施的实时运营状态与真实用户体验：
-
-   > 鼓浪屿内厝澳老别墅片区修缮工程已启动但未对外公示、植物园南门网红扶梯扩容施工已进场、环岛路黄厝滨海观景台升级项目已获批暂未官宣；核心点位高峰平均排队时长（最美转角 72 分钟、雨林喷雾区 48 分钟）、钟鼓索道日落场一票难求引发本地游客不满、海上世界潮汐之眼摩天轮与海洋王国停业维护暂无明确复业时间。
-
-3. **工具客观横向评测**  
-   跳出过时博客的主观评价，实时拉取GitHub官方接口数据：
-
-   > OpenClaw为执行层（35.1万Star，活跃运营）、Hermes为自优化大脑层（3.1万Star）、Paperclip为组织架构层（4.9万Star）——三者并非竞品，而是分层关系。输出并排对比表格，覆盖架构设计、内存机制、安全特性、适用场景等维度，同时收录社区高赞观点：@IMJustinBrooke评价“OpenClaw是小火龙，Hermes是喷火龙”。
-
-4. **话题爆发前**  
-   在话题达到顶峰前找到它。扫描 Reddit 分类列表、Hacker News 首页/热门故事、Digg 的 AI 1000 资讯流以及 X 平台，由智能体完成提名筛选并给出可开写的切入点：
-
-   > 对提名内容做名称校验、垃圾信息过滤与内容价值判断，并撰写小红书/ X 平台文章的切入点。随后输出 5–10 个按热度排序的话题；每个结果都包含跨平台数据、热度标签，以及可直接执行的内容切入点。
-
-当你和一位 企业CEO 对坐会谈时，你是否读完了他近 30 天的所有公开推文、播客实录与社区讨论？  
-**Research 已经帮你读完了。**
-
-### 信息来源
-
-| 信息渠道 | 你能拿到什么 |
-| :--- | :--- |
-| **Reddit** | 高赞热门评论与公开社区讨论；支持 RSS 无密钥接入，提供谷歌搜索触达不到的真实用户观点与社区声量 |
-| **Twitter** | 行业一线观点、专业讨论与突发动态；第一时间捕捉社区最即时的反应、争议与风向变化 |
-| **YouTube** | 长视频深度解析与评论；基于完整字幕稿提炼核心观点与关键引用 |
-| **Hacker News** | 全球开发者技术共识；基于积分与评论热度筛选核心议题，呈现真正的讨论焦点与技术判断 |
-| **RSS** | 全球媒体与垂直站点公开订阅源，实时同步内容更新 |
-| **Bilibili** | 中文视频社区的观点、字幕与反馈，捕捉本土用户真实体验与讨论风向 |
-| **小红书** | 公开笔记与互动数据：种草测评、体验反馈与口碑讨论，捕捉本土消费风向与产品真实评价 |
-| **雪球** | 投资社区深度讨论，实时反映市场情绪与上市公司基本面，呈现真金白银的市场判断 |
-| **V2EX** | 国内开发者、创业者与技术从业者的一手交流：实战经验、行业观察与真实痛点 |
-| **GitHub** | 开源全链路动态：Issue、PR、版本发布与开发者活跃度，还原技术演进的真实进度 |
-| **LinkedIn** | 职场公开信息与企业官方动态：职业资料、人事变动与经营动作，捕捉企业发展的关键信号 |
-| **Telegram** | 公开频道实时更新、官方公告与前沿社区讨论，跟进快速迭代的小众圈子与项目动态 |
-| **Stack Exchange** | 专业问答社区的专家解答与高票方案，沉淀高频技术问题的成熟解法与实践经验 |
-
-
-## 落地案例展示
-
-*使用模型：gpt6.1-sol-high*
-
-### 一、全网研究
-
-#### 1. 社媒内容调研
-
-账号拆解、爆款内容分析、数据复盘和评论区观察。  
-**[查看小红书策略研究报告](https://www.owwzo.cloud/tool/v1/file_tool/preview/session-1788916247308-7652/%E5%A6%82%E4%BD%95%E5%9C%A8%E5%B0%8F%E7%BA%A2%E4%B9%A6%E5%81%9AAI%E7%9B%B8%E5%85%B3%E7%88%86%E6%AC%BE%E8%87%AA%E5%AA%92%E4%BD%93%E8%B4%A6%E5%8F%B7%E7%A0%94%E7%A9%B6%E6%8A%A5%E5%91%8A.html)**
-
-<p align="center">
-  <img src="assets/readme/小红书调研.png" alt="小红书自媒体策略研究报告预览" width="860">
-</p>
-
-#### 2. 热点舆论事件分析
-
-结合推特、YouTube、Reddit、BiliBili、小红书、微博等多方信源交叉核实、事实分档（有证据 / 单方说法 / 谣言）、时间线还原、舆论情绪分析。  
-**[查看火海中的49秒的报告](https://www.owwzo.cloud/tool/v1/file_tool/preview/session-1788931844041-1436/chinagt-shanghai-fire-report/index.html)**
-
-<p align="center">
-  <img src="assets/readme/火海49秒.png" alt="火海中的49秒舆情分析报告预览" width="860">
-</p>
-
-#### 3. 竞品研究
-
-功能拆解、用户口碑采集和多维度竞品对比。  
-**[查看笔记软件竞品分析报告](https://www.owwzo.cloud/tool/v1/file_tool/preview/session-1788852138190-6315/index.html)**
-
-<p align="center">
-  <img src="assets/readme/笔记软件竞品分析.png" alt="笔记软件竞品分析报告预览" width="860">
-</p>
-
-#### 4. 自媒体平台内容聚合
-
-收集多个平台的旅游攻略，整理旅游路线和踩坑点。  
-**[查看厦门旅游规划](https://www.owwzo.cloud/tool/v1/file_tool/preview/session-1788785646953-112/xiamen-couple-map.html)**
-
-<p align="center">
-  <img src="assets/readme/旅游规划.png" alt="厦门旅游规划预览" width="860">
-</p>
-
-### 二、数据分析
-
-#### 1. 结构化数据分析
-
-Text2SQL 智能取数 → CodeAct 数据分析 Agent → Canvas 画布展示。  
-**[查看大模型调用数据分析报告](https://www.owwzo.cloud/tool/v1/file_tool/preview/session-1788425650341-3137/api-log-analysis/index.html)**
-
-<p align="center">
-  <img src="assets/readme/大模型调用数据分析图.png" alt="大模型调用数据分析图" width="49%">
-  <img src="assets/readme/结构化数据分析.png" alt="结构化数据分析结果" width="49%">
-</p>
-
-#### 2. 量化实证研究
-
-数据获取、清洗、分区域对比、统计检验和可视化。
-
-<p align="center">
-  <img src="assets/readme/全球糖尿病患病率的变化趋势.png" alt="全球糖尿病患病率变化趋势图" width="860">
-</p>
-
-#### 3. 投研分析（金融情报调研）
-
-财报解读、行业格局梳理、竞品对标、多源信息综合。  
-**[查看特斯拉投研报告](https://www.owwzo.cloud/tool/v1/file_tool/preview/session-1788509972407-7432/tesla%E6%8A%95%E7%A0%94%E6%8A%A5%E5%91%8A_2026-09-04.html)**
-
-<p align="center">
-  <img src="assets/readme/特斯拉投研报告.png" alt="特斯拉投研报告预览" width="860">
-</p>
-
-#### 4. 量化回测
-
-策略建模 → 历史数据回测 → 参数敏感性分析 → 风险指标计算。  
-**[查看双均线择时策略回测报告](https://www.owwzo.cloud/tool/v1/file_tool/preview/session-1788784594786-3975/index_23_embedded.html)**
-
-<p align="center">
-  <img src="assets/readme/双均线择时策略的回测.png" alt="双均线择时策略回测预览" width="860">
-</p>
-
-### 三、设计与创意
-
-<p align="center">
-  <img src="assets/readme/喜多川.png" alt="艺术设计生成效果" width="49%">
-  <img src="assets/readme/猫猫艺术.png" alt="猫猫艺术生成效果" width="49%">
-</p>
-
-### 四、功能展示
-
-#### 1. GenUI 交互式界面
-
-<p align="center">
-  <img src="assets/readme/GenUI可视化勾股定理.png" alt="GenUI 可视化勾股定理" width="32%">
-  <img src="assets/readme/熊二.png" alt="GenUI 交互示例" width="32%">
-  <img src="assets/readme/GenUi.png" alt="GenUI 画布" width="32%">
-</p>
-
-#### 2. Human In The Loop
-
-<p align="center">
-  <img src="assets/readme/human_in_the_loop.png" alt="Human in the Loop 计划审批" width="49%">
-  <img src="assets/readme/ask_user.png" alt="向用户提问" width="49%">
-</p>
-
-#### 3. 深度研究 / Agentic RAG
-
-<p align="center">
-  <img src="assets/readme/deepsearch.png" alt="深度研究" width="49%">
-</p>
-
-<p align="center"><em>当前 MRAG 智能问答工作台：基于模拟差旅报销资料的回答与来源引用</em></p>
-<p align="center">
-  <img src="assets/readme/current-mrag.jpg" alt="MRAG 智能问答：知识库测试回答、结构化表格与证据引用" width="960">
-</p>
-
-#### 4. Text2SQL 智能问数界面
-
-<p align="center">
-  <img src="assets/readme/TextToSql饼图.png" alt="Text2SQL 饼图" width="49%">
-  <img src="assets/readme/TextToSql折线图.png" alt="Text2SQL 折线图" width="49%">
-</p>
-
-## 项目核心抽象
-
-```mermaid
-flowchart LR
-    Observe["Observe<br/>感知变化"] --> Evidence["Evidence<br/>证据与来源"]
-    Evidence --> Analyze["Analyze<br/>形成判断"]
-    Analyze --> Compose["Compose<br/>交付产物"]
-    Compose --> Remember["Remember<br/>记忆沉淀"]
-    Remember --> Observe
-```
-
-1. **感知变化**：从公开互联网、用户授权的社交来源、私有知识库和业务数据库里收集一手材料，把正在发生的变化收进同一次研究。
-2. **形成判断**：经交叉核验、知识库问答、NL2SQL 问数和沙箱代码执行，把原始材料变成带出处的证据和可复查的分析结果。
-3. **交付产物**：把结论交成 GenUI 画布、图表、3D 场景或 PDF / Word / PPT / HTML，来源和执行记录跟着产物一起留下。
-4. **记忆沉淀**：把用户偏好、重要事实、可复用流程沉淀为长期记忆，让下一次任务从已有积累继续，而不是从头开始。
-
-
-## 核心亮点
-
-### 1. Observe：深度研究、NL2SQL 与 RAG
-
-Research 将“搜索”视为一个可以继续执行的研究过程，而不是一次关键词查询。
-
-- **DeepResearch公域信息检索**：查询拆解、多轮 `extend/search/report` 阶段、并发检索、正文抓取、去重、摘要和 SSE 流式进度，支持 DuckDuckGo、Exa、Tavily、Brave、Grok/OpenAI-compatible 等搜索引擎。
-- **私域媒体检索**：接入 RSS、GitHub、Reddit、Hacker News、Stack Exchange、V2EX、Twitter、Telegram、YouTube、B站、小红书、微博、雪球等授权或公开渠道，补齐搜索引擎拿不到的社区原生内容。
-- **可溯源多模态RAG**：把私有 PDF、Word、PPT、Markdown、文本、图片和网页建成知识库，作为公网检索的补充。入库时解析、OCR、caption、切分，并写入文本向量、图片向量和 BM25；提问时先做查询规划与改写，再并发走语义、关键词、图文和页面召回，经 rerank 后带着原文片段生成回答。检索轮次、命中片段和来源可追溯，支持多轮补证。
-- **NL2SQL**：用自然语言直接问业务数据库。Table RAG 先召回相关表结构与列值样例（Qdrant schema + Elasticsearch 列值），再经 query 改写、列过滤和推理生成 SQL 并执行，支持结果预览与流式思考过程。
-
-### 2. Analyze：数据、代码与安全执行
-
-- **CodeAct 数据分析 Agent**：按「生成代码 → 执行 → 观察结果 → 修正计划」循环完成清洗、统计、计算和可视化。
-- **非结构化数据分析**：把检索到的网页、文档等公开内容送进 E2B 隔离沙箱，用 Python 做抽取、清洗、统计和可视化。
-
-### 3. Compose：GenUI、画布与文档产物
-
-- **GenUI**：模型生成受控的 UI Tree，使用增量 JSON Patch 演进画布状态，并由 React 按白名单组件渲染。
-- **可视化组件**：图表、表格、卡片、流程、时间线、表单、HTML、图片、视频和交互式内容。
-- **3D 展示**：内置 Three.js 场景和 `Model3D` 组件，可展示参数化几何、GLB/GLTF 模型和可交互的 3D 结果。
-- **文档生成**：支持 PDF、DOCX、PPTX、HTML、Markdown、Excel 和图表等产物。
-- **支持主题模板导入**：PDF/Word/PPT/HTML 渲染器共享命名主题和自定义主题配置。Agent 只负责输出内容 JSON，让 Renderer 根据预配置主题负责字体、颜色、布局和格式转换。
-- **画布发布**：可将 HTML、PDF、Word、PPT等产物发布，用户可预览、下载。
-
-### 4. Remember：长期记忆
-
-跨会话积累拆成三类可调用能力，而不是把全部历史塞进 prompt。
-
-- **语义记忆**：把用户偏好、稳定事实和策展笔记写入长期记忆（`user` / `curated`），后续每一轮自动注入；任务进度和一次性结果不进记忆。
-- **情景记忆**：按需检索历史会话。支持跨会话发现、会话内搜索、锚定滚动和最近会话浏览，从工作记忆投影中找回压缩前的对话细节。
-- **程序性记忆沉淀**：可复用流程写入 `runtime/skills/<name>/SKILL.md`，而不是写进 memory。Agent 用 `skill_tool` 按需加载手册，用 `workspace_*` 创建或修补 skill，或通过 Skill Creator 把一类任务沉淀成可重复执行的程序性记忆。
-
-### 5. Tool：工具、Skill 与 MCP
-
-工具不是一次性全塞进模型上下文，而是按需发现、按层扩展。
-
-- **ToolSearch**：MCP 工具默认延迟加载，system 里只列工具名。Agent 先用 `ToolSearch` 按关键词或 `select:name` 激活完整 schema，再调用对应 MCP 工具，避免工具膨胀挤占上下文。
-- **工具生态**：
-  - **内置工具**：检索（`deepsearch`、`web_fetch`、`web_search`、Reddit/X/雪球）、知识库（`mragQuery`）、问数（`table_rag`、`nl2sql`）、代码与分析（`code_interpreter`、`data_analysis`、`dataprep`）、产物（`document_generate`、`slides_generate`、`chart_generator`、`image_generation`、`canvas`）、工作区（`workspace_*`）、记忆（`memory`、`session_search`）、协作（`Agent`、Task / Plan Mode、`AskUserQuestion`）。
-  - **Skill Runtime**：从 `runtime/skills/<skill-name>/` 加载 `SKILL.md`、参考资料和脚本；支持目录扫描、脚本发现、会话物化、路径防护和超时控制。内置架构图、报告页、学霸笔记、PPT、前端设计等 skill，也可自行安装。
-  - **MCP**：通过 Server Descriptor、Registry 和 Executor 发现外部工具，支持 SSE、STDIO 和 Streamable HTTP
-  - **远程工具运行时**：`research-tool` 基于 FastAPI 承载搜索、RAG、数据处理、文件服务、文档生成和代码执行等重型能力。
-
-
-### 6. 协作与控制 Multi-Agent
-
-Research 支持把一个复杂目标拆给多个职责明确的 Agent，并让主 Agent 继续推进。
-
-- **同步子 Agent**：默认等待子任务结果，适合需要即时汇总的检索、分析和验证步骤。
-- **异步后台 Agent**：设置 `run_in_background=true` 后，长任务在后台运行，主对话可以继续处理其他工作。
-- **任务控制**：支持查询后台任务结果、停止任务、恢复观察和向运行中的 Agent 注入指导。
-- **上下文隔离**：子 Agent 可以拥有独立的工具集合、memory scope 和会话工作区，避免无关工具和上下文相互污染。
-- **协作通信**：父子 Agent 通过 session 级 mailbox 传递消息
-
-### 7. Human-in-the-loop
-
-Agent 不必在所有步骤上自动做决定。Research 在执行链路中提供可恢复的人机协作节点：
+### 知识库处理流程
 
 ```text
-生成计划 -> 等待审批 -> 执行任务 -> 遇到不确定性 -> 向用户提问 -> 继续执行
+文件 / 网页 → 解析与分片 → Embedding 向量化 → Qdrant 存储
+用户问题 → 查询处理与召回 → 重排 → 大模型回答 → 来源与证据展示
 ```
 
-- 计划审批：`approve`、`reject`、`resume`、`cancel`
-- 用户追问：`AskUserQuestion`、回答、恢复和取消
-- 运行控制：停止 Run、断线后 `follow`、运行中注入新的指导
-- 前端恢复：刷新或重新连接后恢复待审批、待回答和后台运行状态
+MySQL 保存用户、模型、会话和执行记录等业务数据；Qdrant 用于向量检索；SQLite 用于 Python 文件服务及知识库的部分元数据。具体检索模式还可接入 Elasticsearch、视觉模型和重排服务。
 
-### 8. 上下文压缩
+## 页面展示
 
-长任务和长会话会自动进入上下文治理流程：
+以下截图来自当前本地项目。工作台使用深色主题，登录页使用独立的浅色设计；知识库回答使用模拟测试资料。
 
-- 跨轮对话从工作记忆投影 hydrate，保留下一轮 LLM 所需的消息结构。
-- 接近上下文预算时执行摘要压缩，保护任务目标、关键早期信息和最近工具结果。
-- 支持 LLM 摘要、局部压缩、失败回退和 mid-run 压缩。
-- 压缩前可以触发长期记忆 flush，压缩事件和输入输出快照可审计。
+### 对话工作台
 
-## 赞助商
+推荐任务、模型选择和 Agent 执行入口。
 
-<details open>
-<summary>点击折叠</summary>
+![对话工作台](assets/readme/current-home.jpg)
 
-<table>
-  <tbody>
-    <tr>
-      <td align="center" valign="middle" width="22%">
-        <img src="assets/readme/anysearch.png" alt="AnySearch" width="75%">
-      </td>
-      <td valign="middle">
-        <a href="https://anysearch.com">AnySearch</a> 是面向 AI Agent 的搜索基础设施，支持通用网络、垂直领域、并行批量搜索与整页内容提取，可通过 Skill 或 CLI 接入多种智能体平台，帮助 Agent 高效获取网页信息。
-      </td>
-    </tr>
-    <tr>
-      <td align="center" valign="middle" width="22%">
-        <img src="assets/readme/adversal.png" alt="Adversal" width="75%">
-      </td>
-      <td valign="middle">
-        <a href="https://adversal.ai/">Adversal</a> 是面向 AI Agent 的视频智能基础设施，提供异步长视频分析 MCP 服务，可将本地视频或公开链接处理为 Markdown 笔记与关键帧，接入 Claude Code、OpenCode、Cursor 等智能体工作流。
-      </td>
-    </tr>
-  </tbody>
-</table>
+### 图片工作室
+
+画面描述、参考图片、比例尺寸、生成参数与作品记录。
+
+![图片工作室](assets/readme/current-image-studio.jpg)
+
+### 知识库问答
+
+基于模拟差旅报销资料的结构化回答，包含来源引用。
+
+![MRAG 智能问答工作台](assets/readme/current-mrag.jpg)
+
+<details>
+<summary>更多页面：登录、子 Agent、模型配置与能力库</summary>
+
+### 登录页面
+
+![账号登录](assets/readme/current-login.jpg)
+
+### 子 Agent 装配
+
+![子 Agent 角色与工具配置](assets/readme/current-sub-agents.jpg)
+
+### 模型配置
+
+API Key 在界面中保持隐藏。
+
+![模型配置](assets/readme/current-models.jpg)
+
+### 能力库
+
+![技能包与 MCP 管理](assets/readme/current-capabilities.jpg)
 
 </details>
+
+## 研究成果与报告展示
+
+Research Agent 的交付结果不仅是对话文字，还可以是带来源的研究报告、数据图表、交互式画布和可下载的文档。报告由已配置的模型与工具生成，文件产物与会话关联，供用户继续预览和使用。
+
+### 1. HTML 研究报告
+
+适合技术调研、竞品分析、行业研究和资料汇总。报告可包含摘要、章节目录、对比表、图表、来源链接及待核实事项，在工作台中通过文件产物打开预览。
+
+![HTML 研究报告预览](assets/readme/current-research-report.png)
+
+**任务示例：**
+
+> 梳理特斯拉最近四个季度财报要点、行业格局与主要竞品动态，产出一份投研HTML报告。
+>
+>
+
+### 2. 数据分析报告
+
+通过数据与代码工具完成清洗、统计和可视化，将结果组织为报告或图表产物。可用于趋势分析、指标对比、分组统计和相关性分析，并按任务要求保留数据口径、处理步骤与计算结果。
+
+![销售数据分析交付预览](assets/readme/current-sales-report.png)
+
+**任务示例：**
+
+> 分析上传的销售 CSV，统计月度收入、产品占比和环比变化，生成趋势图、汇总表与 HTML 分析报告，并保留清洗脚本。
+
+### 3. 知识库结构化报告
+
+依据已导入的资料生成结构化回答，组织为规则摘要、对比表和来源引用。下图是当前项目基于模拟差旅报销制度生成的实际回答，展示了资料归纳与证据引用；它是知识库回答展示，不是独立导出的 HTML 文件。
+
+![模拟差旅制度的结构化回答与来源引用](assets/readme/current-mrag.jpg)
+
+**任务示例：**
+
+> 根据知识库中的差旅制度，整理适用人员、住宿标准、报销材料和例外审批要求，用表格展示并标注依据。
+
+### 4. GenUI 交互产物
+
+通过受控组件渲染交互式内容，支持图表、表格、时间线、表单及 3D 场景等展示。适合需要筛选、探索或演示的结果，具体交互取决于生成的组件与数据。
+
+**任务示例：**
+
+> 用交互图表展示一组模拟产品指标，支持按产品筛选；同时提供数据表和各指标定义。
+
+### 5. 多格式文档交付
+
+Python 文档生成模块提供 HTML、PDF、Word（DOCX）和 PowerPoint（PPTX）渲染能力。按任务和工具配置生成对应文件后，可通过工作台的产物入口预览或下载；不同格式的预览方式有所区别。
+
+| 产物 | 适用场景 |
+| --- | --- |
+| HTML | 在线阅读、目录导航、图表与交互报告 |
+| PDF | 固定版式报告与分享归档 |
+| DOCX | 可继续编辑的研究文档 |
+| PPTX | 汇报与演示材料 |
+| 图表 / 图片 | 独立可视化结果或创作产物 |
+
+> 上述任务为可尝试的使用示例，不代表已完成的真实案例。独立报告、数据图表和 GenUI 的当前界面实拍仍需补充；本节不沿用旧部署截图，也不将示例任务描述为已生成的成果。
+
+## 技术栈
+
+| 层级 | 主要技术 |
+| --- | --- |
+| 前端 | React 19、TypeScript 5.7、Vite 6、React Router、Tailwind CSS、Ant Design、Radix UI |
+| 可视化 | ECharts、Mermaid、Three.js、Markdown 与文档预览组件 |
+| Java 后端 | Java 21、Spring Boot 3.4.3、Spring AI 1.1.4、MyBatis / MyBatis-Plus |
+| Python 服务 | Python 3.11+、FastAPI、Uvicorn、Pydantic、SQLModel、Pandas |
+| 数据与检索 | MySQL 8、SQLite、Qdrant；部分能力使用 Elasticsearch |
+| 通信与扩展 | HTTP、SSE、MCP、OpenAI 兼容接口 |
+| 部署与测试 | Maven、uv、Docker Compose、Nginx、JUnit、Vitest、Python unittest |
 
 ## 系统架构
 
-### 异构多服务
-
-Research 把实时 Agent 编排和重型工具执行拆开：Java 负责运行时、策略、会话、HITL 和执行账本；Python 负责搜索、RAG、数据处理、文档生成和代码沙箱；React 负责流式工作台、产物预览和 GenUI 渲染。三者通过 HTTP、SSE、MCP 和文件服务协作。
-
 ```mermaid
-flowchart LR
-    User["用户"] --> UI["React UI<br/>SSE / History Replay"]
-    UI --> Trigger["Trigger<br/>HTTP / SSE / File"]
-    Trigger --> Case["Case<br/>Dispatch / Run Control"]
-    Case --> Domain["Domain Runtime<br/>ReAct / Plan-Solve"]
-    Domain --> Ports["Domain Ports"]
-    Ports --> Infra["Infrastructure<br/>DAO / Remote / Artifact"]
-
-    Domain --> LLM["LLM<br/>Spring AI / OpenAI-compatible"]
-    Domain --> MCP["MCP<br/>SSE / STDIO / HTTP"]
-    Domain --> Tools["research-tool<br/>FastAPI Tool Runtime"]
-
-    Infra --> Ledger[("MySQL<br/>Execution Ledger")]
-    Infra --> Files[("Artifact / File Store")]
-    Tools --> Files
-    Tools --> Vector[("Qdrant / Elasticsearch<br/>optional")]
-
-    Trigger -->|stream events| UI
+flowchart TD
+    User[用户] --> UI[React 工作台]
+    UI -->|HTTP / SSE| Java[Java Agent 后端]
+    UI -->|工具代理 / 文件预览| Python[Python 工具服务]
+    Java --> Runtime[任务编排 / 工具调度 / 会话管理]
+    Runtime --> Model[大模型接口]
+    Runtime --> MCP[MCP / 技能 / 子 Agent]
+    Runtime --> Python
+    Java --> MySQL[(MySQL 业务数据与执行账本)]
+    Python --> Retrieval[网页处理 / MRAG / 分析 / 文档生成]
+    Retrieval --> Qdrant[(Qdrant 向量检索)]
+    Retrieval --> ES[(Elasticsearch 可选)]
+    Python --> Files[文件产物与 SQLite 元数据]
+    Files --> UI
 ```
 
-### 服务职责
+Java 后端按接口层、应用层、领域层和基础设施层组织。领域层通过仓储和工具端口访问外部能力，基础设施层实现数据库、模型与远程服务适配。
 
-| 服务 / 层 | 主要职责 | 典型能力 |
-| --- | --- | --- |
-| React Workbench | 实时交互与结果呈现 | SSE、对话、计划、后台任务、文件预览、GenUI、3D |
-| Java Agent Runtime | Agent 生命周期和任务编排 | ReAct、Plan-Solve、Memory、HITL、Ledger |
-| Python Tool Runtime | 重型工具和数据计算 | DeepSearch、MRAG、NL2SQL、CodeAct、文档生成 |
-| E2B / Sandbox | 代码执行隔离边界 | 持久 kernel、工作区同步、超时、权限和产物采集 |
-| MySQL / Artifact Store | 执行事实与文件引用 | Run、LLM、Tool、Artifact、结构化工具输出 |
-| Qdrant / Elasticsearch | 可选检索基础设施 | 向量召回、表结构检索、列值召回和重排序 |
+## 项目结构
+
+```text
+Research-Agent/
+├── ui/                            # React 前端工作台
+├── Research-agent-app/             # Spring Boot 启动、配置与数据库脚本
+├── Research-agent-trigger/         # HTTP / SSE 接口、鉴权、调度任务
+├── Research-agent-case/            # 应用服务与用例编排
+├── Research-agent-domain/          # Agent 运行时、记忆与领域模型
+├── Research-agent-infrastructure/  # DAO、仓储、模型与工具适配
+├── Research-agent-api/             # 接口契约与 DTO
+├── Research-agent-types/           # 公共类型与异常
+├── research-tool/                  # Python 工具与文件服务
+├── runtime/skills/                 # Agent 技能包
+├── assets/readme/                  # README 页面截图
+├── docker-compose.yml             # 容器部署入口
+└── pom.xml                        # Maven 多模块父工程
+```
 
 ## 快速开始
 
-### 环境要求
+### 1. 环境准备
 
-- JDK 21
-- Maven 3.8+
-- Node.js 18+ 与 pnpm
-- Python 3.11+ 与 uv
+- JDK 21、Maven 3.8+
+- 满足当前前端依赖要求的 Node.js 版本及 pnpm
+- Python 3.11+、uv
 - MySQL 8
-- 一个 OpenAI-compatible LLM API
-- Qdrant、Elasticsearch、图像模型、搜索服务和 E2B 沙箱均为可选能力
+- 可用的大模型接口与 API Key
+- 使用知识库语义检索时，准备 Qdrant 与 Embedding 模型
 
-### 1. 获取代码
+搜索、图片生成、视觉解析、重排和代码沙箱等能力，按使用场景配置对应服务。
+
+### 2. 获取代码
 
 ```bash
-git clone https://github.com/OWWZO/ai-agent.git
-cd ai-agent
+git clone https://github.com/KxueJava/Research-Agent.git
+cd Research-Agent
 ```
 
-### 2. 初始化数据库
+### 3. 初始化 MySQL
 
-创建与开发配置一致的数据库，并导入以下脚本。也可以使用自定义数据库名，但需要同步修改 `application-dev.yml` 中的连接地址。
+在 MySQL 客户端创建数据库：
+
+```sql
+CREATE DATABASE IF NOT EXISTS `ai-agent-station`
+  CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```
+
+在仓库根目录使用 MySQL 客户端导入以下文件，或通过数据库管理工具执行脚本：
 
 ```bash
-mysql -u root -p -e "CREATE DATABASE IF NOT EXISTS \`ai-agent-station\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
 mysql -u root -p ai-agent-station < Research-agent-app/src/main/resources/db/schema.sql
 mysql -u root -p ai-agent-station < Research-agent-app/src/main/resources/db/data.sql
 ```
 
-### 3. 启动 Python Tool Runtime
+上述重定向命令适用于 Bash / cmd；PowerShell 用户可使用数据库管理工具导入。同步配置 Java 数据源。已有数据库应按版本迁移，不能通过重复导入初始化数据代替迁移。
 
-`research-tool` 默认监听 `1601` 端口，负责远程工具、文件服务和部分 RAG 能力。
-
-```bash
-cd research-tool
-uv sync
-cp .env_template .env
-# 编辑 .env，至少配置 OPENAI_API_KEY 与 OPENAI_BASE_URL
-
-# 首次启动初始化文件服务 SQLite 元数据（只需执行一次）
-# 默认创建 research-tool/autobots.db，并建立 FileInfo 表
-uv run python -m research_tool.db.db_engine
-
-./start.sh
-```
+### 4. 启动 Python 工具服务
 
 Windows PowerShell：
 
 ```powershell
 cd research-tool
 uv sync
-Copy-Item .env_template .env
-# 编辑 .env 后执行
-# 首次启动初始化文件服务 SQLite 元数据（只需执行一次）
-# 默认创建 research-tool\autobots.db，并建立 FileInfo 表
+# 仅在 .env 不存在时创建，保留已有配置
+if (-not (Test-Path .env)) { Copy-Item .env_template .env }
+# 编辑 .env，填写模型及工具配置
 uv run python -m research_tool.db.db_engine
 .\start.ps1
 ```
 
-`SQLITE_DB_PATH` 控制文件服务元数据库位置。默认值为 `autobots.db`，相对路径相对于 `research-tool` 目录。该初始化命令使用 SQLModel 的 `FileInfo` 元数据幂等建表；修改路径后，请先在当前终端设置同名环境变量再执行命令。MRAG 使用的 `SQLITE_PATH` 由对应 Store 在首次使用时自动创建表。
+Linux / macOS 使用 `start.sh`。工具服务默认端口为 `1601`。
 
-### 4. 启动 Java Backend
+文件服务 SQLite 由 `SQLITE_DB_PATH` 指定，默认相对路径为 `autobots.db`。MRAG 元数据路径由 `SQLITE_PATH` 指定。
 
-在新的终端回到仓库根目录：
+### 5. 启动 Java 后端
+
+配置 `Research-agent-app/src/main/resources/application-*.yml` 中的数据库、模型、工具服务与文件工作区。开发配置默认使用 `dev` profile，可按环境显式指定 profile。使用生产 profile 前，需补齐生产配置中的凭据和地址。
+
+在仓库根目录执行：
 
 ```bash
-mvn -pl Research-agent-app -am package '-Dmaven.test.skip=true'
+mvn -pl Research-agent-app -am package -Dmaven.test.skip=true
 java -jar Research-agent-app/target/Research-agent-app.jar
 ```
 
-Backend 默认监听 `http://127.0.0.1:8101`。健康检查：
+当前生产配置中的服务端口为 `8101`；其他 profile 或启动参数以实际启动日志为准。健康检查示例：
 
 ```bash
 curl http://127.0.0.1:8101/web/health
 ```
 
-### 5. 启动 React 工作台
+### 6. 启动前端
+
+在 `ui/.env` 配置代理目标，地址必须与实际运行服务一致：
+
+```dotenv
+SERVICE_BASE_URL=http://127.0.0.1:8101
+RESEARCH_TOOL_BASE_URL=http://127.0.0.1:1601
+```
 
 ```bash
 cd ui
@@ -500,38 +344,79 @@ pnpm install
 pnpm dev
 ```
 
-打开 [http://localhost:3001](http://localhost:3001)。本地开发环境通过 `ui/.env` 中的 `SERVICE_BASE_URL` 连接 Java Backend。
+访问 [http://localhost:3001](http://localhost:3001)。Vite 将 `/api`、`/web` 代理到 Java 后端，将 `/tool` 代理到 Python。若端口被占用，以终端输出的实际地址为准。
 
-### Docker Compose 部署
+### Docker Compose
 
-仓库根目录的 `Dockerfile` 与 `docker-compose.yml` 是当前唯一的容器部署入口，包含 MySQL、Java Backend、`research-tool` API/sandbox 进程和 Nginx 前端反代。
+先创建并配置 `research-tool/.env`，再从仓库根目录执行：
 
 ```bash
-cp research-tool/.env_template research-tool/.env
-# 编辑 research-tool/.env，至少填写 MySQL 密码、OPENAI_BASE_URL 和 OPENAI_API_KEY
-
 docker compose --env-file research-tool/.env build
-
-# 首次创建 research-data 卷后初始化文件服务 SQLite 元数据
-# Compose 会将 SQLITE_DB_PATH 设置为 /data/autobots.db，并写入持久化卷
 docker compose --env-file research-tool/.env run --rm --no-deps --entrypoint python research-tool -m research_tool.db.db_engine
-
 docker compose --env-file research-tool/.env up -d
 ```
 
-启动后访问 [http://localhost:3000](http://localhost:3000)，探活接口为 [http://localhost:3000/web/health](http://localhost:3000/web/health)。也可以从 `Research-agent-app` 目录执行 `./build.sh` 构建全部镜像。
+Docker 前端入口默认 [http://localhost:3000](http://localhost:3000)，可通过 `WEB_PORT` 调整。Java 和 Python 通过共享卷访问文件产物，容器中的 `WORKSPACE_ROOT` 使用 `/data/skilloutput`。
 
-Java 生产配置模板是 [`application-prod.yml`](Research-agent-app/src/main/resources/application-prod.yml)，以静态配置为主，已清除真实密钥和密码；部署者需要按实际环境填写空缺凭证和地址。MySQL 初始化脚本只会在首次创建 `mysql-data` 卷时执行；修改 `schema.sql` 或 `data.sql` 后需要按实际情况迁移已有数据库。
+## 配置说明
 
-Compose 部署时，`WORKSPACE_ROOT` 应保持为 `/data/skilloutput`，Backend 与 `research-tool` 会通过 `research-data` 卷共享会话工作区和文件产物。
+### 大模型与 Embedding
 
-`research-data` 卷保存 Python 文件服务的 `autobots.db`、MRAG SQLite 元数据和文件产物。
+Agent 对话模型可在“模型”页面配置。Python 检索与分析模块还有独立环境变量，添加一个对话模型不会自动完成全部 Python 模型配置。
 
-### 给 Coding Agent 的部署 Prompt
+| 变量 | 用途 |
+| --- | --- |
+| `OPENAI_BASE_URL`、`OPENAI_API_KEY`、`DEFAULT_MODEL` | Python 通用模型调用 |
+| `LLM_MODEL_BASE_URL`、`LLM_API_KEY`、`LLM_MODEL_NAME` | MRAG 回答模型 |
+| `TEXT_EMBEDDING_BASE_URL`、`TEXT_EMBEDDING_API_KEY`、`TEXT_EMBEDDING_MODEL_NAME` | 文本向量模型 |
+| `TEXT_EMBEDDING_DIMENSION` | 向量维度，需与模型输出和 Qdrant 集合一致 |
+| `QDRANT_URL`、`QDRANT_PORT`、`QDRANT_API_KEY` | MRAG 向量存储连接 |
+| `FILE_SAVE_PATH`、`FILE_SERVER_URL` | 文件落盘目录与 HTTP 文件服务地址 |
+| `SQLITE_DB_PATH`、`SQLITE_PATH` | 文件服务与 MRAG 元数据库位置 |
+
+其他配置以 `research-tool/.env_template` 和 Java 配置文件为准。
+
+当前项目的阿里百炼 OpenAI 兼容配置示例：
 
 ```text
-你是本仓库的部署代理。请先阅读 README.md、CLAUDE.md 以及相关模块说明，默认使用源码部署，不要默认使用 Docker Compose；只有用户明确要求容器部署时才切换到 Docker。开始前检查 JDK 21、Maven 3.8+、MySQL 8、Python 3.11+、uv、Node.js 18+ 和 pnpm，检查 Git 工作区并保留用户已有改动，禁止 reset、checkout 或覆盖未提交文件。按照 README 的顺序配置并启动 MySQL、research-tool、Research-agent-app 和 ui：没有 research-tool/.env 时从 research-tool/.env_template 创建，但不要覆盖已有 .env；首次启动执行 `uv run python -m research_tool.db.db_engine` 初始化 autobots.db；创建或确认 MySQL 数据库后导入 db/schema.sql 和 db/data.sql；使用 application-prod.yml 作为无真实凭证的部署配置，保留源码部署所需的 127.0.0.1 服务地址，不要把 application-dev.yml 中的真实密钥复制到生产配置。只使用用户明确提供的 LLM、搜索、E2B、Qdrant、ES、OCR、对象存储和登录态凭证，绝不能猜测、生成或输出这些凭证；如果缺少 MySQL 密码、LLM_BASE_URL/OPENAI_BASE_URL、OPENAI_API_KEY、模型名或其他必需配置，停止启动并列出变量名、用途和示例格式。先启动 research-tool，再用 `mvn -pl Research-agent-app -am package '-Dmaven.test.skip=true'` 构建并启动 Java Backend，最后在 ui 执行 `pnpm install` 和 `pnpm dev`。启动后检查 research-tool、`http://127.0.0.1:8100/web/health` 和 `http://localhost:3000`，失败时读取日志并修复配置后重试。只有健康检查通过、SQLite 初始化完成且没有把敏感信息写入 README、日志或 Git 跟踪文件时，才报告部署成功；最后列出实际执行命令、访问地址、数据库和 SQLite 文件位置、仍未配置的可选能力以及需要用户后续处理的事项。不要修改业务代码或删除数据，除非用户明确授权。
+Base URL: https://dashscope.aliyuncs.com/compatible-mode/v1
+对话模型: qwen-plus
+Completions 路径: /chat/completions
 ```
+
+使用与端点匹配的凭据。Embedding 需单独选择文本向量模型，不能用 `qwen-plus` 代替向量模型。
+
+### 账号与权限
+
+- 公共注册创建普通用户，管理员权限需由维护者明确授权。
+- 会话能力配置、图片历史和受保护接口按后端身份校验访问。
+- API Key、数据库密码、Cookie 和本地 `.env` 不应写入文档或提交到仓库。
+
+## 开发与验证
+
+```bash
+# 前端测试与构建（ui 目录）
+pnpm test
+pnpm build
+
+# Java 多模块测试（仓库根目录）
+mvn -pl Research-agent-app -am test
+
+# Python 测试（research-tool 目录）
+uv run python -m unittest discover -s tests
+```
+
+部分测试依赖外部服务、沙箱或模型配置。页面截图用于展示当前界面，不代表全部外部能力已启用或全部测试通过。
+
+## 使用场景
+
+- **技术研究**：拆解问题、检索公开资料，生成带来源的技术说明或对比报告。
+- **私有知识问答**：导入制度、产品说明和技术文档，按资料回答并定位证据。
+- **数据分析**：通过已配置的数据与代码工具完成清洗、统计和图表展示。
+- **图片创作**：通过图片模型生成或编辑图像，查看历史作品。
+- **工具扩展**：配置子 Agent、技能包和 MCP，为重复任务提供可复用能力。
+
+实际效果取决于模型、资料质量、工具权限与外部服务配置。本 README 仅展示当前项目页面，不引用其他部署实例的报告案例。
 
 
 
