@@ -51,7 +51,7 @@ function clearAuthStorage() {
   clearAuthTokens();
 }
 
-async function refreshAccessToken(): Promise<string | null> {
+export async function refreshAccessToken(): Promise<string | null> {
   const refreshToken = getRefreshToken();
   if (!refreshToken) return null;
   if (!refreshInFlight) {
@@ -111,7 +111,7 @@ request.interceptors.request.use(
   }
 );
 
-const noAuth = (url?: string) => {
+export const noAuth = (url?: string) => {
   clearAuthStorage();
   showMessage()?.error('未登录');
   if (url) {

@@ -3,6 +3,9 @@ import { fetchEventSource, EventSourceMessage } from '@microsoft/fetch-event-sou
 import { getDeviceId } from '@/services/agentConversation';
 import { resolveServiceBaseUrl } from './origin';
 import { getAccessToken } from './authToken';
+import { noAuth, refreshAccessToken } from './request';
+
+class SSEHandshakeError extends Error {}
 
 /**
  * Research Agent SSE 客户端适配器。
@@ -78,9 +81,25 @@ export default <TMessage = unknown>(
     signal,
     body: method === 'GET' ? undefined : JSON.stringify(body),
     openWhenHidden: true,
-    onopen() {
+    async onopen(response) {
+      if (signal?.aborted) return;
+      if (!response.ok) {
+        if (response.status === 401) {
+          const token = await refreshAccessToken();
+          if (signal?.aborted) return;
+          if (!token) noAuth();
+          // 只刷新认证；绝不在此自动重发创建任务的 POST。
+          throw new SSEHandshakeError(token
+            ? '登录凭证已刷新，请重新发送请求重试'
+            : '登录已失效，请重新登录');
+        }
+        throw new SSEHandshakeError(`SSE 请求失败（HTTP ${response.status}）`);
+      }
+      const contentType = response.headers.get('content-type')?.split(';')[0].trim().toLowerCase();
+      if (contentType !== 'text/event-stream' || !response.body) {
+        throw new SSEHandshakeError('服务器未返回有效的 SSE 数据流');
+      }
       handleOpen?.();
-      return Promise.resolve();
     },
     onmessage(event: EventSourceMessage) {
       if (event.id) {
@@ -101,7 +120,7 @@ export default <TMessage = unknown>(
       console.error('SSE error:', error);
       // POST 流默认不重发原始请求，避免断线后重复 dispatch；需要恢复时由调用方
       // 使用已保存的 run 状态建立 follow 连接。
-      if (!retryOnError) {
+      if (!retryOnError || error instanceof SSEHandshakeError) {
         throw error;
       }
       handleError(error);
@@ -113,13 +132,12 @@ export default <TMessage = unknown>(
   }).catch((error: unknown) => {
     // 主动 abort 是组件生命周期清理，不应冒泡成对话失败。
     if (
+      signal?.aborted ||
       (error instanceof DOMException && error.name === 'AbortError') ||
       (error instanceof Error && error.name === 'AbortError')
     ) {
       return;
     }
-    if (error instanceof Error) {
-      handleError(error);
-    }
+    handleError(error instanceof Error ? error : new Error(String(error)));
   });
 };
