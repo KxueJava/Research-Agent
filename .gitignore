@@ -127,3 +127,4 @@ Thumbs.db
 /research-publish-*
 /research-tool/ai-agent-crawl4ai/
 /research-tool/.crawl4ai/
+/research-tool/*.db.ingestion/

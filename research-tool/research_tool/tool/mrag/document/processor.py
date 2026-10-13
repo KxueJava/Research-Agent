@@ -61,8 +61,12 @@ class DocumentProcessor:
                  file_id: str,
                  work_dir: str,
                  file_path: str,
-                 file_url: str
+                 file_url: str,
+                 ingestion_guard=None,
                  ):
+        self._ingestion_guard = ingestion_guard
+        if ingestion_guard is not None:
+            ingestion_guard.check()
         self._kb_id = kb_id  # 目标知识库
         self._work_dir = work_dir  # 解析工作目录
         self._file_path = file_path
@@ -87,18 +91,22 @@ class DocumentProcessor:
         self._image_urls = {}
         self.pre_process()
 
+    def _write(self, operation):
+        guard = getattr(self, "_ingestion_guard", None)
+        return guard.write(operation) if guard is not None else operation()
+
     def pre_process(self):
         """"""
         parser_start_time = time.time()
         self._parser.parse()
         # 解析器产生的图片先上传并建立相对路径映射，再改写 Markdown 引用，保证后续切块保存的是稳定资源 URL。
         for image_path in self._parser.parsed_images():
-            image_url = oss_utils.upload_local_storage(image_path, file_id=self._uid)
+            image_url = self._write(lambda: oss_utils.upload_local_storage(image_path, file_id=self._uid))
             asset_key = self._build_asset_key(image_path, self._parser.images_dir)
             self._image_urls[asset_key] = image_url
 
         for path_path in self._parser.parsed_pages():
-            image_url = oss_utils.upload_local_storage(path_path, file_id=self._uid)
+            image_url = self._write(lambda: oss_utils.upload_local_storage(path_path, file_id=self._uid))
             asset_key = self._build_asset_key(path_path, self._parser.pages_dir)
             self._image_urls[asset_key] = image_url
 
@@ -198,7 +206,7 @@ class DocumentProcessor:
                     "vector": embedding,
                     "sparse_vector": bm25_embedding,
                 })
-            self._vector_store.add_text_chunks(chunk_batch)
+            self._write(lambda: self._vector_store.add_text_chunks(chunk_batch))
 
     def _process_text(self):
         text = self._parser.parsed_text()
@@ -242,7 +250,7 @@ class DocumentProcessor:
                 enumerate(zip(chunk_texts_batch, chunk_texts_embeddings, chunk_bm25_embeddings))
             ]
 
-            self._vector_store.add_text_chunks(chunk_data)
+            self._write(lambda: self._vector_store.add_text_chunks(chunk_data))
             logger.info(f"Processed {len(chunk_texts_batch)} text chunks")
 
         enable_sub_chunk = os.getenv("ENABLE_SUB_CHUNK_ENHANCE")
@@ -283,7 +291,7 @@ class DocumentProcessor:
                         "vector": embedding,
                         "sparse_vector": bm25_embedding,
                     })
-                self._vector_store.add_text_chunks(sub_chunk_data)
+                self._write(lambda: self._vector_store.add_text_chunks(sub_chunk_data))
 
     def _process_image(self):
         image_paths = self._parser.parsed_images()
@@ -320,7 +328,7 @@ class DocumentProcessor:
                         "created": time.time(),
                         "image_url": self._get_uploaded_asset_url(image_path, self._parser.images_dir),
                     })
-                self._vector_store.add_image_chunks(chunk_data)
+                self._write(lambda: self._vector_store.add_image_chunks(chunk_data))
         else:
             logger.info(f"MRAG 图片向量已关闭，当前以文本代理模式处理图片，file_id={self._uid}")
 
@@ -367,7 +375,7 @@ class DocumentProcessor:
                         "created": time.time(),
                         "image_url": self._get_uploaded_asset_url(image_path, self._parser.pages_dir),
                     })
-                self._vector_store.add_page_chunks(chunk_data)
+                self._write(lambda: self._vector_store.add_page_chunks(chunk_data))
         else:
             # text_proxy 模式下，页面截图只作为预览/回链资源保留，不再重复做整页 OCR/caption。
             logger.info(f"MRAG 页面向量已关闭，跳过 page OCR/caption 文本代理，file_id={self._uid}")
@@ -400,7 +408,7 @@ class DocumentProcessor:
             "text": text
         }
         try:
-            response = requests.post(url, json=data, timeout=300)
+            response = self._write(lambda: requests.post(url, json=data, timeout=300))
             if response.status_code != 200:
                 raise Exception(f"LightRAG 请求失败: {response.text}")
         except Exception as e:
@@ -432,7 +440,7 @@ class DocumentProcessor:
             creator=None,
             modifier=None,
         )
-        get_kb_doc_store().upsert_canonical_doc(kb_doc)
+        self._write(lambda: get_kb_doc_store().upsert_canonical_doc(kb_doc))
         logger.info(f"Persisted canonical full text, file_id={self._uid}")
 
     def process(self):

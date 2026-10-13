@@ -25,7 +25,8 @@ from ...enums.task_status_enums import TaskStatusEnum
 from ...storage import VectorStore
 from ...storage.models.kb_file_model import KBFileModel
 from ...storage.models.kb_model import KBModel
-from ...storage.store_factory import get_kb_doc_store, get_kb_store, get_kb_file_store
+from ...storage.store_factory import get_kb_doc_store, get_kb_store, get_kb_file_store, get_ingestion_lifecycle
+from ...storage.ingestion_lifecycle import IngestionCancelled
 from ...utils import download_utils
 from ...utils.logger_utils import logger
 from ...utils.oss_utils import upload_oss
@@ -435,7 +436,12 @@ async def create_knowledge_base(request: CreateKnowledgeBaseRequest):
         create_time=datetime.now(),
         modify_time=datetime.now(),
     )
-    kb_store.create_kb(kb_model)
+    try:
+        created = get_ingestion_lifecycle().create(kb_model.kb_id, lambda: kb_store.create_kb(kb_model))
+    except IngestionCancelled:
+        raise HTTPException(status_code=409, detail="知识库删除尚未完成，请先重试删除") from None
+    if not created:
+        raise HTTPException(status_code=409, detail="知识库已存在")
 
     res = {"code": 200, "msg": "success", "data": kb_model.model_dump()}
     logger.info(f"create knowledge base, {res}")
@@ -453,23 +459,28 @@ async def delete_knowledge_base(request: DeleteKnowledgeBaseRequest):
     kb_doc_store = get_kb_doc_store()
     if not request.kb_id or not request.kb_id.strip():
         raise HTTPException(status_code=400, detail="kb_id 不能为空")
-    kb_model = kb_store.get_kb(request.kb_id, include_deleted=True)
-    if kb_model is None:
-        raise HTTPException(status_code=404, detail="知识库不存在")
-
     try:
+        lifecycle = get_ingestion_lifecycle()
+        epoch, kb_model = lifecycle.observe(request.kb_id, lambda: kb_store.get_kb(request.kb_id, include_deleted=True))
+        if kb_model is None:
+            raise HTTPException(status_code=404, detail="知识库不存在")
         # 外部索引先清理，元数据最后提交；失败保留 KB 作为可重试入口。
         # 软删除 KB 也允许再次清理，以修复旧版本留下的残余索引。
-        vector_store = VectorStore()
-        for delete_vectors in (vector_store.delete_text_by_kb_id,
-                               vector_store.delete_image_by_kb_id,
-                               vector_store.delete_page_by_kb_id):
-            if delete_vectors(request.kb_id) is not True:
-                raise RuntimeError("Vector deletion did not complete")
-        kb_doc_store.delete_by_kb_id(request.kb_id)
-        deleted_file_count = kb_file_store.delete_by_kb_id(request.kb_id)
-        if kb_model.deleted != 1 and not kb_store.delete_kb(KBModel(kb_id=request.kb_id)):
-            raise RuntimeError("Knowledge base metadata deletion did not complete")
+        with lifecycle.deleting(request.kb_id, expected_epoch=epoch):
+            # Another delete may have completed in the same generation.
+            kb_model = kb_store.get_kb(request.kb_id, include_deleted=True)
+            vector_store = VectorStore()
+            for delete_vectors in (vector_store.delete_text_by_kb_id,
+                                   vector_store.delete_image_by_kb_id,
+                                   vector_store.delete_page_by_kb_id):
+                if delete_vectors(request.kb_id) is not True:
+                    raise RuntimeError("Vector deletion did not complete")
+            kb_doc_store.delete_by_kb_id(request.kb_id)
+            deleted_file_count = kb_file_store.delete_by_kb_id(request.kb_id)
+            if kb_model.deleted != 1 and not kb_store.delete_kb(KBModel(kb_id=request.kb_id)):
+                raise RuntimeError("Knowledge base metadata deletion did not complete")
+    except HTTPException:
+        raise
     except Exception:
         logger.exception("知识库删除未完成: kb_id={}", request.kb_id)
         raise HTTPException(status_code=503, detail="知识库删除未完成，请稍后重试") from None
@@ -512,12 +523,17 @@ class File(BaseModel):
     file_type: Optional[str] = Field("file")
 
 
-def add_file(filename, file_url, kb_id):
+def add_file(filename, file_url, kb_id, ingestion_epoch=None):
     # 后台任务先写入 PENDING 记录，再按“下载 -> RUNNING -> DocumentProcessor ->
     # SUCCESS/FAILED”推进状态；异常只收口当前文件，不影响同批其它文件。
-    tempdir = tempfile.gettempdir()
-    # 下载文件到临时目录
     file_id = uuid.uuid4().hex
+    try:
+        guard = get_ingestion_lifecycle().guard(kb_id, file_id, ingestion_epoch)
+        guard.check()
+    except IngestionCancelled:
+        logger.info("跳过已取消的文件入库: kb_id={}", kb_id)
+        return
+    tempdir = tempfile.gettempdir()
     work_dir = f"{tempdir}/{file_id}"
     os.makedirs(os.path.join(tempdir, file_id), exist_ok=True)
 
@@ -536,24 +552,25 @@ def add_file(filename, file_url, kb_id):
         deleted=0,
     )
     kb_file_store = get_kb_file_store()
-    kb_file_store.add_file(kb_file)
-
     local_file_path = os.path.join(tempdir, file_id, filename)
     try:
+        guard.write(lambda: kb_file_store.add_file(kb_file))
         download_utils.download_file(file_url, local_file_path)
 
         kb_file.file_status = TaskStatusEnum.RUNNING.value
         kb_file.task_status = _running_task_status()
-        kb_file_store.update_file(kb_file)
+        guard.write(lambda: kb_file_store.update_file(kb_file))
 
         processor = DocumentProcessor(
-            kb_id, file_id, work_dir, local_file_path, file_url
+            kb_id, file_id, work_dir, local_file_path, file_url, ingestion_guard=guard
         )
         processor.process()
 
         kb_file.file_status = TaskStatusEnum.SUCCESS.value
         kb_file.task_status = {"global_status": TaskStatusEnum.SUCCESS.value}
-        kb_file_store.update_file(kb_file)
+        guard.write(lambda: kb_file_store.update_file(kb_file))
+    except IngestionCancelled:
+        logger.info("文件入库已取消: kb_id={}, file_id={}", kb_id, file_id)
     except Exception as e:
         logger.exception(
             f"处理知识库文件失败: kb_id={kb_id}, file_id={file_id}, filename={filename}"
@@ -563,7 +580,10 @@ def add_file(filename, file_url, kb_id):
             "global_status": TaskStatusEnum.FAILED.value,
             "error_message": str(e),
         }
-        kb_file_store.update_file(kb_file)
+        try:
+            guard.write(lambda: kb_file_store.update_file(kb_file))
+        except IngestionCancelled:
+            logger.info("忽略已删除文件的失败回写: file_id={}", file_id)
     finally:
         if os.path.exists(local_file_path):
             os.remove(local_file_path)
@@ -578,6 +598,10 @@ class AddFilesRequest(BaseModel):
 async def add_files(request: AddFilesRequest, background_tasks: BackgroundTasks):
     # 接口只负责登记后台任务并立即返回，前端必须通过 list_kb_files 轮询最终状态，
     # 不能把 HTTP 200 解释为文档已经完成向量化。
+    try:
+        epoch = get_ingestion_lifecycle().capture(request.kb_id)
+    except IngestionCancelled:
+        raise HTTPException(status_code=409, detail="知识库不可用或正在删除") from None
     for file in request.files:
         filename = file.filename
         file_url = file.file_url
@@ -587,17 +611,24 @@ async def add_files(request: AddFilesRequest, background_tasks: BackgroundTasks)
             filename=filename,
             file_url=file_url,
             kb_id=request.kb_id,
+            ingestion_epoch=epoch,
         )
 
     return {"code": 200, "msg": "success", "data": {}}
 
 
-def add_web_url(url, kb_id):
+def add_web_url(url, kb_id, ingestion_epoch=None):
     # URL 入库与文件入库共享状态机，但正文先由 crawl_utils 抓取到本地 Markdown，
     # 再进入同一个 DocumentProcessor，保证两种来源最终生成相同的 canonical doc。
     tempdir = tempfile.gettempdir()
     # 下载文件到临时目录
     file_id = uuid.uuid4().hex
+    try:
+        guard = get_ingestion_lifecycle().guard(kb_id, file_id, ingestion_epoch)
+        guard.check()
+    except IngestionCancelled:
+        logger.info("跳过已取消的网页入库: kb_id={}", kb_id)
+        return
     work_dir = f"{tempdir}/{file_id}"
     os.makedirs(os.path.join(tempdir, file_id), exist_ok=True)
 
@@ -616,10 +647,9 @@ def add_web_url(url, kb_id):
         deleted=0,
     )
     kb_file_store = get_kb_file_store()
-    kb_file_store.add_file(kb_file)
-
     local_file_path = os.path.join(tempdir, file_id, f"{file_id}.md")
     try:
+        guard.write(lambda: kb_file_store.add_file(kb_file))
         from ...utils import crawl_utils
 
         markdown_content = crawl_utils.crawl(url)
@@ -629,7 +659,7 @@ def add_web_url(url, kb_id):
                 "global_status": TaskStatusEnum.FAILED.value,
                 "error_message": "网页内容抓取失败",
             }
-            kb_file_store.update_file(kb_file)
+            guard.write(lambda: kb_file_store.update_file(kb_file))
             return
 
         with open(local_file_path, "w", encoding="utf-8") as f:
@@ -637,14 +667,16 @@ def add_web_url(url, kb_id):
 
         kb_file.file_status = TaskStatusEnum.RUNNING.value
         kb_file.task_status = _running_task_status()
-        kb_file_store.update_file(kb_file)
+        guard.write(lambda: kb_file_store.update_file(kb_file))
 
-        processor = DocumentProcessor(kb_id, file_id, work_dir, local_file_path, url)
+        processor = DocumentProcessor(kb_id, file_id, work_dir, local_file_path, url, ingestion_guard=guard)
         processor.process()
 
         kb_file.file_status = TaskStatusEnum.SUCCESS.value
         kb_file.task_status = {"global_status": TaskStatusEnum.SUCCESS.value}
-        kb_file_store.update_file(kb_file)
+        guard.write(lambda: kb_file_store.update_file(kb_file))
+    except IngestionCancelled:
+        logger.info("网页入库已取消: kb_id={}, file_id={}", kb_id, file_id)
     except Exception as e:
         logger.exception(
             f"处理网页知识失败: kb_id={kb_id}, file_id={file_id}, url={url}"
@@ -654,7 +686,10 @@ def add_web_url(url, kb_id):
             "global_status": TaskStatusEnum.FAILED.value,
             "error_message": str(e),
         }
-        kb_file_store.update_file(kb_file)
+        try:
+            guard.write(lambda: kb_file_store.update_file(kb_file))
+        except IngestionCancelled:
+            logger.info("忽略已删除网页的失败回写: file_id={}", file_id)
     finally:
         if os.path.exists(local_file_path):
             os.remove(local_file_path)
@@ -673,10 +708,15 @@ async def async_add_web_url(
     # 文件记录，由列表/全文接口统一读取。
     kb_id = request.kb_id
     url = request.url
+    try:
+        epoch = get_ingestion_lifecycle().capture(kb_id)
+    except IngestionCancelled:
+        raise HTTPException(status_code=409, detail="知识库不可用或正在删除") from None
     background_tasks.add_task(
         add_web_url,
         url,
         kb_id,
+        ingestion_epoch=epoch,
     )
 
     return {
@@ -701,11 +741,12 @@ async def delete_files(request: DeleteFileRequest):
         raise HTTPException(status_code=400, detail="kb_id 和 file_ids 不能为空")
     try:
         # 不先隐藏文件记录：向量或正文清理失败时，用户仍能重试删除。
-        vector_store = VectorStore()
-        if vector_store.delete_by_file_ids(kb_id, file_ids) is not True:
-            raise RuntimeError("Vector deletion did not complete")
-        get_kb_doc_store().delete_by_file_ids(kb_id, file_ids)
-        get_kb_file_store().delete_by_file_ids(kb_id, file_ids)
+        with get_ingestion_lifecycle().deleting(kb_id, file_ids):
+            vector_store = VectorStore()
+            if vector_store.delete_by_file_ids(kb_id, file_ids) is not True:
+                raise RuntimeError("Vector deletion did not complete")
+            get_kb_doc_store().delete_by_file_ids(kb_id, file_ids)
+            get_kb_file_store().delete_by_file_ids(kb_id, file_ids)
     except Exception:
         logger.exception("知识库资料删除未完成: kb_id={}", kb_id)
         raise HTTPException(status_code=503, detail="资料删除未完成，请稍后重试") from None

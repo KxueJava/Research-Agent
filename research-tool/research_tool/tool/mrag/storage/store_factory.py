@@ -49,6 +49,14 @@ def get_kb_doc_store() -> KBDocStore:
         raise Exception("Unknown store type")
 
 
+def get_ingestion_lifecycle():
+    """Use the same metadata path in every worker for durable deletion fencing."""
+    if store_type != "sqlite":
+        raise Exception("Unknown store type")
+    from .ingestion_lifecycle import IngestionLifecycle
+    return IngestionLifecycle(_sqlite_engine, lambda kb_id: get_kb_store().get_kb(kb_id))
+
+
 def get_mrag_session_store() -> MRagSessionStore:
     """MRAG 对话会话仓储。"""
     global _sqlite_engine, store_type

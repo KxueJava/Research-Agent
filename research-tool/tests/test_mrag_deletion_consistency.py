@@ -12,6 +12,7 @@ from sqlalchemy import create_engine
 from research_tool.tool.mrag.api.routes import document
 from research_tool.tool.mrag.storage.kb_store_sqlite_impl import KBStoreSQLite
 from research_tool.tool.mrag.storage.models.kb_model import KBModel
+from research_tool.tool.mrag.storage.ingestion_lifecycle import IngestionLifecycle
 
 
 class DeletionConsistencyTest(unittest.TestCase):
@@ -25,6 +26,10 @@ class DeletionConsistencyTest(unittest.TestCase):
         self.addCleanup(self.engine.dispose)
         self.kb = KBStoreSQLite(self.engine)
         self.kb.create_kb(KBModel(kb_id="kb-a", deleted=0, create_time=datetime.now()))
+        lifecycle_patch = patch.object(document, "get_ingestion_lifecycle", return_value=
+                                       IngestionLifecycle(self.engine, self.kb.get_kb))
+        lifecycle_patch.start()
+        self.addCleanup(lifecycle_patch.stop)
         self.files = MagicMock()
         self.files.delete_by_kb_id.return_value = 2
         self.files.delete_by_file_ids.return_value = 1

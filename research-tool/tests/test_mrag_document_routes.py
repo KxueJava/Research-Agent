@@ -7,6 +7,9 @@ from unittest.mock import MagicMock, patch
 
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from research_tool.tool.mrag.storage.ingestion_lifecycle import IngestionLifecycle
+from research_tool.tool.mrag.storage.models.kb_model import KBModel
 
 from research_tool.tool.mrag.api.routes import document as document_module
 from research_tool.tool.mrag.enums.source_type_enums import SourceTypeEnum
@@ -52,6 +55,14 @@ class MragDocumentRoutesTest(unittest.TestCase):
         self.assertFalse(document_module._windows_process_alive(child.pid))
 
     def setUp(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        engine = create_engine("sqlite:///" + str(Path(directory.name) / "metadata.db"))
+        self.addCleanup(engine.dispose)
+        lifecycle = IngestionLifecycle(engine, lambda kb: KBModel(kb_id=kb, deleted=0))
+        lifecycle_patch = patch.object(document_module, "get_ingestion_lifecycle", return_value=lifecycle)
+        lifecycle_patch.start()
+        self.addCleanup(lifecycle_patch.stop)
         app = FastAPI()
         app.include_router(document_module.router, prefix="/v1")
         self.client = TestClient(app)
