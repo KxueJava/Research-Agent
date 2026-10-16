@@ -194,24 +194,30 @@ public class McpRegistry {
      */
     public String readResource(String serverOrMcpId, String uri) {
         if (StringUtils.isBlank(serverOrMcpId) || StringUtils.isBlank(uri)) {
-            return "Resource read Error. server and uri are required.";
+            throw new McpResourceReadException("INVALID_ARGUMENTS");
         }
-        ensureGlobalMcpsLoaded();
-        String mcpId = resolveMcpId(serverOrMcpId);
-        if (StringUtils.isBlank(mcpId)) {
-            return "Resource read Error. unknown server: " + serverOrMcpId;
-        }
-        ensureMcpsLoaded(Collections.singletonList(mcpId));
-        McpClientRuntime runtime = runtimeCache.get(mcpId);
-        if (runtime == null) {
-            return "Resource read Error. MCP client not available: " + mcpId;
-        }
+        String mcpId = null;
         try {
+            ensureGlobalMcpsLoaded();
+            mcpId = resolveMcpId(serverOrMcpId);
+            if (StringUtils.isBlank(mcpId)) {
+                throw new McpResourceReadException("UNKNOWN_SERVER");
+            }
+            ensureMcpsLoaded(Collections.singletonList(mcpId));
+            McpClientRuntime runtime = runtimeCache.get(mcpId);
+            if (runtime == null) {
+                throw new McpResourceReadException("CLIENT_UNAVAILABLE");
+            }
             McpSchema.ReadResourceResult result = readResourceWithRuntime(runtime, uri.trim());
+            if (result == null) {
+                throw new McpResourceReadException("INVALID_RESPONSE");
+            }
             return formatResourceResult(mcpId, uri, result);
+        } catch (McpResourceReadException e) {
+            throw e;
         } catch (Exception e) {
-            log.error("MCP resource 读取失败: mcpId={}, uri={}, reason={}", mcpId, uri, e.getMessage(), e);
-            return "Resource read Error. " + StringUtils.defaultString(e.getMessage());
+            log.warn("MCP resource 读取失败: mcpId={}, type={}", mcpId, e.getClass().getSimpleName());
+            throw new McpResourceReadException("READ_FAILED");
         }
     }
 

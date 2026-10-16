@@ -180,7 +180,7 @@ public class ToolCollection {
                         agentContext != null ? agentContext.getRequestId() : "unknown", name);
                 return "Tool" + name + " Error.";
             }
-            return executor.executeTool(toolInfo, toolInput);
+            return executor.executeTool(agentContext, toolInfo, toolInput);
         }
         // 分支3：工具不存在；若在延迟目录中则提示先 ToolSearch
         else {

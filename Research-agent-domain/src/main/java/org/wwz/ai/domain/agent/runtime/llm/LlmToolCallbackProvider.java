@@ -32,7 +32,9 @@ public class LlmToolCallbackProvider {
     private McpRegistry mcpRegistry;
 
     /** sessionId -> (signature -> callbacks) */
-    private final ConcurrentHashMap<String, ConcurrentHashMap<String, List<ToolCallback>>> sessionCallbackCache =
+    private record BoundCallbacks(ToolCollection owner, List<ToolCallback> callbacks) { }
+
+    private final ConcurrentHashMap<String, ConcurrentHashMap<String, BoundCallbacks>> sessionCallbackCache =
             new ConcurrentHashMap<>();
 
     /**
@@ -51,16 +53,16 @@ public class LlmToolCallbackProvider {
         }
         String signature = buildToolSignature(tools);
         if (StringUtils.isNotBlank(sessionId)) {
-            ConcurrentHashMap<String, List<ToolCallback>> bySig =
+            ConcurrentHashMap<String, BoundCallbacks> bySig =
                     sessionCallbackCache.computeIfAbsent(sessionId, k -> new ConcurrentHashMap<>());
-            List<ToolCallback> cached = bySig.get(signature);
-            if (cached != null) {
-                return cached;
+            BoundCallbacks cached = bySig.get(signature);
+            if (cached != null && cached.owner() == tools) {
+                return cached.callbacks();
             }
             List<ToolCallback> built = buildSortedCallbacks(tools);
             // 不可变视图，防止外部修改污染缓存
             List<ToolCallback> frozen = List.copyOf(built);
-            bySig.put(signature, frozen);
+            bySig.put(signature, new BoundCallbacks(tools, frozen));
             trimSessionCache();
             return frozen;
         }
@@ -87,7 +89,7 @@ public class LlmToolCallbackProvider {
                 .sorted(Comparator.comparing(McpToolInfo::getName, String.CASE_INSENSITIVE_ORDER))
                 .collect(Collectors.toList());
         for (McpToolInfo toolInfo : mcpTools) {
-            callbacks.add(new RegistryBackedToolCallback(mcpRegistry, toolInfo));
+            callbacks.add(new RegistryBackedToolCallback(mcpRegistry, toolInfo, tools));
         }
         return callbacks;
     }

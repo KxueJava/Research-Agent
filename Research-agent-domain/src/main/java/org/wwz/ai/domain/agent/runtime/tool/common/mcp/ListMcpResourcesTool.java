@@ -61,9 +61,7 @@ public class ListMcpResourcesTool implements BaseTool {
             }
             Map<String, Object> args = coerceMap(input);
             String server = stringArg(args, "server");
-            List<McpResourceInfo> resources = StringUtils.isBlank(server)
-                    ? executor.listGlobalResources()
-                    : executor.listResources(server);
+            List<McpResourceInfo> resources = executor.listResources(agentContext, server);
 
             List<Map<String, Object>> rows = new ArrayList<>();
             for (McpResourceInfo resource : resources) {
@@ -83,9 +81,9 @@ public class ListMcpResourcesTool implements BaseTool {
             fields.put("count", rows.size());
             return ToolResultPayload.okData(McpToolNames.LIST_MCP_RESOURCES, fields);
         } catch (Exception e) {
-            log.warn("ListMcpResources failed", e);
-            String msg = "ListMcpResources 失败：" + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
-            return ToolResultPayload.failureFrom(msg, null);
+            log.warn("ListMcpResources failed: type={}", e.getClass().getSimpleName());
+            return ToolResultPayload.failureFrom("MCP Resource 列表获取失败",
+                    Map.of("code", e instanceof SecurityException ? "ACCESS_DENIED" : "LIST_FAILED"));
         }
     }
 

@@ -108,6 +108,13 @@ public class McpToolSearchAndNamePolicyTest {
                 .build();
         collection.setAgentContext(context);
 
+        var executor = new org.wwz.ai.domain.agent.runtime.tool.mcp.runtime.McpToolExecutor();
+        var repository = org.mockito.Mockito.mock(
+                org.wwz.ai.domain.agent.adapter.repository.ISessionCapabilityRepository.class);
+        org.mockito.Mockito.when(repository.findOverrides("s1")).thenReturn(Map.of());
+        org.springframework.test.util.ReflectionTestUtils.setField(executor, "sessionCapabilityRepository", repository);
+        collection.setMcpToolExecutor(executor);
+
         ToolSearchTool searchTool = new ToolSearchTool();
         searchTool.setAgentContext(context);
         Map<String, Object> input = new LinkedHashMap<>();

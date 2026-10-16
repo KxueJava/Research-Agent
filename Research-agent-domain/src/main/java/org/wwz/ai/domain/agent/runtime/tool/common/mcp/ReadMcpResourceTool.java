@@ -7,6 +7,7 @@ import org.wwz.ai.domain.agent.runtime.agent.AgentContext;
 import org.wwz.ai.domain.agent.runtime.tool.BaseTool;
 import org.wwz.ai.domain.agent.runtime.tool.ToolResultPayload;
 import org.wwz.ai.domain.agent.runtime.tool.mcp.runtime.McpToolExecutor;
+import org.wwz.ai.domain.agent.runtime.tool.mcp.runtime.McpResourceReadException;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -55,29 +56,31 @@ public class ReadMcpResourceTool implements BaseTool {
 
     @Override
     public Object execute(Object input) {
+        Map<String, Object> args = coerceMap(input);
+        String server = stringArg(args, "server");
         try {
             McpToolExecutor executor = resolveExecutor();
             if (executor == null) {
                 return ToolResultPayload.failure("ReadMcpResource 失败：McpToolExecutor 不可用",
                         "ReadMcpResource 失败：McpToolExecutor 不可用", null, "no executor");
             }
-            Map<String, Object> args = coerceMap(input);
-            String server = stringArg(args, "server");
             String uri = stringArg(args, "uri");
             if (StringUtils.isBlank(server) || StringUtils.isBlank(uri)) {
                 return ToolResultPayload.failure("ReadMcpResource 失败：server 与 uri 必填",
                         "ReadMcpResource 失败：server 与 uri 必填", null, "invalid args");
             }
-            String content = executor.readResource(server, uri);
+            String content = executor.readResource(agentContext, server, uri);
             Map<String, Object> fields = new LinkedHashMap<>();
             fields.put("server", server);
             fields.put("uri", uri);
             fields.put("content", content);
             return ToolResultPayload.okData(McpToolNames.READ_MCP_RESOURCE, fields);
         } catch (Exception e) {
-            log.warn("ReadMcpResource failed", e);
-            String msg = "ReadMcpResource 失败：" + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
-            return ToolResultPayload.failureFrom(msg, null);
+            log.warn("ReadMcpResource failed: type={}", e.getClass().getSimpleName());
+            String code = e instanceof McpResourceReadException failure ? failure.getErrorCode()
+                    : e instanceof SecurityException ? "ACCESS_DENIED" : "READ_FAILED";
+            return ToolResultPayload.failureFrom("MCP Resource 读取失败",
+                    Map.of("code", code, "server", StringUtils.defaultString(server)));
         }
     }
 

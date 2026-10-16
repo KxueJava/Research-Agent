@@ -9,6 +9,7 @@ import org.wwz.ai.domain.agent.runtime.tool.BaseTool;
 import org.wwz.ai.domain.agent.runtime.tool.ToolCollection;
 import org.wwz.ai.domain.agent.runtime.tool.ToolResultPayload;
 import org.wwz.ai.domain.agent.runtime.tool.mcp.runtime.DeferredMcpCatalog;
+import org.wwz.ai.domain.agent.runtime.tool.mcp.runtime.McpToolExecutor;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -92,7 +93,19 @@ public class ToolSearchTool implements BaseTool {
                 }
             }
 
-            List<McpToolInfo> found = catalog.search(query, maxResults);
+            McpToolExecutor executor = agentContext.getRuntimeDependencies() == null ? null
+                    : agentContext.getRuntimeDependencies().getOptionalMcpToolExecutor();
+            if (executor == null && agentContext.getToolCollection() != null) {
+                executor = agentContext.getToolCollection().getMcpToolExecutor();
+            }
+            if (executor == null) {
+                throw new SecurityException("MCP session authorization unavailable");
+            }
+            // Filter before applying max_results, so blocked entries cannot hide allowed matches.
+            DeferredMcpCatalog allowed = new DeferredMcpCatalog(
+                    executor.filterAllowedTools(agentContext, catalog.listAll()));
+            allowed.activate(catalog.activatedNames());
+            List<McpToolInfo> found = allowed.search(query, maxResults);
             List<McpToolInfo> activated = catalog.activate(found.stream().map(McpToolInfo::getName).toList());
             attachToCollections(activated);
 
@@ -109,7 +122,7 @@ public class ToolSearchTool implements BaseTool {
             }
 
             int deferredLeft = 0;
-            for (McpToolInfo tool : catalog.listAll()) {
+            for (McpToolInfo tool : allowed.listAll()) {
                 if (!catalog.isActivated(tool.getName())) {
                     deferredLeft++;
                 }
@@ -119,7 +132,7 @@ public class ToolSearchTool implements BaseTool {
             fields.put("matches", matchRows);
             fields.put("query", query);
             fields.put("activated_count", activated.size());
-            fields.put("total_catalog_tools", catalog.size());
+            fields.put("total_catalog_tools", allowed.size());
             fields.put("remaining_deferred_tools", deferredLeft);
             fields.put("message", matchRows.isEmpty()
                     ? "No matching deferred tools"
@@ -127,7 +140,7 @@ public class ToolSearchTool implements BaseTool {
             return ToolResultPayload.okData(McpToolNames.TOOL_SEARCH, fields);
         } catch (Exception e) {
             log.warn("ToolSearch failed", e);
-            String msg = "ToolSearch 失败：" + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
+            String msg = "ToolSearch 失败：无法获取当前会话的已授权 MCP 工具";
             return ToolResultPayload.failureFrom(msg, null);
         }
     }

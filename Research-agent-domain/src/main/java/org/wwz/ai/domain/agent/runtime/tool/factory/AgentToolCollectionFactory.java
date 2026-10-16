@@ -1,5 +1,7 @@
 package org.wwz.ai.domain.agent.runtime.tool.factory;
 
+import org.apache.commons.lang3.StringUtils;
+
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -345,6 +347,13 @@ public class AgentToolCollectionFactory {
             log.error("{} discover mcp tool failed", agentContext.getRequestId(), e);
         }
 
+        // Filter before both eager registration and deferred catalog construction.
+        // Runtime execution independently checks the latest persisted permissions.
+        discovered = discovered.stream().filter(java.util.Objects::nonNull)
+                .filter(tool -> agentContext.getDisabledMcpIds() == null
+                        || !agentContext.getDisabledMcpIds().contains(StringUtils.defaultString(
+                                StringUtils.defaultIfBlank(tool.getMcpId(), tool.getServerKey()))))
+                .toList();
         DeferredMcpCatalog catalog = new DeferredMcpCatalog(discovered);
         agentContext.setDeferredMcpCatalog(catalog);
 
