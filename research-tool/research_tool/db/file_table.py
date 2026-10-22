@@ -24,6 +24,8 @@ class FileInfo(SQLModel, table=True):
     filename: str = Field()
     file_path: str = Field()
     description: Optional[str]
+    # Explicitly set only by trusted storage code; old rows are migrated as legacy.
+    resource_kind: str = Field(default="session")
     file_size: Optional[int]
     status: int = Field(default=0)  # 0 无效/删除，1 正常
     request_id: Optional[str] = Field(default=None)

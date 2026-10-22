@@ -23,6 +23,14 @@ import java.util.Map;
 @Getter
 @Configuration
 public class ResearchConfig {
+    @Value("${research.ui.streaming.enabled:true}")
+    private Boolean uiStreamingEnabled = true;
+    @Value("${research.ui.actions.enabled:true}")
+    private Boolean uiActionsEnabled = true;
+    @Value("${research.ui.maps.enabled:true}")
+    private Boolean uiMapsEnabled = true;
+    @Value("${research.ui.planner.enabled:true}")
+    private Boolean uiPlannerEnabled = true;
 
     @Value("${autobots.autoagent.planner.model_name:}")
     private String plannerModelName;
@@ -54,7 +62,7 @@ public class ResearchConfig {
     /**
      * PlanSolve 主 Agent 可见的工具白名单。完整 tool_list 仍作为子 Agent 的工具来源。
      */
-    @Value("${autobots.autoagent.plan-solve-main-tool-list:Agent,TaskCreate,TaskGet,TaskUpdate,TaskList,TodoWrite,TaskStop,TaskOutput,SendMessage,EnterPlanMode,ExitPlanMode,AskUserQuestion,ToolSearch,ListMcpResources,ReadMcpResource,workspace_read,workspace_list,workspace_glob,workspace_grep,workspace_write,workspace_edit,skill_tool,memory,session_search,emit_ui_patch,emit_ui_tree,list_ui_components,get_genui_guide,image_ocr,canvas_publish,pdf_reader,pdf_structure,word_reader,text_processor,markdown_processor,html_processor,excel_reader,csv_processor}")
+    @Value("${autobots.autoagent.plan-solve-main-tool-list:Agent,TaskCreate,TaskGet,TaskUpdate,TaskList,TodoWrite,TaskStop,TaskOutput,SendMessage,EnterPlanMode,ExitPlanMode,AskUserQuestion,ToolSearch,ListMcpResources,ReadMcpResource,workspace_read,workspace_list,workspace_glob,workspace_grep,workspace_write,workspace_edit,skill_tool,memory,session_search,emit_ui_patch,emit_ui_tree,list_ui_components,get_genui_guide,search_places,geocode_places,plan_route,get_map,modify_itinerary,image_ocr,canvas_publish,pdf_reader,pdf_structure,word_reader,text_processor,markdown_processor,html_processor,excel_reader,csv_processor}")
     private String planSolveMainToolList;
 
     public void setPlanSolveMainToolList(String planSolveMainToolList) {

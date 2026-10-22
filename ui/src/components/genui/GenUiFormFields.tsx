@@ -7,11 +7,12 @@ import {
   useGenUiFormField,
   useGenUiFormScope,
 } from "./genUiForms";
-import { fireGenUiControl } from "./genUiActionBus";
+import { fireGenUiControl, isSafeHref } from "./genUiActionBus";
 import { useGenUiRenderContext } from "./GenUiRenderContext";
 import { useGenUiBind } from "./GenUiBind";
 import type { GenUiNodeData } from "./GenUiNode";
 import { showMessage } from "@/utils";
+import { CsvResourceInput } from "./resources/CsvResourceInput";
 
 const FIELD_CLASS =
   "w-full rounded-md border border-[var(--chat-border)]/70 bg-[var(--chat-surface)] px-3 py-2 text-[13px] text-[var(--chat-text)] focus:outline-none focus:ring-1 focus:ring-[var(--chat-accent)]";
@@ -53,7 +54,7 @@ export const GenUiFormShell: FC<{
   const ctx = useGenUiRenderContext();
   const props = node.props || {};
   const formId = s(props.formId) || node.nodeId || "form";
-  const formKey = `${ctx.sessionId ?? "scope"}::${ctx.messageId ?? "root"}::${formId}`;
+  const formKey = JSON.stringify([ctx.sessionId ?? "scope", ctx.surfaceId ?? ctx.messageId ?? "legacy",node.nodeId??formId,formId]);
   const title = props.title || props.name || "";
   const body = props.value || props.description || props.subtitle || "";
   const submitLabel = props.submitLabel;
@@ -80,7 +81,7 @@ export const GenUiFormShell: FC<{
             props={{
               label: submitLabel,
               variant: "primary",
-              action: { type: "submit_form", payload: { formId } },
+              action: { type: "submit_form", payload: { formId,actionId:props.remoteAction?.id } },
             }}
             className="mt-3"
           />
@@ -95,7 +96,7 @@ GenUiFormShell.displayName = "GenUiFormShell";
 const ACTION_FEEDBACK: Record<string, string> = {
   send_message: "已发送",
   patch_ui: "界面已更新",
-  submit_form: "已提交",
+  submit_form: "已保存本地",
   open_url: "已打开链接",
   navigate: "正在跳转",
 };
@@ -116,7 +117,7 @@ export const GenUiActionButton: FC<{
   const hasAction = props.action && typeof props.action === "object";
   const href = props.href || props.url;
 
-  if (!hasAction && href) {
+  if (!hasAction && href && isSafeHref(String(href))) {
     return (
       <a
         href={String(href)}
@@ -167,7 +168,7 @@ export const GenUiActionButton: FC<{
             if (result.ok) {
               setJustDone(true);
               window.setTimeout(() => setJustDone(false), 1200);
-              const tip =
+              const tip = result.status?({approval_required:"等待审批",accepted:"任务已受理",running:"任务执行中",completed:"任务已完成"} as Record<string,string>)[result.status]||"状态已更新":
                 (typeof props.successMessage === "string" && props.successMessage) ||
                 (result.type ? ACTION_FEEDBACK[result.type] : "") ||
                 "完成";
@@ -215,12 +216,14 @@ export const GenUiFormField: FC<{
       ? bindApi.values[bindId]
       : formField.value;
   const onChange = (v: unknown) => {
+    formField.onChange(v);
     if (bindId && bindApi && typeof v === "number") {
       bindApi.set(bindId, v);
       return;
     }
-    formField.onChange(v);
   };
+
+  if(kind==="FileInput"&&typeof props.resourceId==="string")return <CsvResourceInput resourceId={props.resourceId} numericColumns={props.numericColumns} label={props.label}/>;
 
   if (!interactive) {
     return (
@@ -278,7 +281,7 @@ export const GenUiFormField: FC<{
             }
             onChange={(e) => {
               const raw = e.target.value;
-              if (raw === "") return onChange(undefined);
+              if (raw === "") return onChange("");
               onChange(props.integer ? parseInt(raw, 10) : parseFloat(raw));
             }}
           />
@@ -378,9 +381,9 @@ export const GenUiFormField: FC<{
             onChange={(e) => onChange(e.target.value)}
           >
             {!s(value) ? <option value="" /> : null}
-            {((props.options as unknown[]) || []).map((opt, i) => (
-              <option key={i} value={s(opt)}>
-                {s(opt)}
+            {(Array.isArray(props.options)?props.options:[]).map((opt, i) => (
+              <option key={i} value={s(opt&&typeof opt==="object"?opt.value:opt)}>
+                {s(opt&&typeof opt==="object"?opt.label:opt)}
               </option>
             ))}
           </select>

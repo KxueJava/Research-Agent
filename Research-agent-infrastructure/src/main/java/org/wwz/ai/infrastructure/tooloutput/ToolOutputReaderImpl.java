@@ -193,6 +193,7 @@ public class ToolOutputReaderImpl implements ToolOutputReader {
             return null;
         }
         return CanvasPublishToolOutput.builder()
+                .surface(readJsonMap(stringValue(row,"surface_json","surfaceJson")))
                 .title(stringValue(row, "title"))
                 .mode(stringValue(row, "mode"))
                 .primaryFileName(stringValue(row, "primary_file_name", "primaryFileName"))
@@ -220,11 +221,16 @@ public class ToolOutputReaderImpl implements ToolOutputReader {
         if (row == null) {
             return null;
         }
-        List<Map<String, Object>> patches = readJsonListOfMap(stringValue(row, "patches_json", "patchesJson"));
+        String json = stringValue(row, "patches_json", "patchesJson");
+        Map<String,Object> envelope = json != null && json.trim().startsWith("{") ? readJsonMap(json) : null;
+        List<Map<String, Object>> patches = envelope == null ? readJsonListOfMap(json)
+                : readJsonListOfMap(com.alibaba.fastjson.JSON.toJSONString(envelope.get("patches")));
         return GenUiPatchToolOutput.builder()
                 .patches(patches)
                 .canvasId(stringValue(row, "canvas_id", "canvasId"))
                 .seq(integerValue(row, "seq"))
+                .surface(envelope == null ? null : (Map<String,Object>)envelope.get("surface"))
+                .snapshot(envelope == null ? null : (Map<String,Object>)envelope.get("snapshot"))
                 .build();
     }
 

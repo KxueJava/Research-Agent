@@ -32,6 +32,7 @@ public class ReplayProjectorTest {
     private final ReplayProjector replayProjector = new ReplayProjector(
             new ToolInvocationProjectorRegistry(
                     List.of(
+                            new org.wwz.ai.domain.agent.ledger.replay.projector.impl.LegacyToolInvocationProjector(),
                             new DeepSearchToolInvocationProjector(),
                             new DefaultToolInvocationProjector()
                     ),

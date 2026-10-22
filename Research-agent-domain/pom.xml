@@ -10,6 +10,20 @@
     <artifactId>Research-agent-domain</artifactId>
 
     <dependencies>
+        <!-- The local wrench artifact embeds obsolete logging classes. Put the
+             Boot-managed logging API/implementation first in standalone module runs. -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-core</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>

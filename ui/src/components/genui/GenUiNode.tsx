@@ -3,12 +3,15 @@ import classNames from "classnames";
 import { motion, useReducedMotion } from "motion/react";
 import { DURATION, EASE_OUT } from "@/lib/motion";
 import GenUiChart from "./GenUiChart";
+import MapWidget from "./maps/MapWidget";
 import GenUiModel3D from "./GenUiModel3D";
 import GenUiThreeJsFrame from "./GenUiThreeJsFrame";
 import ParametricLab from "./ParametricLab";
 import ConceptDemo from "./ConceptDemo";
 import { GenUiBindScope, useGenUiBind } from "./GenUiBind";
 import { resolveBoundProps } from "./bindProps";
+import { GenUiRenderProvider,useGenUiRenderContext } from "./GenUiRenderContext";
+import { useResourceNode } from "./resources/useResourceNode";
 import { GenUiQuiz, GenUiWorkedExample } from "./GenUiQuiz";
 import { BeforeAfter } from "./BeforeAfter";
 import { NumberLine } from "./NumberLine";
@@ -70,10 +73,16 @@ const GenUiEnter: FC<{ index: number; children: ReactNode }> = ({
 };
 
 const GenUiNode: FC<Props> = memo(({ node, depth = 0 }) => {
+  const context=useGenUiRenderContext();
+  if(!node||!node.kind)return null;
+  return <GenUiRenderProvider value={{...context,nodeId:node.nodeId}}><GenUiNodeContent node={node} depth={depth}/></GenUiRenderProvider>;
+});
+const GenUiNodeContent: FC<Props> = memo(({ node, depth = 0 }) => {
   if (!node || !node.kind) return null;
   const bind = useGenUiBind();
   const rawProps = node.props || {};
-  const props = bind ? resolveBoundProps(rawProps, bind.values) : rawProps;
+  const local=useResourceNode(bind ? resolveBoundProps(rawProps, bind.values) : rawProps,node.kind);
+  const {props,bound,select}=local;
   const children = Array.isArray(node.children) ? node.children : [];
   const key = node.nodeId || `${node.kind}-${depth}`;
 
@@ -97,7 +106,10 @@ const GenUiNode: FC<Props> = memo(({ node, depth = 0 }) => {
       );
     });
 
-  switch (node.kind) {
+  if(local.error)return <div role="alert" data-genui-node={key} className="rounded border border-[var(--chat-border)] p-3 text-sm">{local.error}</div>;
+  const renderNode=()=>{switch (node.kind) {
+    case "MapWidget":
+      return <MapWidget mapData={props.mapData} remoteAction={props.remoteAction}/>;
     case "AspectBox":
       return (
         <div key={key} className="w-full overflow-hidden rounded-xl border border-[var(--chat-border)]/50">
@@ -123,7 +135,7 @@ const GenUiNode: FC<Props> = memo(({ node, depth = 0 }) => {
       return (
         <div key={key} className="rounded-lg border border-[var(--chat-border)]/50 bg-[var(--chat-surface)] px-3 py-2">
           <div className="text-[12px] text-[var(--chat-text-soft)]">{props.label || ""}</div>
-          <div className="text-[20px] font-semibold text-[var(--chat-text)]">{props.value || ""}</div>
+          <div className="text-[20px] font-semibold text-[var(--chat-text)]">{props.value ?? ""}</div>
           {props.delta ? (
             <div className="text-[12px] text-[var(--chat-text-soft)]">
               {props.trend === "up" ? "↑ " : props.trend === "down" ? "↓ " : ""}
@@ -159,7 +171,7 @@ const GenUiNode: FC<Props> = memo(({ node, depth = 0 }) => {
     case "ListItem":
       return <li key={key}>{props.value || props.text || renderChildren()}</li>;
     case "Table": {
-      const headers: string[] = Array.isArray(props.headers) ? props.headers : [];
+      const headers: readonly string[] = bound?bound.resource.columns:Array.isArray(props.headers) ? props.headers : [];
       return (
         <div key={key} className="max-h-[min(60vh,640px)] overflow-auto rounded-lg border border-[var(--chat-border)]/60">
           <table className="min-w-full text-left text-[13px]">
@@ -175,7 +187,12 @@ const GenUiNode: FC<Props> = memo(({ node, depth = 0 }) => {
               </thead>
             ) : null}
             <tbody>
-              {children.length ? (
+              {bound?bound.rows.length?bound.rows.map((row,index)=><tr key={bound.rowIds[index]} aria-selected={bound.selectedIds.includes(bound.rowIds[index])}
+                tabIndex={bound.selectionNodeId?0:undefined} onClick={()=>select([bound.rowIds[index]])}
+                onKeyDown={event=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();select([bound.rowIds[index]]);}}}
+                className={bound.selectedIds.includes(bound.rowIds[index])?"bg-[var(--chat-surface-muted)]":""}>
+                {headers.map(column=><td className="px-3 py-2" key={column}>{String(row[column]??"")}</td>)}
+              </tr>):<tr><td colSpan={headers.length} className="p-4">暂无表格数据</td></tr>:children.length ? (
                 renderChildren()
               ) : (
                 <tr>
@@ -240,6 +257,9 @@ const GenUiNode: FC<Props> = memo(({ node, depth = 0 }) => {
           stacked={Boolean(props.stacked)}
           showLegend={props.showLegend !== false}
           showGrid={props.showGrid !== false}
+          animation={!bound}
+          selectedIndexes={bound?.groupRowIds.map((ids,i)=>ids.some(id=>bound.selectedIds.includes(id))?i:-1).filter(i=>i>=0)}
+          onSelectCategory={bound?.selectionNodeId?index=>select(bound.groupRowIds[index]??[]):undefined}
         />
       );
     }
@@ -766,7 +786,10 @@ const GenUiNode: FC<Props> = memo(({ node, depth = 0 }) => {
           {renderChildren()}
         </div>
       );
-  }
+  }};
+  return bound?<div data-genui-node={key} data-resource-id={bound.resource.id} data-resource-version={bound.resource.version}>
+    {renderNode()}
+  </div>:<div data-genui-node={key} className="contents">{renderNode()}</div>;
 });
 
 GenUiNode.displayName = "GenUiNode";

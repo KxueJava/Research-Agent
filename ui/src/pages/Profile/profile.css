@@ -1,0 +1,50 @@
+/* Shared account presentation. Native values use the original application palette. */
+:root {
+  --profile-page: var(--chat-surface-soft);
+  --profile-card: var(--chat-surface);
+  --profile-field: var(--chat-surface);
+  --profile-ink: var(--chat-text);
+  --profile-soft: var(--chat-text-soft);
+  --profile-muted: var(--chat-text-muted);
+  --profile-line: var(--color-line);
+  --profile-action: var(--color-text);
+  --profile-on-action: var(--color-bg);
+  --profile-danger: var(--color-danger);
+  --profile-success: var(--color-success);
+  --profile-shadow: none;
+  --profile-radius: 0px;
+  --profile-blur: none;
+}
+html.ocean-ui {
+  --profile-page: transparent;
+  --profile-card: var(--ocean-glass);
+  --profile-field: var(--ocean-reading);
+  --profile-ink: var(--ocean-ink);
+  --profile-soft: var(--ocean-soft);
+  --profile-muted: var(--ocean-muted);
+  --profile-line: var(--ocean-line);
+  --profile-action: var(--ocean-accent);
+  --profile-on-action: var(--ocean-on-accent);
+  --profile-danger: var(--ocean-danger);
+  --profile-success: var(--ocean-success);
+  --profile-shadow: inset 0 1px 0 var(--ocean-edge), 0 14px 36px var(--ocean-shadow);
+  --profile-radius: 20px;
+  --profile-blur: blur(10px) saturate(120%);
+}
+.profile-card {
+  border-radius: var(--profile-radius);
+  backdrop-filter: var(--profile-blur);
+  -webkit-backdrop-filter: var(--profile-blur);
+  box-shadow: var(--profile-shadow);
+}
+.profile-page :is(input:not([type="file"]), textarea) {
+  background: var(--profile-field); color: var(--profile-ink); border-color: var(--profile-line);
+  transition: border-color 160ms, box-shadow 160ms;
+}
+.profile-page input:focus-visible { box-shadow: var(--p-focus-ring); }
+@media (prefers-reduced-transparency: reduce) {
+  html.ocean-ui .profile-card { background: var(--ocean-solid); backdrop-filter: none; }
+}
+@supports not (backdrop-filter: blur(1px)) {
+  html.ocean-ui .profile-card { background: var(--ocean-solid); }
+}

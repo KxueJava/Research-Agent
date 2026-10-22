@@ -59,7 +59,7 @@ public class DeepSearchLlmObservationTest {
 
         ToolResultPayload payload = builder.buildPayload("fallback");
         DeepSearchToolOutput structuredOutput = (DeepSearchToolOutput) payload.getStructuredOutput();
-        JSONObject llmObservation = JSON.parseObject(payload.getLlmObservation());
+        JSONObject llmObservation = JSON.parseObject(org.wwz.ai.domain.agent.runtime.tool.ToolObservationSerializer.serializeSuccess(payload.getLlmData()));
 
         Assert.assertNotNull(structuredOutput);
         Assert.assertEquals("deep_search", structuredOutput.getToolName());
@@ -75,8 +75,8 @@ public class DeepSearchLlmObservationTest {
         Assert.assertEquals(2, llmObservation.getJSONArray("results").size());
         Assert.assertEquals(1, llmObservation.getJSONArray("chapters").size());
         Assert.assertFalse(payload.getFailed());
-        Assert.assertTrue(payload.getLlmObservation().contains("海关总署：出口量创新高"));
-        Assert.assertTrue(payload.getLlmObservation().contains("https://example.com/customs"));
+        Assert.assertTrue(org.wwz.ai.domain.agent.runtime.tool.ToolObservationSerializer.serializeSuccess(payload.getLlmData()).contains("海关总署：出口量创新高"));
+        Assert.assertTrue(org.wwz.ai.domain.agent.runtime.tool.ToolObservationSerializer.serializeSuccess(payload.getLlmData()).contains("https://example.com/customs"));
     }
 
     @Test
@@ -103,7 +103,7 @@ public class DeepSearchLlmObservationTest {
                 .build());
         builder.recordFinalAnswer("AI 芯片供应链", fullAnswer);
 
-        JSONObject llmObservation = JSON.parseObject(builder.buildPayload("fallback").getLlmObservation());
+        JSONObject llmObservation = JSON.parseObject(org.wwz.ai.domain.agent.runtime.tool.ToolObservationSerializer.serializeSuccess(builder.buildPayload("fallback").getLlmData()));
         JSONArray results = llmObservation.getJSONArray("results");
         JSONArray docs = results.getJSONObject(0).getJSONArray("docs");
 

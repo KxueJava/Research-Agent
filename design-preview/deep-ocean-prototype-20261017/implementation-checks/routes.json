@@ -1,0 +1,58 @@
+[
+  {
+    "animation": "animated",
+    "canvas": 1,
+    "heading": "MRAG 智能问答工作台",
+    "path": "/workspace/mrag",
+    "scrollWidth": 1440,
+    "width": 1440
+  },
+  {
+    "animation": "animated",
+    "canvas": 1,
+    "heading": "图像工作室",
+    "path": "/workspace/image-generation",
+    "scrollWidth": 1440,
+    "width": 1440
+  },
+  {
+    "animation": "animated",
+    "canvas": 1,
+    "heading": "子 Agent 装配",
+    "path": "/workspace/sub-agents",
+    "scrollWidth": 1440,
+    "width": 1440
+  },
+  {
+    "animation": "animated",
+    "canvas": 1,
+    "heading": "模型配置",
+    "path": "/workspace/models",
+    "scrollWidth": 1440,
+    "width": 1440
+  },
+  {
+    "animation": "animated",
+    "canvas": 1,
+    "heading": "能力库",
+    "path": "/workspace/capabilities",
+    "scrollWidth": 1440,
+    "width": 1440
+  },
+  {
+    "animation": "animated",
+    "canvas": 1,
+    "heading": "精品对话",
+    "path": "/featured-conversations",
+    "scrollWidth": 1440,
+    "width": 1440
+  },
+  {
+    "animation": "animated",
+    "canvas": 1,
+    "heading": "Token 用量",
+    "path": "/usage",
+    "scrollWidth": 1440,
+    "width": 1440
+  }
+]

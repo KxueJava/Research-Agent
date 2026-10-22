@@ -250,6 +250,7 @@ public class BaseAgentResponseHandler {
             case "data_analysis":
             case "ui_tree":
             case "ui_patch":
+            case "ui_stream":
                 if (agentResponse.getResultMap() != null) {
                     payload.put("resultMap", new LinkedHashMap<>(agentResponse.getResultMap()));
                 }

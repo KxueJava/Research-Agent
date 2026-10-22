@@ -27,6 +27,7 @@ import java.util.List;
 @Repository
 @RequiredArgsConstructor
 public class ExecutionLedgerReadRepository implements IExecutionLedgerReadRepository {
+    @Override public boolean isKnownFileScope(String scope) {return dialogueSessionLedgerDao.countKnownFileScope(scope)>0;}
 
     private final IDialogueRunLedgerDao dialogueRunLedgerDao;
     private final IDialogueSessionLedgerDao dialogueSessionLedgerDao;

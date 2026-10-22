@@ -8,6 +8,14 @@ import {
 import { processTaskForRender } from "./renderTasks";
 
 describe("genuiState merge", () => {
+  it("does not mutate the nearest tree when an explicit patch targets another canvas",()=>{
+    const a:any={messageType:"ui_tree",resultMap:{canvas_id:"a",tree:{root:{kind:"Card",props:{title:"A"}}}}};
+    const b:any={messageType:"ui_tree",resultMap:{canvas_id:"b",tree:{root:{kind:"Card",props:{title:"B"}}}}};
+    const patch:any={messageType:"ui_patch",messageId:"p",resultMap:{canvas_id:"a",patches:[{op:"replace",path:"/root/props/title",value:"A2"}]}};
+    expect(mergeUiPatchIntoTasks([[a],[b]],patch)).toBe(true);
+    expect(getGenUiTreeFromTask(a).root.props.title).toBe("A2");
+    expect(getGenUiTreeFromTask(b).root.props.title).toBe("B");
+  });
   it("merges ui_patch into latest ui_tree", () => {
     const treeTask: any = {
       messageType: "ui_tree",

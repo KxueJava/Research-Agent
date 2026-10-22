@@ -12,6 +12,32 @@ import java.nio.file.Path;
 public class WorkspacePathsTest {
 
     @Test
+    public void shouldFallbackToWorkingDirectoryForPackagedClasspath() throws Exception {
+        byte[] bytes;
+        try (var input = WorkspacePaths.class.getResourceAsStream("WorkspacePaths.class")) {
+            Assert.assertNotNull(input);
+            bytes = input.readAllBytes();
+        }
+        class PackagedLoader extends java.security.SecureClassLoader {
+            Class<?> loadPackaged() throws Exception {
+                var origin = new java.security.CodeSource(
+                        java.net.URI.create("jar:file:/stage9-not-mounted.jar!/BOOT-INF/lib/domain.jar!/").toURL(),
+                        (java.security.cert.Certificate[]) null);
+                return defineClass(WorkspacePaths.class.getName(), bytes, 0, bytes.length, origin);
+            }
+        }
+        String previous = System.getProperty("user.dir");
+        Path working = Path.of("/stage9-runtime-without-source").toAbsolutePath().normalize();
+        try {
+            System.setProperty("user.dir", working.toString());
+            var type = new PackagedLoader().loadPackaged();
+            Assert.assertEquals(working, type.getMethod("resolveRepoRoot").invoke(null));
+        } finally {
+            System.setProperty("user.dir", previous);
+        }
+    }
+
+    @Test
     public void shouldResolveRepoRootContainingResearchTool() {
         Path root = WorkspacePaths.resolveRepoRoot();
         Assert.assertTrue(Files.isDirectory(root.resolve("research-tool")));

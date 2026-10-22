@@ -19,12 +19,16 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
+import org.wwz.ai.infrastructure.gateway.FileServiceCredentials;
+import org.springframework.beans.factory.annotation.Value;
 
 /**
  * 基于 research-tool 既有文件接口的文件产物适配器。
  */
 @Component
 public class ResearchToolFileArtifactAdapter implements FileArtifactPort {
+    @Value("${autobots.autoagent.code_interpreter_url:http://127.0.0.1:1601}")
+    private String trustedFileService="http://127.0.0.1:1601";
 
     private final RemoteHttpPort remoteHttpPort;
     private final OkHttpClient sharedClient;
@@ -46,7 +50,7 @@ public class ResearchToolFileArtifactAdapter implements FileArtifactPort {
         String responseText = remoteHttpPort.execute(RemoteHttpRequest.builder()
                 .method("POST")
                 .url(normalizeBaseUrl(serviceBaseUrl) + "/v1/file_tool/upload_file")
-                .headers(Map.of("Content-Type", "application/json"))
+                .headers(FileServiceCredentials.headers())
                 .body(JSON.toJSONString(normalizedRequest))
                 .connectTimeoutSeconds(60L)
                 .readTimeoutSeconds(300L)
@@ -66,7 +70,7 @@ public class ResearchToolFileArtifactAdapter implements FileArtifactPort {
         String responseText = remoteHttpPort.execute(RemoteHttpRequest.builder()
                 .method("POST")
                 .url(normalizeBaseUrl(serviceBaseUrl) + "/v1/file_tool/register_file")
-                .headers(Map.of("Content-Type", "application/json"))
+                .headers(FileServiceCredentials.headers())
                 .body(JSON.toJSONString(normalizedRequest))
                 .connectTimeoutSeconds(60L)
                 .readTimeoutSeconds(120L)
@@ -83,7 +87,7 @@ public class ResearchToolFileArtifactAdapter implements FileArtifactPort {
         String responseText = remoteHttpPort.execute(RemoteHttpRequest.builder()
                 .method("POST")
                 .url(normalizeBaseUrl(serviceBaseUrl) + "/v1/file_tool/get_file")
-                .headers(Map.of("Content-Type", "application/json"))
+                .headers(FileServiceCredentials.headers())
                 .body(JSON.toJSONString(normalizedRequest))
                 .connectTimeoutSeconds(60L)
                 .readTimeoutSeconds(300L)
@@ -114,7 +118,15 @@ public class ResearchToolFileArtifactAdapter implements FileArtifactPort {
                 .followRedirects(true)
                 .followSslRedirects(true)
                 .build();
-        Request request = new Request.Builder().url(url).get().build();
+        Request.Builder builder = new Request.Builder().url(url).get();
+        java.net.URI target=java.net.URI.create(url),trusted=java.net.URI.create(trustedFileService);
+        if(Objects.equals(target.getScheme(),trusted.getScheme()) && Objects.equals(target.getRawAuthority(),trusted.getRawAuthority())
+                && target.getPath().startsWith("/v1/file_tool/")) {
+            FileServiceCredentials.headers().forEach(builder::header);
+            // Do not follow a redirect while carrying the service credential.
+            client=client.newBuilder().followRedirects(false).followSslRedirects(false).build();
+        }
+        Request request = builder.build();
         try (Response response = client.newCall(request).execute()) {
             // Response 必须在 try-with-resources 内消费和关闭，确保大文件下载不会长期占用连接池。
             ResponseBody body = response.body();

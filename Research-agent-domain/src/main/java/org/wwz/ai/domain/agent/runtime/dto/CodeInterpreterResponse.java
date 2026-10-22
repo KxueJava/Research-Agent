@@ -16,6 +16,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class CodeInterpreterResponse {
+    private java.util.Map<String,Object> surface;
     private String requestsId;
     private String resultType;
     private String content;

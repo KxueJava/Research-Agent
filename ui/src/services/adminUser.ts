@@ -45,10 +45,7 @@ export const adminUserApi = {
   login: (credentials: AdminUserCredentials) =>
     api.post<AdminAuthResponse>(`${BASE}/login`, credentials) as unknown as Promise<AdminAuthResponse>,
   register: (credentials: AdminUserCredentials) =>
-    api.post<boolean>(`${BASE}/create`, {
-      ...credentials,
-      status: 1,
-    }) as unknown as Promise<boolean>,
+    api.post<boolean>(`${BASE}/register`, credentials) as unknown as Promise<boolean>,
   refresh: (refreshToken: string) =>
     api.post<AdminAuthResponse>(`${BASE}/refresh`, { refreshToken }) as unknown as Promise<AdminAuthResponse>,
   logout: () => api.post<boolean>(`${BASE}/logout`) as unknown as Promise<boolean>,

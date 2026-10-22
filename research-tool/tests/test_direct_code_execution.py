@@ -9,6 +9,10 @@ from research_tool.tool.direct_code_execution import execute_code
 
 
 class DirectCodeExecutionTest(unittest.IsolatedAsyncioTestCase):
+    def setUp(self):
+        patcher=patch.dict(os.environ,{'CODE_SANDBOX_BACKEND':'local'},clear=False)
+        patcher.start();self.addCleanup(patcher.stop)
+
     async def test_should_return_stdout_and_uploaded_produced_file(self):
         with (
             tempfile.TemporaryDirectory() as workspace,

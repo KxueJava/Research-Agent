@@ -17,6 +17,7 @@ import org.wwz.ai.trigger.auth.AdminAuthService;
 import org.wwz.ai.types.auth.AdminAuthContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import jakarta.servlet.http.HttpServletRequest;
@@ -52,15 +53,25 @@ public class AdminUserAdminController implements IAdminUserAdminService {
     @Resource
     private AdminAuthService adminAuthService;
 
+    @PostMapping("/register")
+    public Response<Boolean> register(@RequestBody AdminUserLoginRequestDTO credentials) {
+        AdminUserRequestDTO request = new AdminUserRequestDTO();
+        request.setUsername(credentials.getUsername());
+        request.setPassword(credentials.getPassword());
+        // No client-supplied ID, role or account status crosses this boundary.
+        return createAdminUser(request);
+    }
+
     @Override
     @PostMapping("/create")
     public Response<Boolean> createAdminUser(@RequestBody AdminUserRequestDTO request) {
         // 创建时同时补齐审计时间，DAO 只负责执行持久化，不承担请求 DTO 的生命周期语义。
         try {
-            log.info("创建管理员用户请求：{}", request);
+            log.info("创建用户请求 username={}", request.getUsername());
 
             // DTO转PO
             AdminUser adminUser = convertToAdminUser(request);
+            adminUser.setRole("USER");
             // user_id 是数据库必填的业务标识，注册时由服务端生成，避免客户端遗漏导致未知失败。
             if (!StringUtils.hasText(adminUser.getUserId())) {
                 adminUser.setUserId(UUID.randomUUID().toString().replace("-", ""));
@@ -74,6 +85,10 @@ public class AdminUserAdminController implements IAdminUserAdminService {
             }
             if (adminUser.getStatus() == null) {
                 adminUser.setStatus(1);
+            }
+            if (adminUser.getUsername().trim().length() > 255) {
+                return Response.<Boolean>builder().code(ResponseCode.ILLEGAL_PARAMETER.getCode())
+                        .info("用户名不能超过255个字符").data(false).build();
             }
             if (adminUserDao.queryByUsername(adminUser.getUsername().trim()) != null) {
                 return Response.<Boolean>builder()
@@ -94,6 +109,9 @@ public class AdminUserAdminController implements IAdminUserAdminService {
                     .info(ResponseCode.SUCCESS.getInfo())
                     .data(result > 0)
                     .build();
+        } catch (DuplicateKeyException e) {
+            return Response.<Boolean>builder().code(ResponseCode.ILLEGAL_PARAMETER.getCode())
+                    .info("用户名已存在").data(false).build();
         } catch (Exception e) {
             log.error("创建管理员用户失败", e);
             return Response.<Boolean>builder()
@@ -129,6 +147,9 @@ public class AdminUserAdminController implements IAdminUserAdminService {
                     .info(ResponseCode.SUCCESS.getInfo())
                     .data(result > 0)
                     .build();
+        } catch (DuplicateKeyException e) {
+            return Response.<Boolean>builder().code(ResponseCode.ILLEGAL_PARAMETER.getCode())
+                    .info("用户名已存在").data(false).build();
         } catch (Exception e) {
             log.error("根据ID更新管理员用户失败", e);
             return Response.<Boolean>builder()
@@ -164,6 +185,9 @@ public class AdminUserAdminController implements IAdminUserAdminService {
                     .info(ResponseCode.SUCCESS.getInfo())
                     .data(result > 0)
                     .build();
+        } catch (DuplicateKeyException e) {
+            return Response.<Boolean>builder().code(ResponseCode.ILLEGAL_PARAMETER.getCode())
+                    .info("用户名已存在").data(false).build();
         } catch (Exception e) {
             log.error("根据用户ID更新管理员用户失败", e);
             return Response.<Boolean>builder()
@@ -613,6 +637,9 @@ public class AdminUserAdminController implements IAdminUserAdminService {
             AdminUser current = adminAuthService.activeUser(userId);
             String username = StringUtils.hasText(request == null ? null : request.getUsername())
                     ? request.getUsername().trim() : current.getUsername();
+            if (username.length() > 255) {
+                throw new IllegalArgumentException("用户名不能超过255个字符");
+            }
             AdminUser sameName = adminUserDao.queryByUsername(username);
             if (sameName != null && !userId.equals(sameName.getUserId())) {
                 throw new IllegalArgumentException("用户名已存在");
@@ -625,6 +652,9 @@ public class AdminUserAdminController implements IAdminUserAdminService {
                     .info(ResponseCode.SUCCESS.getInfo())
                     .data(adminAuthService.toResponse(updated))
                     .build();
+        } catch (DuplicateKeyException e) {
+            return Response.<AdminUserResponseDTO>builder().code(ResponseCode.ILLEGAL_PARAMETER.getCode())
+                    .info("用户名已存在").data(null).build();
         } catch (Exception e) {
             return Response.<AdminUserResponseDTO>builder()
                     .code(ResponseCode.ILLEGAL_PARAMETER.getCode())

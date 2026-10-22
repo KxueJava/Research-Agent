@@ -1,0 +1,144 @@
+{
+  "provider": "mock",
+  "surfaceId": "stage9-map",
+  "route": {
+    "provider": "mock",
+    "distanceMeters": 3000,
+    "computedAt": "2026-10-21T00:00:00Z",
+    "durationSeconds": 2700,
+    "revision": 1,
+    "legs": [
+      {
+        "distanceMeters": 1000,
+        "fromPlaceId": "xm-1",
+        "toPlaceId": "xm-2",
+        "geometry": [
+          [
+            118.116,
+            24.468
+          ],
+          [
+            118.108,
+            24.461
+          ]
+        ],
+        "durationSeconds": 900
+      },
+      {
+        "distanceMeters": 1000,
+        "fromPlaceId": "xm-2",
+        "toPlaceId": "xm-3",
+        "geometry": [
+          [
+            118.108,
+            24.461
+          ],
+          [
+            118.111,
+            24.482
+          ]
+        ],
+        "durationSeconds": 900
+      },
+      {
+        "distanceMeters": 1000,
+        "fromPlaceId": "xm-3",
+        "toPlaceId": "xm-4",
+        "geometry": [
+          [
+            118.111,
+            24.482
+          ],
+          [
+            118.091,
+            24.479
+          ]
+        ],
+        "durationSeconds": 900
+      }
+    ],
+    "travelMode": "walking",
+    "geometry": [
+      [
+        118.116,
+        24.468
+      ],
+      [
+        118.108,
+        24.461
+      ],
+      [
+        118.108,
+        24.461
+      ],
+      [
+        118.111,
+        24.482
+      ],
+      [
+        118.111,
+        24.482
+      ],
+      [
+        118.091,
+        24.479
+      ]
+    ],
+    "coordinateSystem": "GCJ-02"
+  },
+  "mapId": "stage9-map",
+  "dataStatus": "fresh",
+  "fetchedAt": "2026-10-21T00:00:00Z",
+  "title": "厦门固定地图验收",
+  "revision": 1,
+  "selectedPlaceId": "xm-1",
+  "routeStatus": "ready",
+  "schemaVersion": "map/1",
+  "stops": [
+    {
+      "placeId": "xm-2",
+      "name": "金榜公园",
+      "coordinates": [
+        118.108,
+        24.461
+      ],
+      "coordinateSystem": "GCJ-02",
+      "address": "厦门 · 合成测试地点",
+      "source": "mock"
+    },
+    {
+      "placeId": "xm-3",
+      "name": "南湖公园南门",
+      "coordinates": [
+        118.111,
+        24.482
+      ],
+      "coordinateSystem": "GCJ-02",
+      "address": "厦门 · 合成测试地点",
+      "source": "mock"
+    },
+    {
+      "placeId": "xm-4",
+      "name": "白鹭洲公园",
+      "coordinates": [
+        118.091,
+        24.479
+      ],
+      "coordinateSystem": "GCJ-02",
+      "address": "厦门 · 合成测试地点",
+      "source": "mock"
+    }
+  ],
+  "travelMode": "walking",
+  "origin": {
+    "placeId": "xm-1",
+    "name": "厦门站",
+    "coordinates": [
+      118.116,
+      24.468
+    ],
+    "coordinateSystem": "GCJ-02",
+    "address": "厦门 · 合成测试起点",
+    "source": "mock"
+  }
+}

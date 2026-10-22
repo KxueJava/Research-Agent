@@ -12,6 +12,7 @@ const FeaturedConversationDetail = React.lazy(
 );
 const NotFound = React.lazy(() => import('@/components/NotFound'));
 const Login = React.lazy(() => import('@/pages/Login'));
+const GitHubCallback = React.lazy(() => import('@/pages/Login/GitHubCallback'));
 const Profile = React.lazy(() => import('@/pages/Profile'));
 
 const suspense = (element: React.ReactNode) => (
@@ -34,6 +35,10 @@ const homeElement = suspense(<Home />);
 
 // 创建路由配置
 const router = createBrowserRouter([
+  {
+    path: '/login/github/callback',
+    element: suspense(<GitHubCallback />),
+  },
   {
     path: ROUTES.LOGIN,
     element: suspense(<Login />),

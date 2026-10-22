@@ -26,11 +26,11 @@
 
     <insert id="insert" parameterType="map">
         INSERT INTO ai_agent_tool_output_image_generation (
-            tool_invocation_id, run_id, request_id, request_source, session_id, tool_call_id, status, error_msg,
+            tool_invocation_id, run_id, request_id, request_source, owner_user_id, session_id, tool_call_id, status, error_msg,
             prompt, mode, summary, size, batch_count, source_image_count, mask_image_count, used_fallback, created_at, updated_at
         )
         SELECT
-            #{row.toolInvocationId}, #{row.runId}, #{row.requestId}, #{row.requestSource}, #{row.sessionId}, #{row.toolCallId}, #{row.status}, #{row.errorMsg},
+            #{row.toolInvocationId}, #{row.runId}, #{row.requestId}, #{row.requestSource}, #{row.ownerUserId}, #{row.sessionId}, #{row.toolCallId}, #{row.status}, #{row.errorMsg},
             #{row.prompt}, #{row.mode}, #{row.summary}, #{row.size}, #{row.batchCount}, #{row.sourceImageCount}, #{row.maskImageCount}, #{row.usedFallback}, NOW(), NOW()
         FROM DUAL
         WHERE NOT EXISTS (
@@ -62,6 +62,7 @@
         SELECT COUNT(1)
         FROM ai_agent_tool_output_image_generation
         WHERE request_source = #{requestSource}
+          AND owner_user_id = #{ownerUserId}
     </select>
 
     <select id="queryPageByRequestSource" resultType="map">
@@ -69,6 +70,7 @@
                prompt, mode, summary, size, batch_count, source_image_count, mask_image_count, used_fallback, created_at, updated_at
         FROM ai_agent_tool_output_image_generation
         WHERE request_source = #{requestSource}
+          AND owner_user_id = #{ownerUserId}
         ORDER BY created_at DESC, id DESC
         LIMIT #{offset}, #{limit}
     </select>

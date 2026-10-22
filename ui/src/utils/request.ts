@@ -39,7 +39,7 @@ type RetriableRequestConfig = AxiosRequestConfig & {
  */
 function isPublicAuthEndpoint(url?: string): boolean {
   if (typeof url !== "string") return false;
-  return /\/api\/v1\/admin\/admin-user\/(login|create|refresh)(?:$|\?)/.test(url);
+  return /\/api\/v1\/admin\/admin-user\/(login|register|refresh)(?:$|\?)/.test(url);
 }
 
 function readAccessToken() {
@@ -51,24 +51,65 @@ function clearAuthStorage() {
   clearAuthTokens();
 }
 
+function waitForCompetingRefresh(expectedToken: string): Promise<string | null> {
+  const current = () => getRefreshToken() !== expectedToken;
+  const access = () => getRefreshToken() ? getAccessToken() : null;
+  if (current()) return Promise.resolve(access());
+  if (typeof window === "undefined") return Promise.resolve(null);
+  // Older/non-secure browsers have no Web Locks. A CAS loser must allow the
+  // winner's bounded HTTP request to finish before invalidating shared storage.
+  return new Promise(resolve => {
+    const complete = () => {
+      clearTimeout(timer);
+      window.removeEventListener("storage", changed);
+      resolve(current() ? access() : null);
+    };
+    const changed = () => { if (current()) complete(); };
+    const timer = setTimeout(complete, 10000);
+    window.addEventListener("storage", changed);
+    changed();
+  });
+}
+
 export async function refreshAccessToken(): Promise<string | null> {
   const refreshToken = getRefreshToken();
   if (!refreshToken) return null;
   if (!refreshInFlight) {
-    const baseURL = resolveServiceBaseUrl(SERVICE_BASE_URL);
-    refreshInFlight = axios.post(`${baseURL}/api/v1/admin/admin-user/refresh`, { refreshToken })
-      .then((response) => {
+    const hasWebLocks = typeof navigator !== "undefined" && Boolean(navigator.locks);
+    const recoverCompetingRefresh = () => hasWebLocks
+      ? Promise.resolve(getRefreshToken() && getRefreshToken() !== refreshToken ? getAccessToken() : null)
+      : waitForCompetingRefresh(refreshToken);
+    const refresh = async (): Promise<string | null> => {
+      // A different tab may have refreshed (or logged out) while we waited.
+      if (getRefreshToken() !== refreshToken) {
+        return getRefreshToken() ? getAccessToken() : null;
+      }
+      try {
+        const baseURL = resolveServiceBaseUrl(SERVICE_BASE_URL);
+        const response = await axios.post(`${baseURL}/api/v1/admin/admin-user/refresh`,
+          { refreshToken }, { timeout: 10000 });
+        // Never resurrect a logged-out session or overwrite a newer login.
+        if (getRefreshToken() !== refreshToken) {
+          return getRefreshToken() ? getAccessToken() : null;
+        }
         const payload = response.data?.data;
-        if (!payload?.accessToken || !payload?.refreshToken) return null;
+        if (!payload?.accessToken || !payload?.refreshToken) return recoverCompetingRefresh();
         storeAccessToken(payload.accessToken);
         storeRefreshToken(payload.refreshToken);
         if (payload.user) localStorage.setItem("research.admin.user", JSON.stringify(payload.user));
         return payload.accessToken as string;
-      })
-      .catch(() => null)
-      .finally(() => {
-        refreshInFlight = null;
-      });
+      } catch {
+        return recoverCompetingRefresh();
+      }
+    };
+    // Web Locks coordinate tabs sharing this origin; module state coalesces callers
+    // in this tab. The server CAS is authoritative even without Web Locks.
+    const pending = hasWebLocks
+      ? navigator.locks.request("research.auth.refresh", refresh)
+      : refresh();
+    refreshInFlight = pending.catch(() => null).finally(() => {
+      refreshInFlight = null;
+    });
   }
   return refreshInFlight;
 }

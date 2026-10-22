@@ -232,16 +232,16 @@ function SceneSvg({
   const pad = 32;
 
   if (scene === "custom_svg" && customSvg) {
-    const markup = interpolateTemplate(customSvg, scope, outputs)
-      .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
-      .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "");
+    const markup = interpolateTemplate(customSvg, scope, outputs);
+    const document = `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data: blob:; frame-src 'none'; base-uri 'none'; form-action 'none'"><style>html,body{margin:0;width:100%;height:100%;overflow:hidden}body{display:flex;align-items:center;justify-content:center}svg{max-width:100%;max-height:100%}</style></head><body>${markup}</body></html>`;
     return (
       <div
         className="genui-lab-scene overflow-hidden rounded-xl border border-[var(--chat-border)]/60 bg-[var(--chat-surface)] p-2"
         style={{ minHeight: h }}
-        // Model SVG: numbers only via {{id}}; scripts/handlers stripped.
-        dangerouslySetInnerHTML={{ __html: markup }}
-      />
+      >
+        <iframe title="参数实验图形" sandbox="" srcDoc={document} referrerPolicy="no-referrer"
+          className="w-full border-0" style={{height:h}} />
+      </div>
     );
   }
 

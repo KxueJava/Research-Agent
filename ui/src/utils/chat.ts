@@ -289,6 +289,7 @@ function handleTaskMessageByType(
       break;
     case "ui_tree":
     case "ui_patch":
+    case "ui_stream":
       handleNonStreamingMessage(eventData, currentChat, taskIndex);
       break;
     case "deep_search":
@@ -1868,6 +1869,7 @@ export const handleTaskData = (
     "data_analysis",
     "ui_tree",
     "ui_patch",
+    "ui_stream",
   ];
 
   currentChat.thought = planThought || "";

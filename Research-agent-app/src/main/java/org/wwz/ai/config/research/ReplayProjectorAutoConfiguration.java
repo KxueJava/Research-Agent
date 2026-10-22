@@ -28,6 +28,10 @@ import java.util.List;
  */
 @Configuration
 public class ReplayProjectorAutoConfiguration {
+    @Bean
+    public org.wwz.ai.domain.agent.ledger.replay.projector.impl.LegacyToolInvocationProjector legacyToolInvocationProjector() {
+        return new org.wwz.ai.domain.agent.ledger.replay.projector.impl.LegacyToolInvocationProjector();
+    }
 
     @Bean
     public AskUserQuestionToolInvocationProjector askUserQuestionToolInvocationProjector(

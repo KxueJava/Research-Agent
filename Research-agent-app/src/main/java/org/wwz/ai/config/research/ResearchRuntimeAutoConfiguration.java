@@ -80,7 +80,10 @@ public class ResearchRuntimeAutoConfiguration {
                                                                    ObjectProvider<BackgroundReviewService> backgroundReviewServiceProvider,
                                                                    ObjectProvider<LtmProperties> ltmPropertiesProvider,
                                                                    ObjectProvider<TasklistPersistencePort> tasklistPersistencePortProvider,
-                                                                   AgentExecutorProperties agentExecutorProperties) {
+                                                                   AgentExecutorProperties agentExecutorProperties,
+                                                                   ObjectProvider<org.wwz.ai.domain.agent.runtime.tool.common.canvas.UiSurfaceStore> uiSurfaceStoreProvider,
+                                                                   ObjectProvider<org.wwz.ai.domain.agent.runtime.tool.common.canvas.maps.MapService> mapServiceProvider,
+                                                                   ObjectProvider<org.wwz.ai.domain.agent.runtime.tool.common.canvas.UiActionService> uiActionServiceProvider) {
         // SessionContextCompactionService 是接口，@Lazy 可走 JDK 代理；
         // 反向依赖用 ObjectProvider，避免对 final 的 ResearchRuntimeDependencies 做 CGLIB 代理。
         return ResearchRuntimeDependencies.builder()
@@ -104,6 +107,9 @@ public class ResearchRuntimeAutoConfiguration {
                 .memoryFlushService(memoryFlushServiceProvider.getIfAvailable())
                 .backgroundReviewService(backgroundReviewServiceProvider.getIfAvailable())
                 .tasklistPersistencePort(tasklistPersistencePortProvider.getIfAvailable())
+                .uiSurfaceStore(uiSurfaceStoreProvider.getIfAvailable())
+                .uiActionService(uiActionServiceProvider.getIfAvailable())
+                .mapService(mapServiceProvider.getIfAvailable())
                 .ltmFlushMinTurns(ltmPropertiesProvider.getIfAvailable() == null
                         ? 6
                         : ltmPropertiesProvider.getIfAvailable().getFlushMinTurns())

@@ -24,25 +24,30 @@ public class DataSourceConfigProfileTest {
                         "--spring.main.banner-mode=off",
                         "--spring.profiles.active=test"
                 )) {
-            // 只要上下文能启动成功，就说明 test profile 下不会再强制解析数据库占位符。
+            Assert.isTrue(!ignored.containsBean("mysqlDataSource"), "test profile 必须排除业务数据源");
         }
     }
 
     @Test
-    public void shouldNotCreateDatasourceBeansWhenMysqlPropertiesAreMissing() {
+    public void shouldNotCreateProductionDatasourceWhenMysqlPropertiesAreMissing() {
         try (ConfigurableApplicationContext context = new SpringApplicationBuilder(DataSourceProfileProbeApplication.class)
                 .web(WebApplicationType.NONE)
                 .run(
                         "--spring.main.banner-mode=off",
-                        "--spring.profiles.active=custom",
-                        "--spring.config.location=classpath:/application-test.yml"
+                        "--spring.profiles.active=prod",
+                        "--spring.config.location=optional:classpath:/application-test.yml",
+                        "--spring.datasource.mysql.driver-class-name=",
+                        "--spring.datasource.mysql.url=",
+                        "--spring.datasource.mysql.username=",
+                        "--spring.datasource.url=jdbc:h2:mem:stage9-profile-probe",
+                        "--spring.datasource.driver-class-name=org.h2.Driver",
+                        "--spring.sql.init.mode=never"
                 )) {
             Assert.isTrue(!context.containsBean("mysqlDataSource"), "mysqlDataSource 不应在缺失 mysql 配置时创建");
         }
     }
 
     @SpringBootConfiguration
-    @EnableAutoConfiguration
     @Import(DataSourceConfig.class)
     static class DataSourceProfileProbeApplication {
     }

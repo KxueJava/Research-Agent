@@ -3,6 +3,7 @@ import '@ant-design/v5-patch-for-react-19';
 import { createRoot } from 'react-dom/client';
 import App from './App';
 import './global.css';
+import './styles/ocean-theme.css';
 
 const root = document.getElementById('root');
 

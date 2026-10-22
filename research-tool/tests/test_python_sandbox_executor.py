@@ -1,6 +1,8 @@
 import tempfile
 import unittest
+import subprocess
 from pathlib import Path
+from unittest.mock import Mock, patch
 
 from research_tool.tool.code_interpreter_policy import build_permission_policy
 from research_tool.tool.python_sandbox_executor import (
@@ -10,6 +12,35 @@ from research_tool.tool.python_sandbox_executor import (
 
 
 class PythonSandboxExecutorTest(unittest.TestCase):
+    def setUp(self):
+        patcher=patch.dict('os.environ',{'CODE_SANDBOX_BACKEND':'local'},clear=False)
+        patcher.start();self.addCleanup(patcher.stop)
+
+    def test_close_waits_for_acknowledged_runner_exit_without_killing_launcher(self):
+        with tempfile.TemporaryDirectory() as root:
+            policy=build_permission_policy(profile='analysis',workspace_root=root,output_dir=root,input_files=[])
+            executor=PythonSandboxExecutor(policy,backend='local')
+            process=Mock();process.poll.return_value=None
+            executor._local._process=process
+            executor._local._request=Mock(return_value={'type':'closed'})
+            executor.close()
+            process.kill.assert_not_called()
+            process.wait.assert_called_once_with(timeout=5)
+            self.assertIsNone(executor._local._process)
+
+    def test_close_kills_runner_only_if_graceful_exit_times_out(self):
+        with tempfile.TemporaryDirectory() as root:
+            policy=build_permission_policy(profile='analysis',workspace_root=root,output_dir=root,input_files=[])
+            executor=PythonSandboxExecutor(policy,backend='local')
+            process=Mock();process.poll.return_value=None
+            process.wait.side_effect=[subprocess.TimeoutExpired('runner',5),0]
+            executor._local._process=process
+            executor._local._request=Mock(return_value={'type':'closed'})
+            executor.close()
+            process.kill.assert_called_once()
+            self.assertEqual(process.wait.call_count,2)
+            self.assertIsNone(executor._local._process)
+
     def test_should_keep_python_state_and_report_output_files(self):
         with tempfile.TemporaryDirectory() as workspace:
             workspace_root = Path(workspace)

@@ -7,7 +7,7 @@ import io.modelcontextprotocol.spec.McpSchema;
 import org.junit.Assert;
 import org.junit.Test;
 import org.springframework.http.server.reactive.HttpHandler;
-import org.springframework.http.server.reactive.ResearchHttpHandlerAdapter;
+import org.springframework.http.server.reactive.ReactorHttpHandlerAdapter;
 import org.springframework.web.reactive.function.server.RouterFunctions;
 import org.wwz.ai.domain.agent.model.valobj.AiClientToolMcpVO;
 import org.wwz.ai.domain.agent.runtime.tool.mcp.runtime.McpClientRuntime;
@@ -160,7 +160,7 @@ public class McpStreamableHttpSupportTest {
         DisposableServer server = HttpServer.create()
                 .host("127.0.0.1")
                 .port(0)
-                .handle(new ResearchHttpHandlerAdapter(httpHandler))
+                .handle(new ReactorHttpHandlerAdapter(httpHandler))
                 .bindNow();
 
         return new TestStreamableServer(server, provider, mcpServer);
@@ -184,3 +184,4 @@ public class McpStreamableHttpSupportTest {
         }
     }
 }
+

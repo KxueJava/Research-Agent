@@ -43,12 +43,16 @@ describe("GeneralInput", () => {
     expect(html).not.toContain("thinking-shimmer");
   });
 
-  it("输入工具条不再展示输出格式入口", () => {
+  it.each([
+    { deepThink: false, selectedMode: "ReAct", otherMode: "PlanExecute" },
+    { deepThink: true, selectedMode: "PlanExecute", otherMode: "ReAct" },
+  ])("输入工具条按 deepThink=$deepThink 展示当前模式并隐藏输出格式入口", ({ deepThink, selectedMode, otherMode }) => {
     const html = renderToStaticMarkup(
       <GeneralInput
         sessionId="session-1"
         placeholder="请输入问题"
         showBtn
+        deepThink={deepThink}
         disabled={false}
         size="default"
         product={{
@@ -64,7 +68,8 @@ describe("GeneralInput", () => {
 
     expect(html).not.toContain("输出格式");
     expect(html).not.toContain("网页模式");
-    expect(html).toContain("深度思考");
+    expect(html).toContain(`>${selectedMode}</span>`);
+    expect(html).not.toContain(`>${otherMode}</span>`);
     expect(html).toContain("数据分析");
   });
 

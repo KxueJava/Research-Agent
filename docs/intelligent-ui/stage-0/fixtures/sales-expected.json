@@ -1,0 +1,11 @@
+{
+  "synthetic": true,
+  "currency": "CNY",
+  "monthlyRevenue": {"2026-01":1500,"2026-02":1800,"2026-03":1800},
+  "productRevenue": {"software":3100,"service":2000},
+  "totalRevenue":5100,
+  "averageMonthlyRevenue":1700,
+  "monthOverMonth": {"2026-01":null,"2026-02":0.2,"2026-03":0},
+  "productShare": {"software":"31/51","service":"20/51"},
+  "filteredFebruary": {"totalRevenue":1800,"software":1200,"service":600}
+}

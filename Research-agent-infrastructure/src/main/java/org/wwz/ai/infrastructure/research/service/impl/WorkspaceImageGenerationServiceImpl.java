@@ -56,6 +56,7 @@ public class WorkspaceImageGenerationServiceImpl implements IWorkspaceImageGener
 
     @Override
     public WorkspaceImageGenerationResult generate(WorkspaceImageGenerationCommand command) {
+        requireOwner();
         validateGenerateRequest(command);
 
         // 入口先统一图片、蒙版、模式和批次数，再交给领域内核执行，保证 HTTP 与 Agent 入口共享同一约束。
@@ -102,10 +103,11 @@ public class WorkspaceImageGenerationServiceImpl implements IWorkspaceImageGener
 
     @Override
     public WorkspaceImageGenerationHistoryPage queryHistory(int pageNo, int pageSize) {
+        String ownerUserId = requireOwner();
         int safePageNo = Math.max(pageNo, 1);
         int safePageSize = Math.min(pageSize > 0 ? pageSize : DEFAULT_BATCH_SIZE, MAX_BATCH_SIZE);
         // 分页查询只筛工作台 requestSource；每行优先走结构化读取，旧数据再使用列值回退组装。
-        int total = toolOutputImageGenerationDao.countByRequestSource(ExecutionLedgerConstants.REQUEST_SOURCE_WORKSPACE);
+        int total = toolOutputImageGenerationDao.countByRequestSource(ExecutionLedgerConstants.REQUEST_SOURCE_WORKSPACE, ownerUserId);
         if (total <= 0) {
             return WorkspaceImageGenerationHistoryPage.builder()
                     .total(0)
@@ -114,7 +116,7 @@ public class WorkspaceImageGenerationServiceImpl implements IWorkspaceImageGener
         }
         int offset = (safePageNo - 1) * safePageSize;
         List<Map<String, Object>> rows = toolOutputImageGenerationDao.queryPageByRequestSource(
-                ExecutionLedgerConstants.REQUEST_SOURCE_WORKSPACE, offset, safePageSize);
+                ExecutionLedgerConstants.REQUEST_SOURCE_WORKSPACE, ownerUserId, offset, safePageSize);
         if (CollectionUtils.isEmpty(rows)) {
             return WorkspaceImageGenerationHistoryPage.builder()
                     .total(total)
@@ -131,6 +133,14 @@ public class WorkspaceImageGenerationServiceImpl implements IWorkspaceImageGener
                 .total(total)
                 .list(list)
                 .build();
+    }
+
+    private String requireOwner() {
+        String userId = org.wwz.ai.types.auth.AdminAuthContext.currentUserId();
+        if (StringUtils.isBlank(userId)) {
+            throw new SecurityException("图片生成需要登录身份");
+        }
+        return userId;
     }
 
     private void validateGenerateRequest(WorkspaceImageGenerationCommand command) {

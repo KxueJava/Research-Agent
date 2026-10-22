@@ -522,31 +522,31 @@ const providerOf = id => PROVIDERS.find(p => p.id === id) || PROVIDERS[PROVIDERS
 /* 示例数据：首条与库中 ai_client_api / ai_client_model 的真实记录一致 */
 let MODELS = [
   { id:6, modelId:"deepseek-v4-pro", modelName:"deepseek-v4-pro", providerId:"deepseek",
-    baseUrl:"https://api.deepseek.com/v1", apiKey:"sk-14c2••••••••7939",
+    baseUrl:"https://api.deepseek.com/v1", apiKey:"YOUR_API_KEY",
     completionsPath:"/chat/completions", embeddingsPath:"/embeddings", modelType:"openai",
     modelUsage:"default", supportsThinking:1, contextWindow:128000, status:1,
     latencyMs:842, lastTested:"2 分钟前" },
 
   { id:7, modelId:"gpt-4o", modelName:"gpt-4o", providerId:"openai",
-    baseUrl:"https://api.openai.com/v1", apiKey:"sk-proj••••••••a91f",
+    baseUrl:"https://api.openai.com/v1", apiKey:"YOUR_API_KEY",
     completionsPath:"/chat/completions", embeddingsPath:"/embeddings", modelType:"openai",
     modelUsage:"default", supportsThinking:0, contextWindow:128000, status:1,
     latencyMs:1180, lastTested:"12 分钟前" },
 
   { id:8, modelId:"kimi-k2", modelName:"kimi-k2-0905-preview", providerId:"moonshot",
-    baseUrl:"https://api.moonshot.cn/v1", apiKey:"sk-9fA2••••••••3c07",
+    baseUrl:"https://api.moonshot.cn/v1", apiKey:"YOUR_API_KEY",
     completionsPath:"/chat/completions", embeddingsPath:"/embeddings", modelType:"openai",
     modelUsage:"default", supportsThinking:1, contextWindow:256000, status:1,
     latencyMs:640, lastTested:"1 小时前" },
 
   { id:9, modelId:"claude-3-5-sonnet", modelName:"claude-3-5-sonnet-20241022", providerId:"micu",
-    baseUrl:"https://www.micuapi.ai/v1", apiKey:"sk-micu••••••••77b2",
+    baseUrl:"https://www.micuapi.ai/v1", apiKey:"YOUR_API_KEY",
     completionsPath:"/chat/completions", embeddingsPath:"/embeddings", modelType:"openai",
     modelUsage:"default", supportsThinking:1, contextWindow:200000, status:0,
     latencyMs:null, lastTested:"未测试" },
 
   { id:10, modelId:"grok-4.5", modelName:"grok-4.5", providerId:"custom",
-    baseUrl:"https://api.x.ai/v1", apiKey:"xai-3c••••••••00de",
+    baseUrl:"https://api.x.ai/v1", apiKey:"YOUR_API_KEY",
     completionsPath:"/chat/completions", embeddingsPath:"/embeddings", modelType:"openai",
     modelUsage:"fallback", supportsThinking:1, contextWindow:131072, status:1,
     latencyMs:1506, lastTested:"3 小时前" }

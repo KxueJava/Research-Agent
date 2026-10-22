@@ -33,6 +33,62 @@ import java.util.concurrent.atomic.AtomicReference;
  * StreamResponseHandler 测试
  */
 public class StreamResponseHandlerTest {
+    @Test public void completeBlockIsPersistedAndPrintedBeforeUpstreamCompletesThenCancellationRetainsIt() throws Exception {
+        var handler=new StreamResponseHandler();
+        var config=new ResearchConfig();config.setMessageInterval("{\"llm\":\"1,1\"}");
+        ReflectionTestUtils.setField(handler,"researchConfig",config);
+        ReflectionTestUtils.setField(handler,"chatResponseMapper",new LlmChatResponseMapper());
+        var printer=new RecordingPrinter();
+        var store=org.mockito.Mockito.mock(org.wwz.ai.domain.agent.runtime.tool.common.canvas.UiSurfaceStore.class);
+        org.mockito.Mockito.when(store.supportsStreaming()).thenReturn(true);
+        var persisted=new AtomicReference<Map<String,Object>>();
+        org.mockito.Mockito.when(store.commitStream(org.mockito.ArgumentMatchers.eq("s"),org.mockito.ArgumentMatchers.eq("r1"),org.mockito.ArgumentMatchers.anyMap(),org.mockito.ArgumentMatchers.any())).thenAnswer(inv->{
+            var doc=org.wwz.ai.domain.agent.runtime.tool.common.canvas.UiStreamCommit.apply(persisted.get(),"s","owner","r1",inv.getArgument(2),inv.getArgument(3));persisted.set(doc);return doc;
+        });
+        var collection=new org.wwz.ai.domain.agent.runtime.tool.ToolCollection();collection.addTool(new org.wwz.ai.domain.agent.runtime.tool.common.canvas.EmitUiTreeTool());
+        var context=AgentContext.builder().sessionId("s").requestId("r1").isStream(true).printer(printer).toolCollection(collection)
+            .runtimeDependencies(org.wwz.ai.domain.agent.runtime.ResearchRuntimeDependencies.builder().uiSurfaceStore(store).build()).build();
+        var sink=new AtomicReference<FluxSink<ChatResponse>>();
+        var future=handler.handleToolCallStream(context,Flux.create(sink::set),System.currentTimeMillis());
+        String a="{\"tree\":{\"root\":{\"kind\":\"Card\",\"props\":{},\"children\":[{\"kind\":\"Input\",\"props\":{\"name\":\"a\",\"value\":\"A\"}},";
+        sink.get().next(toolChunk("",new AssistantMessage.ToolCall("ui-call","function","emit_ui_tree",a),null,null));
+        Assert.assertFalse("actual upstream has not completed",future.isDone());
+        Assert.assertNotNull("A is persisted before onComplete",persisted.get());
+        Assert.assertTrue(printer.messages.stream().anyMatch(m->"ui_stream".equals(m.messageType)&&!m.isFinal));
+        var first=persisted.get();
+        // Closed but invalid B must not replace the previously published subtree.
+        sink.get().next(toolChunk("",new AssistantMessage.ToolCall("ui-call","function","emit_ui_tree","{\"kind\":\"NotAComponent\",\"props\":{}}]}}}"),null,null));
+        Assert.assertSame(first,persisted.get());
+        Assert.assertTrue(future.cancel(true));
+        Assert.assertEquals(first.get("tree"),persisted.get().get("tree"));
+        Assert.assertEquals("cancelled",((Map<?,?>)persisted.get().get("stream")).get("status"));
+        var terminal=persisted.get();sink.get().complete();Assert.assertSame(terminal,persisted.get());
+        for(String blocked:List.of("plan","whitelist","html","subagent")) {
+            context.getUiStreamGenerations().clear();context.setToolDispatchWhitelist(null);context.setPlanModeState(null);
+            context.setSubAgentId("subagent".equals(blocked)?"child":null);
+            if("plan".equals(blocked)){var plan=new org.wwz.ai.domain.agent.runtime.planmode.PlanModeState();plan.enterPlanMode();context.setPlanModeState(plan);}
+            if("whitelist".equals(blocked))context.setToolDispatchWhitelist(java.util.Set.of("workspace_read"));
+            String tool="html".equals(blocked)?"canvas_publish":"emit_ui_tree";
+            handler.handleToolCallStream(context,Flux.just(toolChunk("",new AssistantMessage.ToolCall("blocked-"+blocked,"function",tool,a),null,null)),System.currentTimeMillis()).get(3,TimeUnit.SECONDS);
+            Assert.assertTrue("preview respects "+blocked,context.getUiStreamGenerations().isEmpty());
+            Assert.assertSame(terminal,persisted.get());
+        }
+        context.setToolDispatchWhitelist(null);context.setPlanModeState(null);context.setSubAgentId(null);
+        var racingSink=new AtomicReference<FluxSink<ChatResponse>>();
+        var racingFuture=handler.handleToolCallStream(context,Flux.create(racingSink::set),System.currentTimeMillis());
+        org.mockito.Mockito.when(store.supportsStreaming()).thenAnswer(inv->{racingFuture.cancel(true);return true;});
+        racingSink.get().next(toolChunk("",new AssistantMessage.ToolCall("racing-call","function","emit_ui_tree",a),null,null));
+        Assert.assertSame("cancellation during preview gating cannot publish afterwards",terminal,persisted.get());
+    }
+
+    @Test public void rawArgumentsSurviveThreeOrMoreFragments() throws Exception {
+        var handler=new StreamResponseHandler();var config=new ResearchConfig();config.setMessageInterval("{\"llm\":\"1,1\"}");
+        ReflectionTestUtils.setField(handler,"researchConfig",config);ReflectionTestUtils.setField(handler,"chatResponseMapper",new LlmChatResponseMapper());
+        var context=AgentContext.builder().requestId("r").isStream(true).build();
+        String[] parts={"{\"query\":","\"hello", " world", "\"}"};
+        var response=handler.handleToolCallStream(context,Flux.fromArray(parts).map(p->toolChunk("",new AssistantMessage.ToolCall("c","function","deep_search",p),null,null)),System.currentTimeMillis()).get(3,TimeUnit.SECONDS);
+        Assert.assertEquals(String.join("",parts),response.getToolCalls().getFirst().getFunction().getArguments());
+    }
 
     @Test
     public void test_handleStringStreamStopsForwardingAfterStructParseMarker() throws Exception {

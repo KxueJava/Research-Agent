@@ -89,6 +89,7 @@ describe("mergeHtmlPreviewIntoToolCall", () => {
         messageType: "html",
         resultMap: {
           toolCallId: "call-1",
+          surface: { kind: "html", surfaceId: "html-live", revision: 2 },
           fileInfo: [
             {
               fileName: "page.html",
@@ -104,6 +105,7 @@ describe("mergeHtmlPreviewIntoToolCall", () => {
     const merged = mergeHtmlPreviewIntoToolCall(toolTask, htmlTask);
 
     expect(merged.messageType).toBe("tool_call");
+    expect((merged.resultMap as any).surface?.surfaceId).toBe("html-live");
     expect(merged.resultMap?.toolName).toBe("canvas_publish");
     expect(merged.resultMap?.fileInfo?.[0]?.fileName).toBe("page.html");
     expect(merged.resultMap?.fileInfo?.[0]?.domainUrl).toBe(

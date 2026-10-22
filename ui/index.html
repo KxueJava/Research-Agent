@@ -13,10 +13,15 @@
           ? savedTheme : matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         document.documentElement.classList.toggle('dark', initialTheme === 'dark');
         document.documentElement.style.colorScheme = initialTheme;
+        var appearance = localStorage.getItem('research.appearance') === 'native' ? 'native' : 'ocean';
+        document.documentElement.classList.toggle('ocean-ui', appearance === 'ocean');
+        document.documentElement.dataset.appearance = appearance;
       } catch (_) {
         var systemDark = matchMedia('(prefers-color-scheme: dark)').matches;
         document.documentElement.classList.toggle('dark', systemDark);
         document.documentElement.style.colorScheme = systemDark ? 'dark' : 'light';
+        document.documentElement.classList.add('ocean-ui');
+        document.documentElement.dataset.appearance = 'ocean';
       }
     </script>
   </head>

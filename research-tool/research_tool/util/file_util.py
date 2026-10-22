@@ -145,7 +145,8 @@ async def upload_file(
         }
         async with aiohttp.ClientSession() as session:
             async with session.post(
-                f"{storage_target}/upload_file", json=body, timeout=99999
+                f"{storage_target}/upload_file", json=body, timeout=99999,
+                headers={"X-Research-File-Service": os.environ.get("RESEARCH_FILE_SERVICE_TOKEN", "")}
             ) as response:
                 result = await _parse_upload_response(response, "text file upload")
         return {
@@ -196,7 +197,8 @@ async def upload_file_by_path(
             )
             async with aiohttp.ClientSession() as session:
                 async with session.post(
-                    f"{storage_target}/upload_file_data", data=data, timeout=99999
+                    f"{storage_target}/upload_file_data", data=data, timeout=99999,
+                    headers={"X-Research-File-Service": os.environ.get("RESEARCH_FILE_SERVICE_TOKEN", "")}
                 ) as response:
                     result = await _parse_upload_response(
                         response, "binary file upload"

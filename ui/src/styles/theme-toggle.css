@@ -21,3 +21,12 @@
 .dark .global-theme-toggle .theme-sun { opacity: 1; transform: rotate(0) scale(1); }
 .dark .global-theme-toggle .theme-moon { opacity: 0; transform: rotate(40deg) scale(.65); }
 @media (prefers-reduced-motion: reduce) { .global-theme-toggle, .global-theme-toggle svg { transition: none; } }
+
+.appearance-menu-options { min-width: 0; margin: 5px 0; padding: 8px 0; border: 0; border-top: 1px solid var(--chat-border); border-bottom: 1px solid var(--chat-border); }
+.appearance-menu-options legend { float: left; width: 100%; padding: 0 10px 5px; color: var(--chat-text-muted); font-size: 11px; }
+.appearance-menu-option { position: relative; display: flex; clear: both; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 10px; border-radius: 8px; color: var(--chat-text); font-size: 13px; cursor: pointer; }
+.appearance-menu-option:hover { background: var(--chat-interactive-hover); }
+.appearance-menu-option:focus-within { outline: 2px solid var(--chat-accent); outline-offset: -2px; }
+.appearance-menu-option input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.appearance-menu-check { width: 15px; height: 15px; color: var(--chat-accent); visibility: hidden; }
+.appearance-menu-option input:checked ~ .appearance-menu-check { visibility: visible; }

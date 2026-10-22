@@ -13,8 +13,11 @@ import java.util.List;
  */
 @Mapper
 public interface IDialogueSessionLedgerDao {
+    int countKnownFileScope(@Param("scope") String scope);
 
     int upsertSession(DialogueSessionUpsertRecord record);
+
+    int insertSessionIfAbsent(DialogueSessionUpsertRecord record);
 
     DialogueSession queryBySessionId(@Param("sessionId") String sessionId);
 

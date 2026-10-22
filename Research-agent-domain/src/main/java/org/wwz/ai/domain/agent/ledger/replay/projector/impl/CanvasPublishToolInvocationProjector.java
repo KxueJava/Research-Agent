@@ -7,6 +7,7 @@ import org.wwz.ai.domain.agent.ledger.model.replay.ProjectedReplayEvent;
 import org.wwz.ai.domain.agent.ledger.model.tooloutput.CanvasPublishToolOutput;
 import org.wwz.ai.domain.agent.research.model.multi.EventResult;
 import org.wwz.ai.domain.agent.runtime.tool.common.canvas.CanvasToolNames;
+import org.wwz.ai.domain.agent.runtime.tool.common.canvas.UiSurfaceDocument;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -38,6 +39,7 @@ public class CanvasPublishToolInvocationProjector extends AbstractToolInvocation
         resultMap.put("isFinal", true);
         resultMap.put("fileType", "html");
         resultMap.put("command", "发布画布");
+        if(output!=null&&output.getSurface()!=null)resultMap.put("surface",UiSurfaceDocument.metadata(output.getSurface()));
         if (output != null && StringUtils.isNotBlank(output.getTitle())) {
             resultMap.put("title", output.getTitle());
         }

@@ -444,6 +444,7 @@ final class ToolExecutionPipeline {
             return;
         }
         result.put(toolCall.getId(), outcome);
+        if(!outcome.isSuccess() && agent.getContext()!=null)agent.getContext().closeUiStreamGeneration(toolCall.getId());
         finishToolInvocation(toolCall, outcome);
         if (recordArtifacts) {
             recordToolArtifacts(toolCall);
@@ -824,6 +825,7 @@ final class ToolExecutionPipeline {
             return null;
         }
         String toolCallId = command == null ? null : command.getId();
+        if(!outcome.isSuccess() && agent.getContext()!=null)agent.getContext().closeUiStreamGeneration(toolCallId);
         return outcome.setLlmObservation(agent.buildFinalLlmObservation(outcome.getLlmObservation(), toolCallId));
     }
 }

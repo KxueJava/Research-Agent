@@ -13,6 +13,9 @@ import org.apache.ibatis.annotations.Param;
  */
 @Mapper
 public interface ISessionPurgeDao {
+    int rememberFileScopesBySessionId(@Param("sessionId") String sessionId);
+    int deleteUiSurfaceEventsBySessionId(@Param("sessionId") String sessionId);
+    int deleteUiSurfacesBySessionId(@Param("sessionId") String sessionId);
 
     /** 归属校验：确认 session 属于该 visitor，供删除前把关 */
     int countSessionOwnedByVisitor(@Param("sessionId") String sessionId,

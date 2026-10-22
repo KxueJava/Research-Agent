@@ -235,6 +235,7 @@ public abstract class BaseAgent {
                     && StringUtils.isNotBlank(context.getLtmMemoryContext())) {
                 userContent = context.getLtmMemoryContext().trim() + "\n\n" + userContent;
             }
+            userContent += org.wwz.ai.domain.agent.runtime.tool.common.canvas.planner.UiPresentationRuntime.userGuidance(context);
             updateMemory(RoleType.USER, userContent, null);
         }
 

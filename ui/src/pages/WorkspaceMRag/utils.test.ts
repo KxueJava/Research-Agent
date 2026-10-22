@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   createDefaultMRagWorkspaceStoredState,
@@ -9,20 +9,56 @@ import {
 } from "./utils";
 
 describe("WorkspaceMRag utils", () => {
-  it("解析持久化状态时会回退默认值并清理尾部斜杠", () => {
-    const defaults = createDefaultMRagWorkspaceStoredState();
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
 
-    expect(parseMRagWorkspaceStoredState()).toEqual(defaults);
-    expect(parseMRagWorkspaceStoredState("invalid-json")).toEqual(defaults);
+  it("无浏览器环境时使用工具代理路径和空知识库选择", () => {
+    expect(createDefaultMRagWorkspaceStoredState()).toEqual({
+      toolBaseUrl: "/tool",
+      selectedKnowledgeBaseId: "",
+    });
+  });
+
+  it.each([undefined, null, "invalid-json"])("缺失或非法持久化值 %s 回退默认状态", (rawValue) => {
+    expect(parseMRagWorkspaceStoredState(rawValue)).toEqual({
+      toolBaseUrl: "/tool",
+      selectedKnowledgeBaseId: "",
+    });
+  });
+
+  it.each([
+    "http://127.0.0.1:1601/",
+    "https://old-tool.example.invalid/tool/",
+  ])("忽略历史工具地址 %s，保留知识库选择", (toolBaseUrl) => {
     expect(
       parseMRagWorkspaceStoredState(
         JSON.stringify({
-          toolBaseUrl: "http://127.0.0.1:1601/",
+          toolBaseUrl,
           selectedKnowledgeBaseId: "kb-1",
         })
       )
     ).toEqual({
-      toolBaseUrl: "http://127.0.0.1:1601",
+      toolBaseUrl: "/tool",
+      selectedKnowledgeBaseId: "kb-1",
+    });
+  });
+
+  it("浏览器中历史地址不能覆盖当前站点的工具代理入口", () => {
+    vi.stubGlobal("window", {
+      location: {
+        protocol: "https:",
+        host: "research.example.invalid",
+        hostname: "research.example.invalid",
+      },
+    });
+    vi.stubGlobal("RESEARCH_TOOL_BASE_URL", "http://127.0.0.1:1601/");
+
+    expect(parseMRagWorkspaceStoredState(JSON.stringify({
+      toolBaseUrl: "https://old-tool.example.invalid/tool/",
+      selectedKnowledgeBaseId: "kb-1",
+    }))).toEqual({
+      toolBaseUrl: "https://research.example.invalid/tool",
       selectedKnowledgeBaseId: "kb-1",
     });
   });

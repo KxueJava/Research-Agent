@@ -28,6 +28,9 @@ class MragRerankTest(unittest.TestCase):
                 "TEXT_RERANKER_API_KEY": "test-key",
                 "TEXT_RERANKER_MODEL_NAME": "test-model",
                 "TEXT_RERANKER_MAX_DOCUMENT_LENGTH": "8000",
+                "TEXT_RERANKER_BASE_URL": "https://rerank.example.invalid/v1/rerank",
+                "TEXT_RERANKER_RETURN_DOCUMENTS": "true",
+                "TEXT_RERANKER_TOP_N": "1",
             },
             clear=False,
         ):

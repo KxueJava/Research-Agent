@@ -21,6 +21,16 @@ class FileManageApiTest(unittest.TestCase):
         app = FastAPI()
         app.include_router(router, prefix="/v1/file_tool")
         self.client = TestClient(app)
+        # Content/legacy-name tests use a trusted service, separately tested in test_file_access.
+        self.auth_patch = patch("research_tool.api.file_manage.authorize_file_scope", new=AsyncMock())
+        self.auth_patch.start()
+        self.addCleanup(self.auth_patch.stop)
+        self.record_auth_patch = patch("research_tool.api.file_manage.authorize_file_record", new=AsyncMock())
+        self.record_auth_patch.start()
+        self.addCleanup(self.record_auth_patch.stop)
+        self.reader_auth_patch = patch("research_tool.api.file_manage.require_file_reader", new=AsyncMock())
+        self.reader_auth_patch.start()
+        self.addCleanup(self.reader_auth_patch.stop)
 
     def test_should_preview_file_when_url_contains_nested_path_segments(self):
         with tempfile.NamedTemporaryFile(
@@ -41,6 +51,8 @@ class FileManageApiTest(unittest.TestCase):
 
             self.assertEqual(200, response.status_code)
             self.assertEqual("# 测试文件", response.text.strip())
+            self.assertIn("sandbox allow-scripts", response.headers.get("content-security-policy", ""))
+            self.assertNotIn("allow-same-origin", response.headers.get("content-security-policy", ""))
             get_by_file_id.assert_awaited_once()
         finally:
             if os.path.exists(file_path):

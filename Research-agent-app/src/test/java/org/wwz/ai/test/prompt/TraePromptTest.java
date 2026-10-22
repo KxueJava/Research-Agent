@@ -41,7 +41,7 @@ public class TraePromptTest {
         this.chatModel = OpenAiChatModel.builder()
                 .openAiApi(OpenAiApi.builder()
                         .baseUrl("https://apis.itedus.cn")
-                        .apiKey(System.getenv("OPENAI_API_KEY"))
+                        .apiKey(System.getenv("RESEARCH_TEST_MODEL_API_KEY"))
                         .completionsPath("v1/chat/completions")
                         .embeddingsPath("v1/embeddings")
                         .build())
@@ -73,7 +73,7 @@ public class TraePromptTest {
 
     public McpSyncClient sseMcpClient_BaiduSearch() {
         HttpClientSseClientTransport sseClientTransport = HttpClientSseClientTransport.builder("http://appbuilder.baidu.com/v2/ai_search/mcp/")
-                .sseEndpoint("sse?api_key=" + System.getenv("MCP_API_KEY"))
+                .sseEndpoint(System.getenv("RESEARCH_TEST_MCP_SSE_ENDPOINT"))
                 .build();
 
         McpSyncClient mcpSyncClient = McpClient.sync(sseClientTransport).requestTimeout(Duration.ofMinutes(360)).build();

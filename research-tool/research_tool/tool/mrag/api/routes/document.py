@@ -2,6 +2,7 @@
 """MRAG 文档/知识库管理 API：建库、上传、删文件、列文件、全文就绪状态。"""
 
 import os
+import re
 import tempfile
 import uuid
 from datetime import datetime
@@ -110,6 +111,8 @@ async def _upload_to_local_file_storage(
             file=file,
             file_id=get_file_id(request_id, stored_filename),
             request_id=request_id,
+            resource_kind="knowledge",
+            description=__import__("json").dumps({"uploadDocumentId":document_id}),
         )
     finally:
         file.filename = original_filename
@@ -526,6 +529,8 @@ class File(BaseModel):
 def add_file(filename, file_url, kb_id, ingestion_epoch=None):
     # 后台任务先写入 PENDING 记录，再按“下载 -> RUNNING -> DocumentProcessor ->
     # SUCCESS/FAILED”推进状态；异常只收口当前文件，不影响同批其它文件。
+    # The display name is untrusted. Use a private directory and a server-owned
+    # basename; only a plain extension is useful to the document parser.
     file_id = uuid.uuid4().hex
     try:
         guard = get_ingestion_lifecycle().guard(kb_id, file_id, ingestion_epoch)
@@ -533,16 +538,18 @@ def add_file(filename, file_url, kb_id, ingestion_epoch=None):
     except IngestionCancelled:
         logger.info("跳过已取消的文件入库: kb_id={}", kb_id)
         return
-    tempdir = tempfile.gettempdir()
-    work_dir = f"{tempdir}/{file_id}"
-    os.makedirs(os.path.join(tempdir, file_id), exist_ok=True)
+    task_directory = tempfile.TemporaryDirectory(prefix="mrag-", dir=tempfile.gettempdir())
+    work_dir = task_directory.name
+    extension = os.path.splitext(str(filename or ""))[1].lower()
+    if not re.fullmatch(r"\.[a-z0-9]{1,10}", extension):
+        extension = ""
 
     kb_file = KBFileModel(
         kb_id=kb_id,
         file_id=file_id,
         file_url=file_url,
         title=filename,
-        file_ext=os.path.splitext(filename)[1].lower(),
+        file_ext=extension,
         source_type=SourceTypeEnum.FILE.value,
         task_status={"global_status": TaskStatusEnum.PENDING.value},
         file_status=TaskStatusEnum.PENDING.value,
@@ -552,7 +559,7 @@ def add_file(filename, file_url, kb_id, ingestion_epoch=None):
         deleted=0,
     )
     kb_file_store = get_kb_file_store()
-    local_file_path = os.path.join(tempdir, file_id, filename)
+    local_file_path = os.path.join(work_dir, "document" + extension)
     try:
         guard.write(lambda: kb_file_store.add_file(kb_file))
         download_utils.download_file(file_url, local_file_path)
@@ -585,8 +592,9 @@ def add_file(filename, file_url, kb_id, ingestion_epoch=None):
         except IngestionCancelled:
             logger.info("忽略已删除文件的失败回写: file_id={}", file_id)
     finally:
-        if os.path.exists(local_file_path):
-            os.remove(local_file_path)
+        # Cleanup owns only the directory created by this task, including parser
+        # artifacts and partial downloads. Never remove a caller-selected path.
+        task_directory.cleanup()
 
 
 class AddFilesRequest(BaseModel):

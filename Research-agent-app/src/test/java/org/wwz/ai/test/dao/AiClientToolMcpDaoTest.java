@@ -5,7 +5,6 @@ import org.wwz.ai.infrastructure.dao.po.AiClientToolMcp;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit4.SpringRunner;
 
 import jakarta.annotation.Resource;
@@ -19,8 +18,7 @@ import java.util.List;
  */
 @Slf4j
 @RunWith(SpringRunner.class)
-@SpringBootTest
-public class AiClientToolMcpDaoTest {
+public class AiClientToolMcpDaoTest extends IsolatedDaoSupport {
 
     @Resource
     private IAiClientToolMcpDao aiClientToolMcpDao;
@@ -46,6 +44,9 @@ public class AiClientToolMcpDaoTest {
                 .build();
 
         int result = aiClientToolMcpDao.insert(aiClientToolMcp);
+        org.junit.Assert.assertEquals(1, result);
+        org.junit.Assert.assertNotNull(aiClientToolMcp.getId());
+        org.junit.Assert.assertNotNull(aiClientToolMcpDao.queryById(aiClientToolMcp.getId()));
         log.info("插入结果: {}, 生成ID: {}", result, aiClientToolMcp.getId());
     }
 
@@ -63,6 +64,9 @@ public class AiClientToolMcpDaoTest {
                 .build();
 
         int result = aiClientToolMcpDao.insert(aiClientToolMcp);
+        org.junit.Assert.assertEquals(1, result);
+        org.junit.Assert.assertNotNull(aiClientToolMcp.getId());
+        org.junit.Assert.assertNotNull(aiClientToolMcpDao.queryById(aiClientToolMcp.getId()));
         log.info("插入Streamable HTTP结果: {}, 生成ID: {}", result, aiClientToolMcp.getId());
     }
 

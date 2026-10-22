@@ -125,6 +125,18 @@ public class AgentContext {
     @JSONField(serialize = false)
     ToolCollection toolCollection;
 
+    @Builder.Default
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    @JSONField(serialize = false, deserialize = false)
+    Map<String,org.wwz.ai.domain.agent.runtime.tool.common.canvas.UiStreamGeneration> uiStreamGenerations = new ConcurrentHashMap<>();
+
+    @Builder.Default
+    @ToString.Exclude
+    @EqualsAndHashCode.Exclude
+    @JSONField(serialize = false, deserialize = false)
+    org.wwz.ai.domain.agent.runtime.tool.common.canvas.planner.UiPresentationSession uiPresentationSession = new org.wwz.ai.domain.agent.runtime.tool.common.canvas.planner.UiPresentationSession();
+
     /**
      * 主 Agent 的隐藏完整工具池，仅供 Agent 派发子 Agent 时筛选工具使用。
      */
@@ -436,11 +448,20 @@ public class AgentContext {
     }
 
     public void markTurnClosed() {
+        for(String callId:uiStreamGenerations.keySet())closeUiStreamGeneration(callId);
         if (turnClosed == null) {
             turnClosed = new AtomicBoolean(true);
             return;
         }
         turnClosed.set(true);
+    }
+
+    /** Dispatch rejection and run finalization must also release previews awaiting their tool. */
+    public void closeUiStreamGeneration(String callId) {
+        if(callId==null)return;
+        var generation=uiStreamGenerations.get(callId);
+        if(generation!=null)try {generation.stop(isRunCancelled()?"cancelled":"failed");}
+        catch(RuntimeException error) {log.warn("{} could not finalize UI generation: {}",requestId,error.getClass().getSimpleName());}
     }
 
     public boolean isTurnClosed() {

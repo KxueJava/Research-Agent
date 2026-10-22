@@ -17,14 +17,14 @@ import org.springframework.context.annotation.FilterType;
 public class ConfigProfileLoadingTest {
 
     @Test
-    public void shouldLoadMysqlDatasourcePropertiesFromDefaultConfigurationChain() {
+    public void shouldLoadDefaultDevConfigurationWithoutImplicitMysqlCredentials() {
         try (ConfigurableApplicationContext context = new SpringApplicationBuilder(ConfigProbeApplication.class)
                 .web(WebApplicationType.NONE)
-                .run("--spring.main.banner-mode=off")) {
-            Assert.assertEquals("dev", context.getEnvironment().getProperty("spring.profiles.active"));
-            Assert.assertEquals("com.mysql.cj.jdbc.Driver",
-                    context.getEnvironment().getProperty("spring.datasource.mysql.driver-class-name"));
-            Assert.assertNotNull(context.getEnvironment().getProperty("spring.datasource.mysql.url"));
+                .run("--spring.main.banner-mode=off", "--spring.profiles.active=")) {
+            Assert.assertEquals("dev", context.getEnvironment().getProperty("spring.profiles.default"));
+            Assert.assertArrayEquals(new String[]{"dev"}, context.getEnvironment().getDefaultProfiles());
+            Assert.assertEquals("none", context.getEnvironment().getProperty("spring.ai.model.chat"));
+            Assert.assertFalse(context.containsBean("mysqlDataSource"));
         }
     }
 

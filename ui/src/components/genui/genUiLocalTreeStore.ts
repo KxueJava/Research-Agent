@@ -17,15 +17,20 @@ type ScopeState = {
 
 const scopes = new Map<string, ScopeState>();
 const listeners = new Set<() => void>();
+const nodes = new Map<string,Map<string,unknown>>();
+let snapshot=0;
 
 function emit() {
+  snapshot++;
   listeners.forEach((l) => l());
 }
 
 export function genUiLocalScopeKey(
   sessionId?: string,
-  messageId?: string
+  messageId?: string,
+  surfaceId?: string
 ): string {
+  if (surfaceId) return JSON.stringify([sessionId || "session", surfaceId]);
   return `${sessionId || "session"}::${messageId || "message"}`;
 }
 
@@ -37,11 +42,26 @@ export function subscribeGenUiLocalTree(listener: () => void): () => void {
 }
 
 export function getGenUiLocalSnapshot(): number {
-  let total = 0;
-  scopes.forEach((s) => {
-    total += s.version;
-  });
-  return total;
+  return snapshot;
+}
+
+export const getNodeUiState=(scopeKey:string,nodeId:string):unknown=>nodes.get(scopeKey)?.get(nodeId);
+export const hasNodeUiState=(scopeKey:string,nodeId:string)=>nodes.get(scopeKey)?.has(nodeId)??false;
+export function recoverNodeUiState(scopeKey:string,allowed:Set<string>,saved:Record<string,unknown>){
+  const state=nodes.get(scopeKey)??new Map<string,unknown>();for(const id of allowed)state.set(id,Object.prototype.hasOwnProperty.call(saved,id)?saved[id]:undefined);nodes.set(scopeKey,state);emit();
+}
+export function setNodeUiState(scopeKey:string,nodeId:string,value:unknown){
+  if(!scopeKey||!nodeId||["__proto__","constructor","prototype"].includes(nodeId))return;
+  const state=nodes.get(scopeKey)??new Map<string,unknown>();
+  if(Object.is(state.get(nodeId),value)&&state.has(nodeId))return;
+  state.set(nodeId,value);nodes.set(scopeKey,state);emit();
+}
+export function belongsToGenUiSession(key:string,sessionId:string):boolean {
+  try{return JSON.parse(key)[0]===sessionId;}catch{return key.startsWith(`${sessionId}::`);}
+}
+export function clearLocalUiSession(sessionId:string){
+  for(const map of [scopes,nodes])for(const key of map.keys())if(belongsToGenUiSession(key,sessionId))map.delete(key);
+  emit();
 }
 
 export function getLocalUiPatches(scopeKey: string): LocalUiPatch[] {

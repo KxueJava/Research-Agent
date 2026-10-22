@@ -59,7 +59,8 @@ def log_setting():
 def create_app() -> FastAPI:
     # create_app 是 Uvicorn factory 边界：每个 worker 子进程独立创建 middleware 和
     # router，避免父进程共享请求态或把启动期副作用复制到错误的进程生命周期。
-    _app = FastAPI(on_startup=[log_setting])
+    from research_tool.db.db_engine import init_db
+    _app = FastAPI(on_startup=[log_setting, init_db])
 
     register_middleware(_app)
     register_router(_app)

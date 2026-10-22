@@ -1,0 +1,34 @@
+[
+  {
+    "appearance": "native",
+    "canvasCount": 0,
+    "cardBackground": "rgb(255, 255, 255)",
+    "dark": false,
+    "fieldColor": "oklch(0.15 0.01 60)",
+    "profileBackground": "rgb(247, 247, 248)"
+  },
+  {
+    "appearance": "native",
+    "canvasCount": 0,
+    "cardBackground": "oklch(0.15 0.012 75)",
+    "dark": true,
+    "fieldColor": "oklch(0.95 0.005 80)",
+    "profileBackground": "oklch(0.2 0.014 75)"
+  },
+  {
+    "appearance": "ocean",
+    "canvasCount": 1,
+    "cardBackground": "rgba(15, 48, 66, 0.34)",
+    "dark": true,
+    "fieldColor": "rgb(228, 244, 250)",
+    "profileBackground": "rgba(0, 0, 0, 0)"
+  },
+  {
+    "appearance": "ocean",
+    "canvasCount": 1,
+    "cardBackground": "rgba(206, 222, 227, 0.36)",
+    "dark": false,
+    "fieldColor": "rgb(32, 59, 73)",
+    "profileBackground": "rgba(0, 0, 0, 0)"
+  }
+]

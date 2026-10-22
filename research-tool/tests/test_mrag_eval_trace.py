@@ -148,7 +148,12 @@ class AgenticRagEvalTraceTest(unittest.TestCase):
         ) as collect_trace:
             result = list(agent.run("今天天气怎么样"))
 
-        self.assertEqual(["直接回答"], result)
+        self.assertEqual(["直接回答"], [chunk for chunk in result if isinstance(chunk, str)])
+        stages = [chunk for chunk in result if isinstance(chunk, dict)]
+        self.assertEqual(["task", "route", "answer", "final"], [chunk["stage"] for chunk in stages])
+        self.assertEqual("simple_llm", stages[1]["meta"]["mode"])
+        self.assertEqual("simple_llm", stages[-1]["meta"]["mode"])
+        self.assertEqual([False, False, False, True], [chunk["isFinal"] for chunk in stages])
         llm_answer.assert_called_once_with("今天天气怎么样")
         collect_trace.assert_not_called()
 
@@ -174,7 +179,12 @@ class AgenticRagEvalTraceTest(unittest.TestCase):
         ) as collect_trace:
             result = list(agent.run("这张图里是什么", image_urls=["http://img"]))
 
-        self.assertEqual(["图片直答"], result)
+        self.assertEqual(["图片直答"], [chunk for chunk in result if isinstance(chunk, str)])
+        stages = [chunk for chunk in result if isinstance(chunk, dict)]
+        self.assertEqual(["task", "route", "answer", "final"], [chunk["stage"] for chunk in stages])
+        self.assertEqual("simple_vlm", stages[1]["meta"]["mode"])
+        self.assertEqual("simple_vlm", stages[-1]["meta"]["mode"])
+        self.assertEqual([False, False, False, True], [chunk["isFinal"] for chunk in stages])
         vlm_answer.assert_called_once_with("这张图里是什么", ["http://img"])
         collect_trace.assert_not_called()
 

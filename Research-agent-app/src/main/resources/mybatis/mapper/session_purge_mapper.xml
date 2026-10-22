@@ -1,6 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="org.wwz.ai.infrastructure.dao.research.ISessionPurgeDao">
+    <insert id="rememberFileScopesBySessionId">
+        INSERT IGNORE INTO ai_agent_file_scope_tombstone(scope_id)
+        SELECT session_id FROM ai_agent_dialogue_session WHERE session_id=#{sessionId}
+        UNION SELECT request_id FROM ai_agent_dialogue_run WHERE session_id=#{sessionId}
+    </insert>
+    <delete id="deleteUiSurfaceEventsBySessionId">
+        DELETE FROM ai_agent_ui_surface_event WHERE session_id = #{sessionId}
+    </delete>
+    <delete id="deleteUiSurfacesBySessionId">
+        DELETE FROM ai_agent_ui_surface WHERE session_id = #{sessionId}
+    </delete>
 
     <!--
       会话硬删除：集中列出「删除一个会话」需要清理的全部表，便于审计。
@@ -16,6 +27,8 @@
         FROM ai_agent_dialogue_session
         WHERE session_id = #{sessionId}
           AND visitor_id = #{visitorId}
+          AND deleted = 0
+        FOR UPDATE
     </select>
 
     <!-- 仅按 run_id 关联的三张表：必须最先删 -->

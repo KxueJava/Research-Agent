@@ -412,6 +412,7 @@ export function mergeHtmlPreviewIntoToolCall(
       ...(previewUrl ? { previewUrl } : {}),
       ...(downloadUrl ? { downloadUrl } : {}),
       ...(primaryFileName ? { primaryFileName } : {}),
+      ...(isRecord(nested?.surface || htmlMap.surface) ? { surface: nested?.surface || htmlMap.surface } : {}),
     },
   };
 }

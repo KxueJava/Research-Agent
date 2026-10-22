@@ -1,0 +1,370 @@
+[
+  {
+    "size": "1440x900",
+    "view": "home",
+    "heading": "Let's research",
+    "rootWidth": 1440,
+    "sendOutside": false,
+    "sidebarWidth": 280,
+    "viewport": 1440
+  },
+  {
+    "size": "1440x900",
+    "view": "models",
+    "heading": "模型配置",
+    "rootWidth": 1440,
+    "sendOutside": false,
+    "sidebarWidth": 280,
+    "viewport": 1440
+  },
+  {
+    "size": "1440x900",
+    "view": "mrag",
+    "heading": "MRAG 智能问答工作台",
+    "rootWidth": 1440,
+    "sendOutside": false,
+    "sidebarWidth": 280,
+    "viewport": 1440
+  },
+  {
+    "size": "1440x900",
+    "view": "chat",
+    "heading": "AI 编程工具竞品调研",
+    "rootWidth": 1440,
+    "sendOutside": false,
+    "sidebarWidth": 280,
+    "viewport": 1440
+  },
+  {
+    "size": "1920x1080",
+    "view": "home",
+    "heading": "Let's research",
+    "rootWidth": 1920,
+    "sendOutside": false,
+    "sidebarWidth": 280,
+    "viewport": 1920
+  },
+  {
+    "size": "1920x1080",
+    "view": "models",
+    "heading": "模型配置",
+    "rootWidth": 1920,
+    "sendOutside": false,
+    "sidebarWidth": 280,
+    "viewport": 1920
+  },
+  {
+    "size": "1920x1080",
+    "view": "mrag",
+    "heading": "MRAG 智能问答工作台",
+    "rootWidth": 1920,
+    "sendOutside": false,
+    "sidebarWidth": 280,
+    "viewport": 1920
+  },
+  {
+    "size": "1920x1080",
+    "view": "chat",
+    "heading": "AI 编程工具竞品调研",
+    "rootWidth": 1920,
+    "sendOutside": false,
+    "sidebarWidth": 280,
+    "viewport": 1920
+  },
+  {
+    "size": "1024x768",
+    "view": "home",
+    "heading": "Let's research",
+    "rootWidth": 1024,
+    "sendOutside": false,
+    "sidebarWidth": 280,
+    "viewport": 1024
+  },
+  {
+    "size": "1024x768",
+    "view": "models",
+    "heading": "模型配置",
+    "rootWidth": 1024,
+    "sendOutside": false,
+    "sidebarWidth": 280,
+    "viewport": 1024
+  },
+  {
+    "size": "1024x768",
+    "view": "mrag",
+    "heading": "MRAG 智能问答工作台",
+    "rootWidth": 1024,
+    "sendOutside": false,
+    "sidebarWidth": 280,
+    "viewport": 1024
+  },
+  {
+    "size": "1024x768",
+    "view": "chat",
+    "heading": "AI 编程工具竞品调研",
+    "rootWidth": 1024,
+    "sendOutside": false,
+    "sidebarWidth": 280,
+    "viewport": 1024
+  },
+  {
+    "size": "390x844",
+    "view": "home",
+    "heading": "Let's research",
+    "rootWidth": 390,
+    "sendOutside": false,
+    "sidebarWidth": 280,
+    "viewport": 390
+  },
+  {
+    "size": "390x844",
+    "view": "models",
+    "heading": "模型配置",
+    "rootWidth": 390,
+    "sendOutside": false,
+    "sidebarWidth": 280,
+    "viewport": 390
+  },
+  {
+    "size": "390x844",
+    "view": "mrag",
+    "heading": "MRAG 智能问答工作台",
+    "rootWidth": 390,
+    "sendOutside": false,
+    "sidebarWidth": 280,
+    "viewport": 390
+  },
+  {
+    "size": "390x844",
+    "view": "chat",
+    "heading": "AI 编程工具竞品调研",
+    "rootWidth": 390,
+    "sendOutside": false,
+    "sidebarWidth": 280,
+    "viewport": 390
+  },
+  {
+    "size": "1440x900",
+    "view": "images",
+    "rendered": true,
+    "rootWidth": 1440,
+    "viewport": 1440
+  },
+  {
+    "size": "1440x900",
+    "view": "agents",
+    "rendered": true,
+    "rootWidth": 1440,
+    "viewport": 1440
+  },
+  {
+    "size": "1440x900",
+    "view": "capabilities",
+    "rendered": true,
+    "rootWidth": 1440,
+    "viewport": 1440
+  },
+  {
+    "size": "1440x900",
+    "view": "usage",
+    "rendered": true,
+    "rootWidth": 1440,
+    "viewport": 1440
+  },
+  {
+    "size": "1440x900",
+    "view": "featured",
+    "rendered": true,
+    "rootWidth": 1440,
+    "viewport": 1440
+  },
+  {
+    "size": "1440x900",
+    "view": "sop",
+    "rendered": true,
+    "rootWidth": 1440,
+    "viewport": 1440
+  },
+  {
+    "size": "1440x900",
+    "view": "profile",
+    "rendered": true,
+    "rootWidth": 1440,
+    "viewport": 1440
+  },
+  {
+    "size": "1440x900",
+    "view": "login",
+    "rendered": true,
+    "rootWidth": 1440,
+    "viewport": 1440
+  },
+  {
+    "size": "1920x1080",
+    "view": "images",
+    "rendered": true,
+    "rootWidth": 1920,
+    "viewport": 1920
+  },
+  {
+    "size": "1920x1080",
+    "view": "agents",
+    "rendered": true,
+    "rootWidth": 1920,
+    "viewport": 1920
+  },
+  {
+    "size": "1920x1080",
+    "view": "capabilities",
+    "rendered": true,
+    "rootWidth": 1920,
+    "viewport": 1920
+  },
+  {
+    "size": "1920x1080",
+    "view": "usage",
+    "rendered": true,
+    "rootWidth": 1920,
+    "viewport": 1920
+  },
+  {
+    "size": "1920x1080",
+    "view": "featured",
+    "rendered": true,
+    "rootWidth": 1920,
+    "viewport": 1920
+  },
+  {
+    "size": "1920x1080",
+    "view": "sop",
+    "rendered": true,
+    "rootWidth": 1920,
+    "viewport": 1920
+  },
+  {
+    "size": "1920x1080",
+    "view": "profile",
+    "rendered": true,
+    "rootWidth": 1920,
+    "viewport": 1920
+  },
+  {
+    "size": "1920x1080",
+    "view": "login",
+    "rendered": true,
+    "rootWidth": 1920,
+    "viewport": 1920
+  },
+  {
+    "size": "1024x768",
+    "view": "images",
+    "rendered": true,
+    "rootWidth": 1024,
+    "viewport": 1024
+  },
+  {
+    "size": "1024x768",
+    "view": "agents",
+    "rendered": true,
+    "rootWidth": 1024,
+    "viewport": 1024
+  },
+  {
+    "size": "1024x768",
+    "view": "capabilities",
+    "rendered": true,
+    "rootWidth": 1024,
+    "viewport": 1024
+  },
+  {
+    "size": "1024x768",
+    "view": "usage",
+    "rendered": true,
+    "rootWidth": 1024,
+    "viewport": 1024
+  },
+  {
+    "size": "1024x768",
+    "view": "featured",
+    "rendered": true,
+    "rootWidth": 1024,
+    "viewport": 1024
+  },
+  {
+    "size": "1024x768",
+    "view": "sop",
+    "rendered": true,
+    "rootWidth": 1024,
+    "viewport": 1024
+  },
+  {
+    "size": "1024x768",
+    "view": "profile",
+    "rendered": true,
+    "rootWidth": 1024,
+    "viewport": 1024
+  },
+  {
+    "size": "1024x768",
+    "view": "login",
+    "rendered": true,
+    "rootWidth": 1024,
+    "viewport": 1024
+  },
+  {
+    "size": "390x844",
+    "view": "images",
+    "rendered": true,
+    "rootWidth": 390,
+    "viewport": 390
+  },
+  {
+    "size": "390x844",
+    "view": "agents",
+    "rendered": true,
+    "rootWidth": 390,
+    "viewport": 390
+  },
+  {
+    "size": "390x844",
+    "view": "capabilities",
+    "rendered": true,
+    "rootWidth": 390,
+    "viewport": 390
+  },
+  {
+    "size": "390x844",
+    "view": "usage",
+    "rendered": true,
+    "rootWidth": 390,
+    "viewport": 390
+  },
+  {
+    "size": "390x844",
+    "view": "featured",
+    "rendered": true,
+    "rootWidth": 390,
+    "viewport": 390
+  },
+  {
+    "size": "390x844",
+    "view": "sop",
+    "rendered": true,
+    "rootWidth": 390,
+    "viewport": 390
+  },
+  {
+    "size": "390x844",
+    "view": "profile",
+    "rendered": true,
+    "rootWidth": 390,
+    "viewport": 390
+  },
+  {
+    "size": "390x844",
+    "view": "login",
+    "rendered": true,
+    "rootWidth": 390,
+    "viewport": 390
+  }
+]

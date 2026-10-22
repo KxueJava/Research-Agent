@@ -5,7 +5,6 @@ import org.wwz.ai.infrastructure.dao.po.AiClientApi;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit4.SpringRunner;
 
 import jakarta.annotation.Resource;
@@ -19,8 +18,7 @@ import java.util.List;
  */
 @Slf4j
 @RunWith(SpringRunner.class)
-@SpringBootTest
-public class AiClientApiDaoTest {
+public class AiClientApiDaoTest extends IsolatedDaoSupport {
 
     @Resource
     private IAiClientApiDao aiClientApiDao;
@@ -39,6 +37,9 @@ public class AiClientApiDaoTest {
                 .build();
 
         int result = aiClientApiDao.insert(aiClientApi);
+        org.junit.Assert.assertEquals(1, result);
+        org.junit.Assert.assertNotNull(aiClientApi.getId());
+        org.junit.Assert.assertNotNull(aiClientApiDao.queryById(aiClientApi.getId()));
         log.info("插入结果: {}, 生成ID: {}", result, aiClientApi.getId());
     }
 

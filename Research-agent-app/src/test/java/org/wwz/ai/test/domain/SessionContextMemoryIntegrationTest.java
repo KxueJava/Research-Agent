@@ -39,8 +39,8 @@ public class SessionContextMemoryIntegrationTest {
         Mockito.when(handler.apply(Mockito.any(AgentRequest.class), Mockito.any()))
                 .thenAnswer(invocation -> {
                     AgentRequest request = invocation.getArgument(0);
-                    Assert.assertTrue(request.getHistoryDialogue().contains("历史 thought from react"));
-                    Assert.assertTrue(request.getHistoryDialogue().contains("### Run req-react-history-001"));
+                    Assert.assertTrue(com.alibaba.fastjson.JSON.toJSONString(request.getWorkingMemoryMessages()).contains("历史 thought from react"));
+                    Assert.assertEquals("", request.getHistoryDialogue());
                     return "ok";
                 });
 
@@ -49,8 +49,9 @@ public class SessionContextMemoryIntegrationTest {
 
         ReactAgentExecuteStrategy strategy = new ReactAgentExecuteStrategy();
         ReflectionTestUtils.setField(strategy, "defaultReactAgentExecuteStrategyFactory", factory);
-        ReflectionTestUtils.setField(strategy, "researchConfig", new ResearchConfig());
+        ReflectionTestUtils.setField(strategy, "activeAgentRunRegistry", Mockito.mock(org.wwz.ai.domain.agent.runtime.cancel.ActiveAgentRunRegistry.class));
         ReflectionTestUtils.setField(strategy, "sessionContextMemoryService", memoryService);
+        ReflectionTestUtils.setField(strategy, "activeAgentRunRegistry", Mockito.mock(org.wwz.ai.domain.agent.runtime.cancel.ActiveAgentRunRegistry.class));
 
         AgentRequest request = AgentRequest.builder()
                 .requestId("req-react-current-001")
@@ -60,7 +61,7 @@ public class SessionContextMemoryIntegrationTest {
         AgentSessionStream stream = Mockito.mock(AgentSessionStream.class);
         strategy.execute(request, stream);
 
-        Assert.assertTrue(request.getHistoryDialogue().contains("历史 thought from react"));
+        Assert.assertTrue(com.alibaba.fastjson.JSON.toJSONString(request.getWorkingMemoryMessages()).contains("历史 thought from react"));
         Mockito.verify(stream, Mockito.never()).send(Mockito.any());
     }
 
@@ -81,8 +82,8 @@ public class SessionContextMemoryIntegrationTest {
         Mockito.when(handler.apply(Mockito.any(AgentRequest.class), Mockito.any()))
                 .thenAnswer(invocation -> {
                     AgentRequest request = invocation.getArgument(0);
-                    Assert.assertTrue(request.getHistoryDialogue().contains("历史 thought from plan"));
-                    Assert.assertTrue(request.getHistoryDialogue().contains("### Run req-plan-history-001"));
+                    Assert.assertTrue(com.alibaba.fastjson.JSON.toJSONString(request.getWorkingMemoryMessages()).contains("历史 thought from plan"));
+                    Assert.assertEquals("", request.getHistoryDialogue());
                     return "ok";
                 });
 
@@ -92,6 +93,7 @@ public class SessionContextMemoryIntegrationTest {
         PlanSolveAgentExecuteStrategy strategy = new PlanSolveAgentExecuteStrategy();
         ReflectionTestUtils.setField(strategy, "defaultPlanSolveAgentExecuteStrategyFactory", factory);
         ReflectionTestUtils.setField(strategy, "sessionContextMemoryService", memoryService);
+        ReflectionTestUtils.setField(strategy, "activeAgentRunRegistry", Mockito.mock(org.wwz.ai.domain.agent.runtime.cancel.ActiveAgentRunRegistry.class));
 
         AgentRequest request = AgentRequest.builder()
                 .requestId("req-plan-current-001")
@@ -101,7 +103,7 @@ public class SessionContextMemoryIntegrationTest {
         AgentSessionStream stream = Mockito.mock(AgentSessionStream.class);
         strategy.execute(request, stream);
 
-        Assert.assertTrue(request.getHistoryDialogue().contains("历史 thought from plan"));
+        Assert.assertTrue(com.alibaba.fastjson.JSON.toJSONString(request.getWorkingMemoryMessages()).contains("历史 thought from plan"));
         Mockito.verify(stream, Mockito.never()).send(Mockito.any());
     }
 
@@ -124,7 +126,7 @@ public class SessionContextMemoryIntegrationTest {
 
         ReactAgentExecuteStrategy strategy = new ReactAgentExecuteStrategy();
         ReflectionTestUtils.setField(strategy, "defaultReactAgentExecuteStrategyFactory", factory);
-        ReflectionTestUtils.setField(strategy, "researchConfig", new ResearchConfig());
+        ReflectionTestUtils.setField(strategy, "activeAgentRunRegistry", Mockito.mock(org.wwz.ai.domain.agent.runtime.cancel.ActiveAgentRunRegistry.class));
         ReflectionTestUtils.setField(strategy, "sessionContextMemoryService", Mockito.mock(org.wwz.ai.domain.agent.memory.SessionContextMemoryService.class));
 
         AgentRequest request = AgentRequest.builder()

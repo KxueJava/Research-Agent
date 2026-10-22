@@ -122,7 +122,16 @@ def download(file_url, save_path):
     extension = get_file_extension(file_url)
     file_name = save_path + extension
     try:
-        request.urlretrieve(file_url, file_name)
+        from research_tool.api.knowledge_download import knowledge_download_headers
+        headers=knowledge_download_headers(file_url)
+        if headers:
+            import requests
+            with requests.get(file_url,headers=headers,timeout=60,allow_redirects=False) as response:
+                response.raise_for_status()
+                with open(file_name,"wb") as output:
+                    output.write(response.content)
+        else:
+            request.urlretrieve(file_url, file_name)
         logger.info("文件下载完成,地址:{}".format(save_path))
         return "success", save_path
     except:
@@ -198,7 +207,7 @@ def download_file(bucket_name: str, object_key: str, token: str):
         raise HTTPException(status_code=500, detail="服务器内部错误")
 
 
-def upload_local_storage(file_path: str, file_id: str=None):
+def upload_local_storage(file_path: str, file_id: str=None, kb_id: str=None):
     import mimetypes
     import requests
     import uuid
@@ -242,14 +251,18 @@ def upload_local_storage(file_path: str, file_id: str=None):
         content_type = get_content_type(local_file_path)
 
         with open(local_file_path, "rb") as f:
-            data = {"requestId": uuid.uuid4().hex}
+            data = {"requestId": file_id}
+            if kb_id:
+                data.update({"kbId":kb_id,"documentId":file_id})
 
             response = requests.post(
                 "http://127.0.0.1:1601/v1/file_tool/upload_file_data",
                 files={
                     "file": (file_name, f, content_type)
                 },
-                data=data
+                data=data,
+                headers={"X-Research-File-Service":os.environ.get("RESEARCH_FILE_SERVICE_TOKEN", "")},
+                timeout=60,
             )
         if response.status_code != 200:
             raise Exception(f"Failed to upload file: {response.text}")

@@ -10,6 +10,7 @@ import org.wwz.ai.domain.agent.ledger.model.tooloutput.GenUiPatchToolOutput;
 import org.wwz.ai.domain.agent.research.model.multi.EventResult;
 import org.wwz.ai.domain.agent.runtime.tool.common.canvas.CanvasToolNames;
 import org.wwz.ai.domain.agent.runtime.tool.common.canvas.GenUiSchema;
+import org.wwz.ai.domain.agent.runtime.tool.common.canvas.UiSurfaceDocument;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -55,6 +56,10 @@ public class GenUiPatchToolInvocationProjector extends AbstractToolInvocationPro
         }
 
         Map<String, Object> resultMap = new LinkedHashMap<>();
+        if (output != null && output.getSurface() != null) {
+            resultMap.put("surface",UiSurfaceDocument.metadata(output.getSurface()));
+            resultMap.put("snapshot",output.getSnapshot());
+        }
         resultMap.put("isFinal", true);
         if (patches != null) {
             resultMap.put("patches", patches);

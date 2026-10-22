@@ -27,7 +27,7 @@ public final class GenUiGuidePayload {
                 "kind must match list_ui_components exactly (PascalCase).",
                 "emit_ui_tree args: {tree, optional canvas_id}. Prefer tree as nested JSON object.",
                 "emit_ui_patch: {patches:[{op,path,value?}], optional seq, canvas_id}. Paths are RFC6901 into the tree.",
-                "Interactive (in-UI first): props.action = {type, payload}. Types: patch_ui|submit_form|open_url|navigate|send_message.",
+                "Interactive (in-UI first): props.action = {type, payload}. Types: patch_ui|set_state|submit_form|remote_action|open_url|navigate|send_message.",
                 "Default: keep interaction inside GenUI. Prefer patch_ui for local UI updates (tabs, toggles, counters, visibility).",
                 "patch_ui payload: {patches:[{op,path,value?}]} — applied client-side on the current tree; no chat turn.",
                 "submit_form: wrap fields in Form; each field needs props.name; values stay in-UI (not sent as chat).",
@@ -42,7 +42,29 @@ public final class GenUiGuidePayload {
                 "5. For clickable controls, set Button props.action to patch_ui (local) or send_message (needs Agent).",
                 "6. NEVER use canvas_publish for a simple pie/bar/line chart — Chart kind renders interactive ECharts."
         ));
+        guide.put("local_resources_and_computation",List.of(
+                "Use stable nodeId on every interactive field. State is isolated by sessionId/surfaceId/nodeId; no Agent run is started for local filters/sort/selection/calculation.",
+                "FileInput props {resourceId:'sales',numericColumns:['quantity','unit_price','revenue'],label:'Import CSV'} opens a real CSV upload. Success registers immutable {id,version,source,collectedAt,columns,rows}; upload failure preserves previous data. Old FileInput without resourceId remains a path field.",
+                "Chart/Table/Stat props.dataRef: {id:'sales',optional version,filters:[{column:'month',op:'eq',value:{fromNode:'month-filter'}}],sort:{fromNode:'sort-control'},column:'revenue',groupBy:'product',aggregate:'sum',money:true,selectionNodeId:'sales-selection'}. Select options can be strings or {label,value}; sort-control values are column:asc or column:desc. Empty filter state means all rows.",
+                "Allowed filters: eq/neq/contains/gt/gte/lt/lte/in. Aggregates: sum/avg/min/max/count. Table lists the same filtered version as Chart; row selection and chart clicks share selectionNodeId. A Stat with selectedOnly:true aggregates only selected rows. Missing resources/invalid queries show an error, never fabricated totals.",
+                "Stat props.computation {op:'split',amount:{fromNode:'amount'},people:{fromNode:'people'},optional tipPercent:{fromNode:'tip'},optional result:'shares'|'tip'|'total'} splits money in integer cents and distributes remainder. Tip is 0–100 percent (up to 6 decimal places), rounded half up to cents before splitting. Negative amount, zero/noninteger people and nonnumbers are explicit errors.",
+                "Stat props.computation {op:'expression',expression:'a / b',inputs:{a:{fromNode:'a'},b:{fromNode:'b'}}} uses the existing safe math parser; no JavaScript or eval.",
+                "Button props.action {type:'set_state',payload:{nodeId:'month-filter',value:''}} resets a local filter. Inline Chart series/categories and Table children remain supported. Resources/state are ephemeral and cleared on session exit; do not promise cross-reload persistence."
+        ));
+        guide.put("remote_actions",List.of(
+                "Remote execution requires a persisted Surface revision, a stable component nodeId, and props.remoteAction:{id:'analyze',capability:'sales_analysis',sourceFile:'sales.csv',targetId:'results'}. The target is a Card on the same Surface. Never supply tool names, permissions, URLs or targetPath in action payloads.",
+                "Button props.action:{type:'remote_action',payload:{actionId:'analyze'}} submits current form values. Alternatively put remoteAction on Form; its submit button uses Form nodeId. Supported sales_analysis payload: optional month in YYYY-MM format; do not include unrelated form fields.",
+                "sales_analysis reads the real uploaded sourceFile from the current session, requires explicit approval, computes decimal totals and publishes Chart/Table/Stat resources into targetId. Only registered capabilities are executable. Approval expires after five minutes; rejection, errors and cancellation are visible execution states.",
+                "The client creates idempotency keys, queries durable execution records after reconnect/timeout, and updates the original Surface. A cancel request during an external write does not prove rollback. Explicit 'Continue with Agent' starts a normal chat turn with the persisted result summary; restoring a record never starts another Agent run."
+        ));
+        guide.put("intelligent_maps",List.of(
+                "For place search and routes use search_places, geocode_places, plan_route and modify_itinerary. They use actual AMap data and publish MapWidget using the existing Surface/SSE protocol. Do not manually draw a route in HTML or fabricate mapData, coordinates, distance or duration.",
+                "Search with the user's explicit city/context. If ambiguous, show candidates or ask. Pass 2–10 stable provider placeIds in explicit order to plan_route, title and travelMode walking|driving. Do not infer current location or automatically reorder user's stops. Service availability and permissions are checked by the provider.",
+                "plan_route publishes a stable MapWidget Surface. Before modifying, call get_map with surfaceId/nodeId to read current baseRevision and ordered placeIds; UI actions can supersede versions in old chat messages. Then use modify_itinerary to change the same map. The UI supports local selection, viewport/theme/fullscreen, and authenticated remote itinerary edits. Keep old valid route on errors; never claim a missing API permission was a successful plan.",
+                "GCJ-02 coordinates are provider-native [longitude,latitude], not WGS-84 GeoJSON. No default city or hardcoded route exists. Photos/ratings are optional and never invented."
+        ));
         guide.put("canvas_routing", List.of(
+                "Places / itinerary / walking or driving road routes → search_places then plan_route (MapWidget).",
                 "Prose / Q&A / bullets → markdown (no tools).",
                 "Charts / KPI / dashboards / multi-card / data grids → emit_ui_tree.",
                 "Teaching / formula demos with drag sliders (Pythagoras, circle, functions) → ParametricLab or PythagorasLab (NOT a static chart).",

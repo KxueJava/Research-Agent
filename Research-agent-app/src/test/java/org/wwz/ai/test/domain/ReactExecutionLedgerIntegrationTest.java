@@ -140,7 +140,9 @@ public class ReactExecutionLedgerIntegrationTest {
         Assert.assertFalse(historyFrames.isEmpty());
         Assert.assertEquals("plan_thought", eventMessageType(historyFrames.get(0)));
         Assert.assertEquals("plan_thought", nestedMessageType(historyFrames.get(0)));
-        Assert.assertEquals(String.valueOf(llmInvocationId), nestedPlannerRoundId(historyFrames.get(0)));
+        // A planning round identifies its linked planning tool, not an unrelated LLM row.
+        // This fixture has no planning tool, so history must not invent a round identifier.
+        Assert.assertNull(nestedPlannerRoundId(historyFrames.get(0)));
     }
 
     @SuppressWarnings("unchecked")

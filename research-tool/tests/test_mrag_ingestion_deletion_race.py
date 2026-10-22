@@ -193,5 +193,39 @@ class IngestionDeletionRaceTest(unittest.TestCase):
         self.assertIsNotNone(self.kbs.get_kb("kb-a"))
         lifecycle.guard("kb-a", "new-file").check()
 
+    def test_visual_upsert_result_controls_ingestion_status(self):
+        from PIL import Image
+        from research_tool.tool.mrag.enums.task_status_enums import TaskStatusEnum
+        asset = str(Path(self.temp.name) / "visual.png")
+        Image.new("RGB", (8, 8)).save(asset)
+        captured = []
+        for kind, success in (("image", False), ("page", False), ("image", True), ("page", True)):
+            with self.subTest(kind=kind, success=success):
+                self.vectors.add_image_chunks.return_value = success if kind == "image" else True
+                self.vectors.add_page_chunks.return_value = success if kind == "page" else True
+                def make_processor(kb, file_id, work, path, url, **kwargs):
+                    captured.append(file_id)
+                    obj = processor_module.DocumentProcessor.__new__(processor_module.DocumentProcessor)
+                    obj._kb_id = kb; obj._uid = file_id; obj._file_path = path
+                    obj._file_url = url; obj._filename = "demo.md"
+                    obj._ingestion_guard = kwargs["ingestion_guard"]
+                    obj._image_vector_enabled = True
+                    obj._vector_store = self.vectors
+                    obj._image_embedding = SimpleNamespace(encode_image_batch=lambda images: [[1.0] for _ in images])
+                    obj._parser = SimpleNamespace(parsed_text=lambda: "", images_dir=self.temp.name,
+                        pages_dir=self.temp.name, parsed_images=lambda: [asset] if kind == "image" else [],
+                        parsed_pages=lambda: [asset] if kind == "page" else [])
+                    obj._get_uploaded_asset_url = lambda *args: "https://offline.invalid/visual.png"
+                    obj._build_visual_text_chunks = lambda *args, **kwargs: []
+                    obj._lightrag_process = lambda: None
+                    return obj
+                with patch.object(document, "DocumentProcessor", make_processor), patch.object(
+                    document.download_utils, "download_file", lambda url, path: Path(path).write_text("body")):
+                    document.add_file("demo.md", "https://offline.invalid/demo", "kb-a")
+                record = self.files.get_file("kb-a", captured[-1])
+                self.assertEqual(TaskStatusEnum.SUCCESS.value if success else TaskStatusEnum.FAILED.value, record.file_status)
+                if not success:
+                    self.assertIn(kind, record.task_status["error_message"])
+
 
 if __name__ == "__main__": unittest.main()

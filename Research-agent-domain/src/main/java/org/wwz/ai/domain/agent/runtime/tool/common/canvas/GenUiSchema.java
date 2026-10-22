@@ -174,6 +174,7 @@ public final class GenUiSchema {
         liftAlias(props, "imageUrl", "src");
         liftAlias(props, "href", "url");
         out.put("props", props);
+        if("MapWidget".equals(kind))org.wwz.ai.domain.agent.runtime.tool.common.canvas.maps.MapData.parse(props.get("mapData"));
 
         List<Map<String, Object>> children = new ArrayList<>();
         if (node.get("children") instanceof List<?> list) {

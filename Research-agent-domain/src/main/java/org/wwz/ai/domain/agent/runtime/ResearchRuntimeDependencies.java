@@ -84,6 +84,10 @@ public class ResearchRuntimeDependencies {
     /** 可选：会话 Todo / 后台任务持久化 */
     TasklistPersistencePort tasklistPersistencePort;
 
+    org.wwz.ai.domain.agent.runtime.tool.common.canvas.UiSurfaceStore uiSurfaceStore;
+    org.wwz.ai.domain.agent.runtime.tool.common.canvas.UiActionService uiActionService;
+    org.wwz.ai.domain.agent.runtime.tool.common.canvas.maps.MapService mapService;
+
     public ResearchConfig requireResearchConfig() {
         return Objects.requireNonNull(researchConfig, "ResearchConfig must not be null");
     }

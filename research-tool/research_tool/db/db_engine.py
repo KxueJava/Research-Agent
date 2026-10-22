@@ -46,6 +46,15 @@ def init_db():
     """根据 SQLModel 元数据创建表（幂等）。"""
     from research_tool.db.file_table import FileInfo  # noqa: F401 — 触发表注册
     SQLModel.metadata.create_all(engine)
+    from sqlalchemy import inspect, text
+    if "resource_kind" not in {c["name"] for c in inspect(engine).get_columns("fileinfo")}:
+        try:
+            with engine.begin() as connection:
+                connection.execute(text("ALTER TABLE fileinfo ADD COLUMN resource_kind VARCHAR NOT NULL DEFAULT 'legacy'"))
+        except Exception:
+            # Another worker can finish this additive migration while we wait for SQLite's lock.
+            if "resource_kind" not in {c["name"] for c in inspect(engine).get_columns("fileinfo")}:
+                raise
     logger.info(f"DB init done")
 
 

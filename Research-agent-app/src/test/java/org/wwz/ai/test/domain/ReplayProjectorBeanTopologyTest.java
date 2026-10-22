@@ -82,6 +82,13 @@ public class ReplayProjectorBeanTopologyTest {
     @Configuration
     static class TestDependencyConfiguration {
 
+        @Bean public org.wwz.ai.domain.agent.runtime.askuser.IUserQuestionRepository userQuestions() {return Mockito.mock(org.wwz.ai.domain.agent.runtime.askuser.IUserQuestionRepository.class);}
+        @Bean public org.wwz.ai.domain.agent.runtime.llm.LlmModelCatalog models() {return Mockito.mock(org.wwz.ai.domain.agent.runtime.llm.LlmModelCatalog.class);}
+        @Bean public org.wwz.ai.application.agent.visitor.ConversationSessionOwnershipApplicationService ownership() {return Mockito.mock(org.wwz.ai.application.agent.visitor.ConversationSessionOwnershipApplicationService.class);}
+        @Bean public org.wwz.ai.domain.agent.ledger.ConversationSessionPurgeService purge() {return Mockito.mock(org.wwz.ai.domain.agent.ledger.ConversationSessionPurgeService.class);}
+        @Bean public org.wwz.ai.domain.agent.ledger.ConversationSessionPinService pin() {return Mockito.mock(org.wwz.ai.domain.agent.ledger.ConversationSessionPinService.class);}
+        @Bean public org.wwz.ai.domain.agent.ledger.ConversationWorkspaceCleaner cleaner() {return Mockito.mock(org.wwz.ai.domain.agent.ledger.ConversationWorkspaceCleaner.class);}
+
         @Bean
         public IDialogueRunLedgerDao dialogueRunLedgerDao() {
             return Mockito.mock(IDialogueRunLedgerDao.class);

@@ -15,8 +15,8 @@ import java.util.List;
 public class ResearchPersistenceBoundaryTest {
 
     private static final Path PROJECT_ROOT = resolveProjectRoot();
-    private static final Path DOMAIN_ROOT = PROJECT_ROOT.resolve("ai-agent-station-study-domain/src/main/java");
-    private static final Path MAPPER_ROOT = PROJECT_ROOT.resolve("ai-agent-station-study-app/src/main/resources/mybatis/mapper");
+    private static final Path DOMAIN_ROOT = PROJECT_ROOT.resolve("Research-agent-domain/src/main/java");
+    private static final Path MAPPER_ROOT = PROJECT_ROOT.resolve("Research-agent-app/src/main/resources/mybatis/mapper");
 
     @Test
     public void shouldRemoveResearchMapperOwnershipFromDomain() throws Exception {
@@ -65,9 +65,9 @@ public class ResearchPersistenceBoundaryTest {
     private static Path resolveProjectRoot() {
         Path current = Path.of("").toAbsolutePath();
         while (current != null) {
-            if (Files.exists(current.resolve("ai-agent-station-study-domain"))
-                    && Files.exists(current.resolve("ai-agent-station-study-infrastructure"))
-                    && Files.exists(current.resolve("ai-agent-station-study-app"))) {
+            if (Files.exists(current.resolve("Research-agent-domain"))
+                    && Files.exists(current.resolve("Research-agent-infrastructure"))
+                    && Files.exists(current.resolve("Research-agent-app"))) {
                 return current;
             }
             current = current.getParent();

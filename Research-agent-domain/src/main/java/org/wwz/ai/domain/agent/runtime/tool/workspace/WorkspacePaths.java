@@ -33,6 +33,18 @@ public final class WorkspacePaths {
                 return cursor.normalize();
             }
         }
+        // Checkout names are user-defined. A classpath anchor also finds a checkout
+        // when user.dir points to its parent and that parent has a research-tool folder.
+        try {
+            Path anchor = Path.of(WorkspacePaths.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+            for (Path cursor = anchor; cursor != null; cursor = cursor.getParent()) {
+                if (isMonorepoRoot(cursor)) {
+                    return cursor.normalize();
+                }
+            }
+        } catch (java.net.URISyntaxException | java.nio.file.FileSystemNotFoundException | IllegalArgumentException ignored) {
+            // Packaged/non-file classpaths still use the explicit working-directory fallback.
+        }
         for (Path cursor = start; cursor != null; cursor = cursor.getParent()) {
             if (Files.isDirectory(cursor.resolve(RESEARCH_TOOL))) {
                 return cursor.normalize();

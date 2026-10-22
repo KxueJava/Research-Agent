@@ -40,8 +40,8 @@
 .reasoning-track input::-webkit-slider-thumb{appearance:none;-webkit-appearance:none;width:28px;height:28px;border:0;background:transparent;opacity:0}
 .reasoning-track input::-moz-range-thumb{width:28px;height:28px;border:0;background:transparent;opacity:0}
 
-.reasoning-ultra{--reasoning-accent:#9b35dc;color:#8a2bbe!important}
-.dark .reasoning-ultra{color:#c45bff!important}
+.reasoning-ultra,.reasoning-trigger.reasoning-ultra>span,.reasoning-trigger.reasoning-ultra>svg{--reasoning-accent:#9b35dc;color:#8a2bbe!important}
+.dark .reasoning-ultra,.dark .reasoning-trigger.reasoning-ultra>span,.dark .reasoning-trigger.reasoning-ultra>svg{color:#c45bff!important}
 .reasoning-ultra .reasoning-fill{background:linear-gradient(100deg,#493bd5,#9150ed 38%,#cd6aff 64%,#7244db);background-size:180% 100%;animation:reasoning-flow 5s ease-in-out infinite}
 .reasoning-ultra .reasoning-fill:after{content:"";position:absolute;inset:0;background:radial-gradient(circle at 8% 64%,#fff9 0 1px,transparent 2px),radial-gradient(circle at 17% 32%,#fff8 0 1.5px,transparent 2.5px),radial-gradient(circle at 34% 58%,#fffb 0 1px,transparent 2px),radial-gradient(circle at 47% 39%,#fffa 0 1.5px,transparent 2.5px),radial-gradient(circle at 62% 72%,#fff9 0 1px,transparent 2px),radial-gradient(circle at 75% 38%,#fffc 0 2px,transparent 3px);animation:reasoning-stars 3.5s ease-in-out infinite}
 .reasoning-ultra .reasoning-stops i.active{background:#e6c7ff}

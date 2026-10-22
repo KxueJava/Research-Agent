@@ -20,7 +20,8 @@ $PidFile = Join-Path $ScriptDir ".dev-pids.json"
 $targets = @(
     [pscustomobject]@{ Port = 1601; Label = "research-tool" },
     [pscustomobject]@{ Port = 8101; Label = "backend" },
-    [pscustomobject]@{ Port = 3001; Label = "frontend" }
+    [pscustomobject]@{ Port = 3001; Label = "frontend" },
+    [pscustomobject]@{ Port = 8931; Label = "browser-mcp" }
 )
 
 function Write-Line {
@@ -44,6 +45,10 @@ foreach ($target in $targets) {
 
     $looksLikeOurs = $name -in @("java.exe", "python.exe", "node.exe") -or
         $commandLine -match "Research-agent-app|research-tool|server\.py|vite"
+    if ($target.Port -eq 8931) {
+        $browserCliPath = Join-Path $ScriptDir "browser-mcp/node_modules/@playwright/mcp/cli.js"
+        $looksLikeOurs = $name -eq "node.exe" -and $commandLine -like "*$browserCliPath*"
+    }
     if (-not $looksLikeOurs) {
         Write-Line ("  {0,-15} {1,-6} 跳过：被非本项目进程占用（{2} PID={3}）" -f `
                 $target.Label, $target.Port, $name, $conn.OwningProcess) "Yellow"

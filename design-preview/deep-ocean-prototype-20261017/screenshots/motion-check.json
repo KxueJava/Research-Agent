@@ -1,0 +1,146 @@
+[
+  {
+    "fallback": false,
+    "paused": false,
+    "rendererCount": 1,
+    "frames": 11,
+    "elapsedSeconds": 0.42,
+    "quality": "auto"
+  },
+  {
+    "fallback": false,
+    "paused": false,
+    "rendererCount": 1,
+    "frames": 14,
+    "elapsedSeconds": 0.53,
+    "quality": "auto"
+  },
+  {
+    "fallback": false,
+    "paused": false,
+    "rendererCount": 1,
+    "frames": 16,
+    "elapsedSeconds": 0.61,
+    "quality": "auto"
+  },
+  {
+    "fallback": false,
+    "paused": false,
+    "rendererCount": 1,
+    "frames": 19,
+    "elapsedSeconds": 0.72,
+    "quality": "auto"
+  },
+  {
+    "fallback": false,
+    "paused": false,
+    "rendererCount": 1,
+    "frames": 22,
+    "elapsedSeconds": 0.83,
+    "quality": "auto"
+  },
+  {
+    "fallback": false,
+    "paused": false,
+    "rendererCount": 1,
+    "frames": 24,
+    "elapsedSeconds": 0.9,
+    "quality": "auto"
+  },
+  {
+    "fallback": false,
+    "paused": false,
+    "rendererCount": 1,
+    "frames": 27,
+    "elapsedSeconds": 1.01,
+    "quality": "auto"
+  },
+  {
+    "fallback": false,
+    "paused": false,
+    "rendererCount": 1,
+    "frames": 30,
+    "elapsedSeconds": 1.12,
+    "quality": "auto"
+  },
+  {
+    "fallback": false,
+    "paused": false,
+    "rendererCount": 1,
+    "frames": 32,
+    "elapsedSeconds": 1.19,
+    "quality": "auto"
+  },
+  {
+    "fallback": false,
+    "paused": false,
+    "rendererCount": 1,
+    "frames": 34,
+    "elapsedSeconds": 1.27,
+    "quality": "auto"
+  },
+  {
+    "fallback": false,
+    "paused": false,
+    "rendererCount": 1,
+    "frames": 37,
+    "elapsedSeconds": 1.38,
+    "quality": "auto"
+  },
+  {
+    "fallback": false,
+    "paused": false,
+    "rendererCount": 1,
+    "frames": 39,
+    "elapsedSeconds": 1.45,
+    "quality": "auto"
+  },
+  {
+    "fallback": false,
+    "paused": false,
+    "rendererCount": 1,
+    "frames": 43,
+    "elapsedSeconds": 1.6,
+    "quality": "auto"
+  },
+  {
+    "fallback": false,
+    "paused": false,
+    "rendererCount": 1,
+    "frames": 46,
+    "elapsedSeconds": 1.7,
+    "quality": "auto"
+  },
+  {
+    "fallback": false,
+    "paused": false,
+    "rendererCount": 1,
+    "frames": 49,
+    "elapsedSeconds": 1.82,
+    "quality": "auto"
+  },
+  {
+    "fallback": false,
+    "paused": false,
+    "rendererCount": 1,
+    "frames": 53,
+    "elapsedSeconds": 1.97,
+    "quality": "auto"
+  },
+  {
+    "fallback": false,
+    "paused": false,
+    "rendererCount": 1,
+    "frames": 55,
+    "elapsedSeconds": 2.04,
+    "quality": "auto"
+  },
+  {
+    "fallback": false,
+    "paused": false,
+    "rendererCount": 1,
+    "frames": 58,
+    "elapsedSeconds": 2.17,
+    "quality": "auto"
+  }
+]

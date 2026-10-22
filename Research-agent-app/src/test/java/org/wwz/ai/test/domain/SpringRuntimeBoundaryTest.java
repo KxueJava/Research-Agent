@@ -18,7 +18,7 @@ public class SpringRuntimeBoundaryTest {
 
     private static final Path PROJECT_ROOT = resolveProjectRoot();
     private static final Path DOMAIN_JAVA_DIR = PROJECT_ROOT
-            .resolve("ai-agent-station-study-domain")
+            .resolve("Research-agent-domain")
             .resolve("src")
             .resolve("main")
             .resolve("java");
@@ -88,19 +88,19 @@ public class SpringRuntimeBoundaryTest {
     @Test
     public void shouldKeepLegacyExecuteAndArmoryPackagesInsideCaseAndDomainOnly() throws IOException {
         assertNoImportsFrom(
-                PROJECT_ROOT.resolve("ai-agent-station-study-trigger").resolve("src").resolve("main").resolve("java"),
+                PROJECT_ROOT.resolve("Research-agent-trigger").resolve("src").resolve("main").resolve("java"),
                 "org.wwz.ai.domain.agent.service.execute.",
                 "org.wwz.ai.domain.agent.service.armory.",
                 "org.wwz.ai.domain.agent.service.runtime."
         );
         assertNoImportsFrom(
-                PROJECT_ROOT.resolve("ai-agent-station-study-app").resolve("src").resolve("main").resolve("java"),
+                PROJECT_ROOT.resolve("Research-agent-app").resolve("src").resolve("main").resolve("java"),
                 "org.wwz.ai.domain.agent.service.execute.",
                 "org.wwz.ai.domain.agent.service.armory.",
                 "org.wwz.ai.domain.agent.service.runtime."
         );
         assertNoImportsFrom(
-                PROJECT_ROOT.resolve("ai-agent-station-study-infrastructure").resolve("src").resolve("main").resolve("java"),
+                PROJECT_ROOT.resolve("Research-agent-infrastructure").resolve("src").resolve("main").resolve("java"),
                 "org.wwz.ai.domain.agent.service.execute.",
                 "org.wwz.ai.domain.agent.service.armory.",
                 "org.wwz.ai.domain.agent.service.runtime."
@@ -167,8 +167,8 @@ public class SpringRuntimeBoundaryTest {
     private static Path resolveProjectRoot() {
         Path current = Path.of("").toAbsolutePath();
         while (current != null) {
-            if (Files.exists(current.resolve("ai-agent-station-study-domain"))
-                    && Files.exists(current.resolve("ai-agent-station-study-app"))) {
+            if (Files.exists(current.resolve("Research-agent-domain"))
+                    && Files.exists(current.resolve("Research-agent-app"))) {
                 return current;
             }
             current = current.getParent();

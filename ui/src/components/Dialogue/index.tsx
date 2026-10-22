@@ -1,4 +1,4 @@
-import { FC, useState, useCallback, useMemo, memo, useEffect, useRef, useSyncExternalStore } from "react";
+import { FC, useState, useCallback, useMemo, memo, useEffect, useRef } from "react";
 import AttachmentList from "@/components/AttachmentList";
 import { Message, MessageContent } from "@/components/ai-elements/message";
 import MarkdownRenderer from "@/components/ActionPanel/MarkdownRenderer";
@@ -11,21 +11,18 @@ import {
 import { PlanSection } from "./PlanSection";
 import { AgentStepTimeline } from "./AgentStepTimeline";
 import { MessageToolbar } from "./MessageToolbar";
-import GenUiInline from "@/components/genui/GenUiInline";
-import { findFeaturedGenUi } from "@/utils/chat/genuiState";
+import GenUiSurface from "@/components/genui/GenUiSurface";
+import { projectSessionSurfaces, type SessionSurface } from "@/utils/chat/surfaceProtocol";
 import { buildConversationTaskData } from "@/utils/chat";
-import { applyUiPatches } from "@/components/genui/applyUiPatch";
-import {
-  genUiLocalScopeKey,
-  getGenUiLocalSnapshot,
-  getLocalUiPatches,
-  getLocalUiVersion,
-  subscribeGenUiLocalTree,
-} from "@/components/genui/genUiLocalTreeStore";
 import ConclusionSection from "./ConclusionSection";
+import { equalDialogueProps } from "./dialogueMemo";
+import HtmlArtifact from "@/components/artifacts/HtmlArtifact";
+import type { HtmlArtifactDocument } from "@/utils/chat/htmlSurfaces";
 
 type Props = {
   chat: CHAT.ChatItem;
+  sessionSurfaces?: SessionSurface[] | null;
+  htmlSurfaces?: HtmlArtifactDocument[];
   streamingThought?: string;
   deepThink: boolean;
   /** 会话级产物；终答 Markdown 相对引用优先用此表，避免只认本轮 */
@@ -109,36 +106,9 @@ const DialogueComponent: FC<Props> = (props) => {
       ? `${planVersionIndex + 1}/${plannerRounds.length}`
       : undefined;
   const planIsHistoricalSnapshot = planVersionIndex < latestRoundIndex;
-  // multiAgent.tasks 原地 push/merge 时数组引用不变；必须以 chat 快照为依赖，
-  // 每次 Dialogue 因 chat 引用更新而渲染时重算 featured（含 emit_ui_patch 重放）。
-  const localGenUiTick = useSyncExternalStore(
-    subscribeGenUiLocalTree,
-    getGenUiLocalSnapshot,
-    getGenUiLocalSnapshot
-  );
-  const localScopeKey = genUiLocalScopeKey(chat.sessionId, chat.requestId);
-  const localVersion = getLocalUiVersion(localScopeKey);
-
-  const featuredGenUi = useMemo(() => {
-    const base = findFeaturedGenUi(chat.tasks, chat.multiAgent?.tasks);
-    if (!base) return null;
-    const localPatches = getLocalUiPatches(localScopeKey);
-    if (!localPatches.length) {
-      return {
-        ...base,
-        revision: `${base.revision}|loc0`,
-      };
-    }
-    const tree = applyUiPatches(base.tree, localPatches);
-    return {
-      ...base,
-      tree,
-      patchCount: base.patchCount + localPatches.length,
-      revision: `${base.revision}|loc${localVersion}:${localPatches.length}`,
-    };
-    // chat：流式 flush 会换新 chat 对象；localGenUiTick：客户端 patch_ui
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [chat, localGenUiTick, localScopeKey, localVersion]);
+  const genUiSurfaces = useMemo(() => props.sessionSurfaces === undefined
+    ? projectSessionSurfaces([chat]).get(chat.requestId) || []
+    : props.sessionSurfaces || [], [chat, props.sessionSurfaces]);
   const showStandaloneResponse =
     isReactType && !!chat.response && !chat.conclusion;
   const showProcessTimeline =
@@ -294,19 +264,10 @@ const DialogueComponent: FC<Props> = (props) => {
       ) : null}
 
       {/* GenUI：面向用户的可视化最终产物（过程之后、结论附近） */}
-      {featuredGenUi ? (
-        <div className="timeline-segment-enter mt-4 w-full max-w-[min(1080px,100%)]">
-          <GenUiInline
-            key={`genui-${chat.requestId}-${featuredGenUi.revision}`}
-            tree={featuredGenUi.tree}
-            patchCount={featuredGenUi.patchCount}
-            sessionId={chat.sessionId}
-            requestId={chat.requestId}
-            messageId={chat.requestId}
-            className="w-full max-w-none"
-          />
-        </div>
-      ) : null}
+      {genUiSurfaces.map(surface => <GenUiSurface
+        key={`${surface.sessionId}:${surface.surfaceId}`} surface={surface} />)}
+
+      {props.htmlSurfaces?.map(document => <HtmlArtifact key={`${document.sessionId}:${document.surfaceId}`} document={document} />)}
 
       {/* 结论：过程之后的人话结果 */}
       {chat.conclusion ? (
@@ -326,21 +287,7 @@ const DialogueComponent: FC<Props> = (props) => {
 
 const Dialogue = memo(
   DialogueComponent,
-  (prev, next) =>
-    prev.chat === next.chat &&
-    prev.deepThink === next.deepThink &&
-    prev.streamingThought === next.streamingThought &&
-    prev.sessionArtifactFiles === next.sessionArtifactFiles &&
-    prev.changeTask === next.changeTask &&
-    prev.changeFile === next.changeFile &&
-    prev.changePlan === next.changePlan &&
-    prev.onUndo === next.onUndo &&
-    prev.thinkingPanelOpen === next.thinkingPanelOpen &&
-    prev.onOpenThinking === next.onOpenThinking &&
-    prev.onSyncThinking === next.onSyncThinking &&
-    prev.onOpenToolDiff === next.onOpenToolDiff &&
-    prev.onOpenAgent === next.onOpenAgent &&
-    prev.onOpenWorkspaceFiles === next.onOpenWorkspaceFiles
+  equalDialogueProps
 );
 
 export default Dialogue;

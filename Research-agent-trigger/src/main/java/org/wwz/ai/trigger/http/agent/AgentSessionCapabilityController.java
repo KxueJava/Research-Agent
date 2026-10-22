@@ -12,6 +12,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 import org.wwz.ai.api.response.Response;
+import org.wwz.ai.application.agent.visitor.ConversationSessionOwnershipApplicationService;
+import org.wwz.ai.types.agent.visitor.VisitorRequestContext;
 import org.wwz.ai.domain.agent.runtime.capability.SessionCapabilityService;
 import org.wwz.ai.types.enums.ResponseCode;
 
@@ -31,9 +33,14 @@ public class AgentSessionCapabilityController {
 
     private final SessionCapabilityService sessionCapabilityService;
 
+    @javax.annotation.Resource
+    private ConversationSessionOwnershipApplicationService conversationSessionOwnershipApplicationService;
+
     @GetMapping("/{sessionId}/capabilities")
     public Response<Map<String, Object>> capabilities(@PathVariable("sessionId") String sessionId) {
         try {
+            conversationSessionOwnershipApplicationService.ensureCapabilitySessionAccessible(
+                    VisitorRequestContext.requireVisitorId(), sessionId);
             var view = sessionCapabilityService.capabilities(sessionId);
             return Response.<Map<String, Object>>builder()
                     .code(ResponseCode.SUCCESS.getCode())
@@ -56,6 +63,8 @@ public class AgentSessionCapabilityController {
             @RequestBody CapabilityToggleBody body
     ) {
         try {
+            conversationSessionOwnershipApplicationService.ensureCapabilitySessionAccessible(
+                    VisitorRequestContext.requireVisitorId(), sessionId);
             sessionCapabilityService.setEnabled(
                     sessionId,
                     body == null ? null : body.getKind(),

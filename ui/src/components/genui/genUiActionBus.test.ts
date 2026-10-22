@@ -7,6 +7,18 @@ import {
 } from "./genUiActionBus";
 
 describe("genUiActionBus", () => {
+  it("releases adapter closures on unmount without reviving an already removed bridge",async()=>{
+    const a=vi.fn(),b=vi.fn(),removeA=registerGenUiActionAdapters({setState:a}),removeB=registerGenUiActionAdapters({setState:b});
+    const action={type:"set_state",payload:{nodeId:"x",value:1}};
+    removeA();await dispatchGenUiAction(action,{sessionId:"s",surfaceId:"a",nodeId:"button"});expect(b).toHaveBeenCalledTimes(1);expect(a).not.toHaveBeenCalled();
+    removeB();expect((await dispatchGenUiAction(action,{sessionId:"s",surfaceId:"a",nodeId:"button"})).ok).toBe(false);
+  });
+  it("dispatches declared local state within the same Surface without messaging",async()=>{
+    const setState=vi.fn(),sendMessage=vi.fn();registerGenUiActionAdapters({setState,sendMessage});
+    expect((await dispatchGenUiAction({type:"set_state",payload:{nodeId:"filter",value:""}},{sessionId:"s",surfaceId:"a",nodeId:"reset"})).ok).toBe(true);
+    expect(setState).toHaveBeenCalledWith({nodeId:"filter",value:""},expect.objectContaining({surfaceId:"a"}));expect(sendMessage).not.toHaveBeenCalled();
+    expect(normalizeAction({type:"set_state",payload:{nodeId:"__proto__",value:"x"}})).toBeNull();
+  });
   beforeEach(() => {
     resetGenUiActionAdapters();
   });
@@ -14,6 +26,14 @@ describe("genUiActionBus", () => {
   it("does not treat bare actionId as send_message", () => {
     expect(normalizeAction("click me")).toBeNull();
     expect(normalizeAction(undefined, { actionId: "hello" })).toBeNull();
+  });
+  it("rejects script URLs including embedded control characters",()=>{
+    for(const url of ["javascript:alert(1)","java\nscript:alert(1)","data:text/html,bad","file:///secret"]) {
+      expect(normalizeAction({type:"open_url",payload:{url}})).toBeNull();
+      expect(normalizeAction({type:"navigate",payload:{route:url}})).toBeNull();
+    }
+    expect(normalizeAction({type:"navigate",payload:{route:"//evil.invalid"}})).toBeNull();
+    expect(normalizeAction({type:"navigate",payload:{route:"/workspace/models"}})?.type).toBe("navigate");
   });
 
   it("normalizes explicit send_message only", () => {
@@ -52,3 +72,4 @@ describe("genUiActionBus", () => {
     expect(result).toEqual({ ok: false, reason: "invalid" });
   });
 });
+

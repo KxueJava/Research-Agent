@@ -303,6 +303,26 @@ Write-Host "`n=== 4/5 启动服务 ===" -ForegroundColor Cyan
 
 $started = [ordered]@{}
 
+# A server-only credential is inherited by Java and Python, never put in URLs or logs.
+$fileServiceToken = Resolve-Setting "RESEARCH_FILE_SERVICE_TOKEN"
+if ([string]::IsNullOrWhiteSpace($fileServiceToken)) {
+    $fileServiceToken = [Guid]::NewGuid().ToString("N") + [Guid]::NewGuid().ToString("N")
+    # Persist alongside existing ignored local secrets so -SkipTool does not rotate
+    # one side of an active Java/Python pair to a different credential.
+    [System.IO.File]::AppendAllText($EnvFile, "`nRESEARCH_FILE_SERVICE_TOKEN=$fileServiceToken`n")
+}
+$env:RESEARCH_FILE_SERVICE_TOKEN = $fileServiceToken
+$env:RESEARCH_FILE_AUTH_BASE_URL = Resolve-Setting "RESEARCH_FILE_AUTH_BASE_URL" "http://127.0.0.1:$BackendPort"
+$env:RESEARCH_FILE_ALLOWED_ORIGINS = Resolve-Setting "RESEARCH_FILE_ALLOWED_ORIGINS" "http://localhost:$FrontendPort,http://127.0.0.1:$FrontendPort"
+
+# Stateful browser tools must be ready before the backend preloads enabled MCPs.
+$browserMcpScript = Join-Path $ScriptDir "browser-mcp/start.ps1"
+$browserMcpCli = Join-Path $ScriptDir "browser-mcp/node_modules/@playwright/mcp/cli.js"
+if (Test-Path -LiteralPath $browserMcpCli) {
+    & $browserMcpScript
+}
+
+
 if (-not $SkipTool) {
     $toolScript = Join-Path $ToolDir "start.ps1"
     if (-not (Test-Path $toolScript)) { throw "找不到 $toolScript" }
@@ -325,6 +345,14 @@ $backendArgs = @(
     "--autobots.execution.visitor-cookie.allowed-origins[1]=http://127.0.0.1:$FrontendPort",
     "--autobots.execution.visitor-cookie.secure=false"
 )
+
+# OAuth secrets are inherited by Java through the environment, never command-line arguments.
+foreach ($oauthSetting in @("RESEARCH_GITHUB_CLIENT_ID", "RESEARCH_GITHUB_CLIENT_SECRET", "RESEARCH_GITHUB_REDIRECT_URI", "AMAP_JS_KEY", "AMAP_WEB_KEY", "AMAP_SECURITY_JSCODE", "AMAP_SECURITY_SERVICE_HOST")) {
+    $oauthValue = Resolve-Setting $oauthSetting
+    if (-not [string]::IsNullOrWhiteSpace($oauthValue)) {
+        [Environment]::SetEnvironmentVariable($oauthSetting, $oauthValue, "Process")
+    }
+}
 
 $env:PUBLIC_ORIGIN = "http://localhost:$FrontendPort"
 $env:WORKSPACE_ROOT = Join-Path $ToolDir "skilloutput"

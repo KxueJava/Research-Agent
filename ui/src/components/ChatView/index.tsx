@@ -1,8 +1,13 @@
-import { Fragment, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useDeferredValue, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import {mapDetailsSnapshot,subscribeMapDetails} from "@/components/genui/maps/mapDetailsState";
 import { ActionViewItemEnum } from "@/utils";
 import querySSE from "@/utils/querySSE";
 import { buildConversationTaskData, getStableTaskIdentity } from "@/utils/chat";
 import Dialogue from "@/components/Dialogue";
+import { projectSessionSurfaces } from "@/utils/chat/surfaceProtocol";
+import { fetchUiSurfaceSnapshots } from "@/services/uiSurface";
+import { clearGenUiSession } from "@/components/genui/genUiSessionState";
+import { projectHtmlSurfaces } from "@/utils/chat/htmlSurfaces";
 import DataDialogue from "@/components/Dialogue/DataDialogue";
 import GeneralInput from "@/components/GeneralInput";
 import ActionView from "@/components/ActionView";
@@ -149,6 +154,7 @@ const sameStringList = (previous: string[], next: string[]) =>
 type SessionFileTasks = ReturnType<typeof collectSessionFileTasks>;
 
 const ChatView: ResearchType.FC<Props> = (props) => {
+  const mapPlaceDetails=useSyncExternalStore(subscribeMapDetails,mapDetailsSnapshot,mapDetailsSnapshot);
   const {
     inputInfo: inputInfoProp,
     product,
@@ -163,6 +169,16 @@ const ChatView: ResearchType.FC<Props> = (props) => {
   } = props;
 
   const [activeTask, setActiveTask] = useState<CHAT.Task>();
+  useEffect(()=>{const sessionId=conversation.sessionId;return()=>{if(sessionId)clearGenUiSession(sessionId);};},[conversation.sessionId]);
+  const [uiRestoration, setUiRestoration] = useState<{ sessionId: string; documents: unknown[] }>({ sessionId: "", documents: [] });
+  useEffect(() => {
+    const sessionId = conversation.sessionId;
+    const controller = new AbortController();
+    if (sessionId) void fetchUiSurfaceSnapshots(sessionId, controller.signal).then(documents => {
+      if (!controller.signal.aborted) setUiRestoration({ sessionId, documents });
+    }).catch(() => { /* Existing history/events remain usable; per-Surface resync still exposes failures. */ });
+    return () => controller.abort();
+  }, [conversation.sessionId, Boolean(conversation.chatList?.some(chat => chat.loading))]);
   const [workspaceOpenRequested, setWorkspaceOpenRequested] = useState(false);
   /** 打开工作区前缓存要点的文件，避免 ActionView 未挂载时 setFilePreview 丢失 */
   const [pendingPreviewFile, setPendingPreviewFile] = useState<CHAT.TFile>();
@@ -1097,6 +1113,8 @@ const ChatView: ResearchType.FC<Props> = (props) => {
   );
 
   const renderChatDialogues = () => {
+    const sessionSurfaces = projectSessionSurfaces(deferredChatList, uiRestoration.sessionId === conversation.sessionId ? uiRestoration.documents : []);
+    const htmlSurfaces = projectHtmlSurfaces(deferredChatList,uiRestoration.sessionId === conversation.sessionId ? uiRestoration.documents : []);
     const lastRequestId =
       deferredChatList[deferredChatList.length - 1]?.requestId;
     return (
@@ -1105,6 +1123,8 @@ const ChatView: ResearchType.FC<Props> = (props) => {
           <Fragment key={chat.requestId}>
           <Dialogue
             chat={chat}
+              sessionSurfaces={sessionSurfaces.get(chat.requestId) ?? []}
+              htmlSurfaces={htmlSurfaces.get(chat.requestId)}
             streamingThought={streamingThoughtMap[chat.requestId]}
             deepThink={conversation.deepThink}
             sessionArtifactFiles={sessionArtifactFiles}
@@ -1176,6 +1196,7 @@ const ChatView: ResearchType.FC<Props> = (props) => {
         data-workspace-open={hasWorkspaceLayout ? "true" : "false"}
         data-workspace-empty={hasWorkspaceContent ? "false" : "true"}
         data-chat-read-only={readOnly ? "true" : "false"}
+        data-map-details-open={mapPlaceDetails?.scope.sessionId===conversation.sessionId?"true":"false"}
       >
         {/* Left Panel - Chat Area */}
         <div

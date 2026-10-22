@@ -151,3 +151,18 @@ research:
     issuer: research
     access-token-seconds: 900
     refresh-token-seconds: 2592000
+
+    github:
+      client-id: ${RESEARCH_GITHUB_CLIENT_ID:}
+      client-secret: ${RESEARCH_GITHUB_CLIENT_SECRET:}
+      redirect-uri: ${RESEARCH_GITHUB_REDIRECT_URI:http://localhost:3001/login/github/callback}
+
+# OAuth state is scoped to this HttpOnly browser session, separately from JWT login sessions.
+server:
+  servlet:
+    session:
+      timeout: 10m
+      cookie:
+        http-only: true
+        same-site: lax
+        secure: ${RESEARCH_AUTH_COOKIE_SECURE:false}

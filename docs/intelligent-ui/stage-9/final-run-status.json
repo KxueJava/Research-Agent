@@ -1,0 +1,109 @@
+{
+  "date": "2026-10-21",
+  "releaseDecision": "NO_GO",
+  "productionSdkProfile": {
+    "script": "browser-real-sdk-production.js",
+    "build": "PASSED in 57.39s; see profile-build.log",
+    "execution": "COMPLETED_LOCAL_CONTROLLED_PROFILE",
+    "reason": "Earlier interrupted run replaced by raw sixty-cycle sample and inspector-retention control. Local warm heap/DOM bounded; no GPU/native or arbitrary-device guarantee.",
+    "evidence": [
+      "production-sdk-sixty-result.txt",
+      "console-retention-diagnostic.json",
+      "production-sdk-controlled-result.json"
+    ],
+    "created": 61,
+    "destroyed": 61,
+    "liveMaps": 0,
+    "heapAtCycle20Bytes": 16082444,
+    "heapAfterIdleBytes": 15562660
+  },
+  "finalExperienceRun": {
+    "script": "browser-experience.js",
+    "status": "PASSED",
+    "evidence": "experience-final-result.json",
+    "previousAttempt": "Approval-service usage limit prevented an earlier attempt; execution resumed using the original tool after approval became available."
+  },
+  "realSdkThirtyCycleRun": {
+    "script": "browser-real-sdk.js",
+    "status": "HISTORICAL_DEVELOPMENT_PROFILE_SUPERSEDED",
+    "priorSample": "real-sdk-initial-result.txt",
+    "evidence": [
+      "real-sdk-thirty-before-fix.txt",
+      "real-sdk-thirty-continuation.txt"
+    ],
+    "note": "Earlier development observation retained. Final production controlled profile and inspector-retention diagnosis are recorded separately above; native/physical-device limits remain explicit."
+  },
+  "allFlagsOffHttpCapture": {
+    "status": "PASSED",
+    "priorFile": "flags-off.json",
+    "evidence": "flags-off-recaptured.json",
+    "reason": "Old null capture retained; new HTTP response explicitly verifies all four false."
+  },
+  "defaultModel": {
+    "status": "FAILED",
+    "reason": "Unauthorized; user chose to preserve default configuration and revalidate after credential repair.",
+    "evidence": "default-model-recheck.json"
+  },
+  "finalRegression": {
+    "frontendPassed": 633,
+    "javaTargetedPassed": 138,
+    "frontendBuild": "passed",
+    "pythonFilesPassed": 32,
+    "pythonMragPassed": 127,
+    "pythonMragSkipped": 1,
+    "pythonFullPassed": 380,
+    "pythonFullSkipped": 3,
+    "pythonSubtestsPassed": 44,
+    "pythonExecutorGroupPassed": 31
+  },
+  "realUpload": {
+    "status": "PASSED_WITH_REAL_HTTP_AND_AUTHENTICATED_EDGE",
+    "evidence": "real-upload-edge-result.json",
+    "rows": 6,
+    "offlinePreservedResourceVersion": 1,
+    "retryResourceVersion": 2,
+    "durableSurfaceRecovery": "covered separately; not claimed as integrated in this harness"
+  },
+  "remainingReleaseGaps": [
+    "Default model credentials and five real-model scenario chains",
+    "Physical device, release network and complete long-duration performance acceptance",
+    "11 explicitly deferred external-service/manual Java classes; Browser MCP opt-in skip",
+    "Existing build/dependency warnings and old-binary rollback limits"
+  ],
+  "restoredFeatures": {
+    "streaming": true,
+    "actions": true,
+    "maps": true,
+    "planner": true
+  },
+  "updatedAt": "2026-10-22",
+  "isolatedJavaRegression": {
+    "status": "PASSED_ELIGIBLE_REACTOR_SCOPE",
+    "classes": 195,
+    "tests": 826,
+    "passed": 825,
+    "skipped": 1,
+    "failures": 0,
+    "errors": 0,
+    "deferredClasses": 11,
+    "evidence": [
+      "java-isolation-result.json",
+      "java-final-report-crosscheck.json",
+      "java-isolated-selection.json",
+      "device-java-verification.md"
+    ],
+    "temporarySchemasRemaining": 0,
+    "temporaryAccountsRemaining": 0
+  },
+  "nativeResourceObservation": {
+    "status": "LOCAL_OBSERVATION_ONLY",
+    "samples": 33,
+    "physicalDeviceAvailable": false,
+    "evidence": [
+      "native-resource-result.json",
+      "browser-native-soak.jsonl",
+      "sdk-additional-cycle-observation.txt"
+    ],
+    "limitation": "300s browser-call timeout; native sampling and separate cleanup observations retained. Full long-duration/physical-device acceptance remains open."
+  }
+}

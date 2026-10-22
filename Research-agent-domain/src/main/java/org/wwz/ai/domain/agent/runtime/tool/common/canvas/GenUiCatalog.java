@@ -34,6 +34,7 @@ public final class GenUiCatalog {
 
     private static List<Map<String, Object>> buildCatalog() {
         List<Map<String, Object>> list = new ArrayList<>();
+        list.add(entry("MapWidget","Interactive provider-backed map itinerary. Use plan_route/modify_itinerary; never invent mapData or coordinates.",Map.of("mapData","Complete map/1 payload returned by plan_route; GCJ-02, ordered POIs, actual road segments","remoteAction","Server registered map_itinerary action")));
         // 按容器、数据展示、卡片、交互和嵌入能力分组，保持提示目录可读且便于扩展。
         list.add(entry("AspectBox", "Fixed aspect frame", Map.of("ratio", "16:9|4:3|1:1|3:2", "maxWidth", "number")));
         list.add(entry("Skeleton", "Loading placeholder", Map.of("lines", "number", "variant", "text|card|avatar")));
@@ -196,8 +197,8 @@ public final class GenUiCatalog {
                 Map.of("name", "string", "label", "string", "checked", "boolean")));
         list.add(entry("Slider", "Slider (interactive inside Form with name)",
                 Map.of("name", "string", "label", "string", "value", "number", "min", "number", "max", "number")));
-        list.add(entry("FileInput", "File path input (interactive inside Form with name)",
-                Map.of("name", "string", "label", "string", "accept", "string")));
+        list.add(entry("FileInput", "CSV upload with resourceId; otherwise legacy file path input",
+                Map.of("name", "string", "label", "string", "accept", "string","resourceId","string (register a versioned CSV resource)","numericColumns","string[]")));
         list.add(entry("Textarea", "Textarea (interactive inside Form with name)",
                 Map.of("name", "string", "label", "string", "value", "string", "rows", "number")));
         // Embed

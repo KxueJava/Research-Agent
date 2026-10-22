@@ -34,6 +34,10 @@ public class ImageGenerationBatchPersistenceServiceImpl implements IImageGenerat
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void persistWorkspaceBatch(String requestId, ImageGenerationExecutionResult result) {
+        String ownerUserId = org.wwz.ai.types.auth.AdminAuthContext.currentUserId();
+        if (StringUtils.isBlank(ownerUserId)) {
+            throw new SecurityException("图片生成需要登录身份");
+        }
         if (StringUtils.isBlank(requestId) || result == null || CollectionUtils.isEmpty(result.getFiles())) {
             throw new IllegalArgumentException("工作台生图批次持久化参数不完整");
         }
@@ -42,6 +46,7 @@ public class ImageGenerationBatchPersistenceServiceImpl implements IImageGenerat
         toolOutputWriter.writeOrThrow(ToolOutputPersistCommand.builder()
                 .requestId(requestId)
                 .requestSource(ExecutionLedgerConstants.REQUEST_SOURCE_WORKSPACE)
+                .ownerUserId(ownerUserId)
                 .toolCallId(toolCallId)
                 .toolName(ImageGenerationWorkspaceConstants.WORKSPACE_TOOL_NAME)
                 .status(ExecutionLedgerConstants.STATUS_SUCCESS)

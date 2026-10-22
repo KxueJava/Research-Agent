@@ -1,0 +1,17 @@
+{
+  "caseId":"M01",
+  "city":"厦门",
+  "country":"中国",
+  "originQuery":"厦门站",
+  "destinationQueries":["金榜公园","南湖公园南门","白鹭洲公园"],
+  "travelMode":"walking",
+  "userRequest":"从厦门站出发，规划周末半日游，选择三个适合放松的地方，在聊天中显示地图和步行路线，展开后展示右侧行程。",
+  "referenceOnly":true,
+  "coordinates":null,
+  "routeGeometry":null,
+  "distanceMeters":null,
+  "durationSeconds":null,
+  "provider":null,
+  "note":"目的地用于复现用户截图的交互结构，不构成已验证的旅游建议。坐标、入口、通行情况与导航距离时间必须由实际服务返回，不抄用截图估算值。",
+  "checks":["地图底图可加载","四个站点编号一致","点击列表定位地图","点击标记选中对应卡片","内嵌与全屏共享视图和行程","分段步行路线来自接口","更换第二站后重新计算","刷新后恢复最新版本"]
+}

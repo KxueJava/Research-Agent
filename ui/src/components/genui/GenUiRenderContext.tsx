@@ -1,7 +1,11 @@
 import { createContext, useContext, type ReactNode } from "react";
 import type { GenUiActionContext } from "./genUiActionBus";
 
-export type GenUiRenderContextValue = GenUiActionContext;
+export type SurfaceSyncNotice={message:string;busy:boolean;retry:()=>void};
+export type GenUiRenderContextValue = GenUiActionContext & {surfaceSync?:SurfaceSyncNotice};
+export function genUiIdentity(value:GenUiRenderContextValue){
+  return value.sessionId&&value.surfaceId?{sessionId:value.sessionId,surfaceId:value.surfaceId}:undefined;
+}
 
 const GenUiRenderContext = createContext<GenUiRenderContextValue>({});
 

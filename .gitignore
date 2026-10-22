@@ -104,6 +104,7 @@ Thumbs.db
 /Research-agent-domain/src/main/java/org/wwz/ai/domain/agent/service/execute/auto/step/
 /Research-agent-domain/src/main/java/org/wwz/ai/domain/agent/service/execute/auto1/step/
 /.playwright-mcp/
+/runtime/browser-mcp/
 /.codegraph/
 /.codegraph/
 /.codegraph/
@@ -116,6 +117,7 @@ Thumbs.db
 /scripts/.dev-pids.json
 /research-tool/*.db
 /research-tool/*.db-*
+/research-tool/*.db.ingestion/
 /research-tool/fastembed_cache/
 /research-tool/.uv-cache-test/
 /research-tool/.crawl4ai-test-before/
@@ -127,4 +129,9 @@ Thumbs.db
 /research-publish-*
 /research-tool/ai-agent-crawl4ai/
 /research-tool/.crawl4ai/
-/research-tool/*.db.ingestion/
+
+# Local acceptance caches, scratch artifacts and service traces
+/.cache/
+/.tmp-*
+/scripts/logs/
+/maven-version.txt

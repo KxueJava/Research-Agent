@@ -19,7 +19,7 @@ public final class IntentGatedPrompt {
             "图表", "画图", "绘图", "可视化", "柱状图", "折线图", "饼图", "散点图", "趋势图");
     private static final Set<String> CANVAS_HINTS = Set.of(
             "canvas", "genui", "gen ui", "dashboard", "kpi", "webpage", "landing page", "html 页面",
-            "网页", "页面", "看板", "仪表盘", "卡片", "交互式", "画布", "落地页");
+            "网页", "页面", "看板", "仪表盘", "卡片", "交互", "画布", "落地页", "地图", "小游戏", "分账器", "表单", "数轴");
 
     private static final String DOCUMENT_POLICY = """
             # 文档生成策略
@@ -52,6 +52,7 @@ public final class IntentGatedPrompt {
 
     private static final String CANVAS_POLICY = """
             # Canvas 与 GenUI 策略
+            - 按本轮 ui_presentation_plan 和 get_genui_guide 返回的 presentation 选择 TEXT/RICH_UI/MIXED/ARTIFACT；只引用已验证资源版本和注册能力。静态质量校验不代表任务完成。工具返回 TEXT 降级时停止 UI 发布，以文字说明限制。
             - 普通解释、段落、列表和简单表格默认使用 Markdown；只在用户明确需要交互界面、看板、卡片、网页或页面级交付时生成可视化界面。
             - 图表、KPI、数据表、多卡片布局和结构化 3D 使用 emit_ui_tree；非简单树必须先调用 get_genui_guide，再调用 list_ui_components，最后提交 schemaVersion 1 的 tree。
             - 小范围修改已有 GenUI 时使用 emit_ui_patch，不要重新发送整棵 tree。

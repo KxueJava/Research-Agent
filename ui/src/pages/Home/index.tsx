@@ -939,7 +939,7 @@ const Home: ResearchType.FC<HomeProps> = memo(() => {
   }
 
   return (
-    <div className="h-full w-full bg-[var(--page-gradient)] text-foreground">
+    <div className="ocean-workspace h-full w-full bg-[var(--page-gradient)] text-foreground" data-ocean-view={activeView}>
       <div className="flex h-full w-full">
         <div
           className={

@@ -18,6 +18,9 @@ type Props = {
   stacked?: boolean;
   showLegend?: boolean;
   showGrid?: boolean;
+  selectedIndexes?:number[];
+  onSelectCategory?:(index:number)=>void;
+  animation?:boolean;
 };
 
 const SERIES_COLORS = ["#0ea5e9", "#10b981", "#8b5cf6", "#f59e0b", "#ef4444", "#64748b"];
@@ -32,6 +35,9 @@ const GenUiChart: FC<Props> = memo(
     stacked,
     showLegend = true,
     showGrid = true,
+    selectedIndexes,
+    onSelectCategory,
+    animation=true,
   }) => {
     const ref = useRef<HTMLDivElement | null>(null);
     const instance = useRef<echarts.EChartsType | null>(null);
@@ -52,6 +58,7 @@ const GenUiChart: FC<Props> = memo(
           itemStyle: { color: SERIES_COLORS[i % SERIES_COLORS.length] },
         }));
         return {
+          animation,
           color: SERIES_COLORS,
           animationDuration: 600,
           animationEasing: "cubicOut",
@@ -94,6 +101,7 @@ const GenUiChart: FC<Props> = memo(
 
       const chartType = type === "area" ? "line" : type === "line" || type === "bar" ? type : "bar";
       return {
+        animation,
         color: SERIES_COLORS,
         animationDuration: 500,
         animationEasing: "cubicOut",
@@ -146,16 +154,28 @@ const GenUiChart: FC<Props> = memo(
           emphasis: { focus: "series" },
         })),
       };
-    }, [title, chart, categories, series, stacked, showLegend, showGrid]);
+    }, [title, chart, categories, series, stacked, showLegend, showGrid,animation]);
+
+    const empty = !series.length || series.every(s=>!(s.values||[]).length);
 
     useEffect(() => {
-      if (!ref.current) return;
+      if (!ref.current) {instance.current?.dispose();instance.current=null;return;}
       // 实例在 DOM 容器上复用，option 更新只替换配置。
+      if(instance.current && instance.current.getDom()!==ref.current){instance.current.dispose();instance.current=null;}
       if (!instance.current) {
         instance.current = echarts.init(ref.current);
       }
       instance.current.setOption(option, true);
     }, [option]);
+
+    useEffect(()=>{
+      const current=instance.current;if(!current)return;
+      const click=(event:any)=>{if(Number.isInteger(event.dataIndex))onSelectCategory?.(event.dataIndex);};
+      current.on("click",click);
+      current.dispatchAction({type:"downplay",seriesIndex:0});
+      if(selectedIndexes?.length)current.dispatchAction({type:"highlight",seriesIndex:0,dataIndex:selectedIndexes});
+      return()=>{current.off("click",click);};
+    },[option,selectedIndexes,onSelectCategory]);
 
     useEffect(() => {
       const node = ref.current;
@@ -197,7 +217,7 @@ const GenUiChart: FC<Props> = memo(
           resizeFrameRef.current = null;
         }
       };
-    }, []);
+    }, [empty]);
 
     useEffect(() => {
       return () => {
@@ -206,12 +226,6 @@ const GenUiChart: FC<Props> = memo(
         instance.current = null;
       };
     }, []);
-
-    const empty =
-      !series.length ||
-      (chart?.toLowerCase() === "pie"
-        ? !(series[0]?.values || []).length
-        : series.every((s) => !(s.values || []).length));
 
     if (empty) {
       return (
@@ -231,7 +245,7 @@ const GenUiChart: FC<Props> = memo(
               : undefined
           }
         >
-          <div ref={ref} className="h-full w-full" />
+          <div ref={ref} data-chart-selection={JSON.stringify(selectedIndexes??[])} className="h-full w-full" />
         </div>
       </div>
     );

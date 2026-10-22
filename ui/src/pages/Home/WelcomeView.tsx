@@ -67,7 +67,7 @@ export default function WelcomeView(props: {
   const { reduce } = useMotionConfig();
 
   return (
-    <div className="h-full w-full overflow-y-auto px-6 md:px-12 lg:px-16">
+    <div className="ocean-welcome h-full w-full overflow-y-auto px-6 md:px-12 lg:px-16">
       <div
         className={classNames(
           "mx-auto flex min-h-full w-full max-w-[1280px] flex-col items-center py-8 lg:py-10",
@@ -121,7 +121,7 @@ export default function WelcomeView(props: {
                 <button
                   key={index}
                   type="button"
-                  className="flex max-w-full cursor-pointer items-center gap-2 rounded-[16px] bg-[oklch(0.955_0.002_90)] dark:bg-[var(--color-surface-raised)] px-5 py-3 text-[14px] font-medium leading-none text-[var(--chat-text)] transition-colors duration-200 hover:bg-[oklch(0.925_0.003_90)] dark:hover:bg-[var(--color-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-accent)]/25 md:text-[15px]"
+                  className="ocean-suggestion flex max-w-full cursor-pointer items-center gap-2 rounded-[16px] bg-[oklch(0.955_0.002_90)] dark:bg-[var(--color-surface-raised)] px-5 py-3 text-[14px] font-medium leading-normal text-[var(--chat-text)] transition-colors duration-200 hover:bg-[oklch(0.925_0.003_90)] dark:hover:bg-[var(--color-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--chat-accent)]/25 md:text-[15px]"
                   onClick={() => props.onSendQuestion(item)}
                 >
                   {item.deepThink ? (

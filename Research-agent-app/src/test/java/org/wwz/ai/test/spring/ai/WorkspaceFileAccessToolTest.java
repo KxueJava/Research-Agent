@@ -53,7 +53,7 @@ public class WorkspaceFileAccessToolTest {
     }
 
     @Test
-    public void shouldReadAndWriteWithinWorkspace() {
+    public void shouldReadAndWriteWithinWorkspace() throws Exception {
         WorkspaceReadTool readTool = new WorkspaceReadTool(workspaceService, options);
         readTool.setAgentContext(agentContext);
         WorkspaceWriteTool writeTool = new WorkspaceWriteTool(workspaceService, options);
@@ -63,7 +63,8 @@ public class WorkspaceFileAccessToolTest {
                 "path", "out/report.md",
                 "content", "generated content"
         )));
-        Assert.assertTrue(writeResult.contains("已写入文件"));
+        Assert.assertTrue(writeResult.contains("out/report.md"));
+        Assert.assertEquals("generated content", Files.readString(workspaceRoot.resolve("out/report.md"), StandardCharsets.UTF_8));
 
         String readResult = String.valueOf(readTool.execute(Map.of(
                 "path", "notes.md",

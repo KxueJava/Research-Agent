@@ -37,7 +37,8 @@ public class AdminAuthService {
             return null;
         }
         AdminUser user = adminUserDao.queryByUsername(username.trim());
-        if (user == null || !Integer.valueOf(1).equals(user.getStatus())) {
+        if (user == null || !Integer.valueOf(1).equals(user.getStatus())
+                || user.getPassword() == null || user.getPassword().startsWith("!oauth:")) {
             return null;
         }
 
@@ -61,7 +62,7 @@ public class AdminAuthService {
     }
 
     public boolean matchesPassword(String rawPassword, String storedPassword) {
-        if (!StringUtils.hasText(rawPassword) || !StringUtils.hasText(storedPassword)) {
+        if (!StringUtils.hasText(rawPassword) || !StringUtils.hasText(storedPassword) || storedPassword.startsWith("!oauth:")) {
             return false;
         }
         return isBcrypt(storedPassword)
@@ -107,9 +108,12 @@ public class AdminAuthService {
         Instant now = Instant.now();
         Instant refreshExpiresAt = now.plusSeconds(properties.getRefreshTokenSeconds());
         String nextRefreshToken = sign(user, sessionId, "refresh", refreshExpiresAt);
-        authSessionDao.rotate(sessionId, hash(nextRefreshToken),
+        int rotated = authSessionDao.rotate(sessionId, hash(refreshToken), hash(nextRefreshToken),
                 LocalDateTime.ofInstant(now, ZoneOffset.UTC),
                 LocalDateTime.ofInstant(refreshExpiresAt, ZoneOffset.UTC));
+        if (rotated != 1) {
+            throw new IllegalArgumentException("Refresh Token 已失效");
+        }
         return AdminAuthResponseDTO.builder()
                 .user(toResponse(user))
                 .accessToken(sign(user, sessionId, "access", now.plusSeconds(properties.getAccessTokenSeconds())))

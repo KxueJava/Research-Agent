@@ -63,6 +63,7 @@ class ModelNotFoundFallbackGuardTest(unittest.IsolatedAsyncioTestCase):
                 "OPENAI_COMPAT_ALLOW_LITELLM_FALLBACK": "false",
                 "OPENAI_COMPAT_FALLBACK_MODEL": "gpt-4",
                 "OPENAI_FALLBACK_MODEL": "gpt-4",
+                "LLM_MAX_RETRIES": "1",
             },
             clear=False,
         ), patch(
@@ -106,9 +107,8 @@ class ModelNotFoundFallbackGuardTest(unittest.IsolatedAsyncioTestCase):
 
 
 @unittest.skipUnless(
-    os.getenv("RUN_LIVE_MICUAPI_TEST", "").strip().lower() in {"1", "true", "yes"}
-    or bool((os.getenv("OPENAI_API_KEY") or "").strip()),
-    "需要 OPENAI_API_KEY；默认有 key 即跑 live 探测",
+    os.getenv("RUN_LIVE_MICUAPI_TEST", "").strip().lower() in {"1", "true", "yes"},
+    "真实渠道抽样需显式设置 RUN_LIVE_MICUAPI_TEST=1，并提供 OPENAI_API_KEY",
 )
 class MicuapiGrokLiveProbeTest(unittest.TestCase):
     """
@@ -188,9 +188,8 @@ class MicuapiGrokLiveProbeTest(unittest.TestCase):
 
 
 @unittest.skipUnless(
-    os.getenv("RUN_LIVE_MICUAPI_TEST", "").strip().lower() in {"1", "true", "yes"}
-    or bool((os.getenv("OPENAI_API_KEY") or "").strip()),
-    "需要 OPENAI_API_KEY",
+    os.getenv("RUN_LIVE_MICUAPI_TEST", "").strip().lower() in {"1", "true", "yes"},
+    "真实渠道抽样需显式设置 RUN_LIVE_MICUAPI_TEST=1，并提供 OPENAI_API_KEY",
 )
 class MicuapiGrokAskLlmLiveTest(unittest.IsolatedAsyncioTestCase):
     """走完整 ask_llm 路径，观察是否仍是 grok-4.5 且无换模。"""

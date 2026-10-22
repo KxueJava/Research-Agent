@@ -22,6 +22,9 @@ public class ToolOutputPersistCommand {
 
     private String requestSource;
 
+    /** Trusted owner of a standalone workspace output; never supplied by HTTP clients. */
+    private String ownerUserId;
+
     private String sessionId;
 
     private String toolCallId;

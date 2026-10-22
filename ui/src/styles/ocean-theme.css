@@ -1,0 +1,239 @@
+/* Approved Deep Ocean prototype skin. Visual tokens only; business state stays in existing components. */
+html.ocean-ui {
+  --ocean-base: #94aeb7;
+  --ocean-fallback: linear-gradient(155deg, #bdcccf, #94aeb7 65%, #879fa9);
+  --ocean-glass: rgba(206,222,227,.36);
+  --ocean-surface: rgba(221,231,234,.47);
+  --ocean-reading: rgba(225,234,237,.94);
+  --ocean-solid: #dce7eb;
+  --ocean-raised: rgba(225,235,237,.94);
+  --ocean-ink: #203b49;
+  --ocean-soft: #415e6c;
+  --ocean-muted: #4c6874;
+  --ocean-edge: rgba(237,246,248,.62);
+  --ocean-line: rgba(76,110,124,.20);
+  --ocean-accent: #286d82;
+  --ocean-accent-hover: #205a6f;
+  --ocean-accent-soft: rgba(68,127,148,.14);
+  --ocean-on-accent: #f1f7f8;
+  --ocean-hover: rgba(227,242,247,.26);
+  --ocean-active: rgba(226,244,249,.35);
+  --ocean-shadow: rgba(23,54,69,.14);
+  --ocean-gloss: rgba(233,243,246,.26);
+  --ocean-glow: rgba(217,240,247,.16);
+  --ocean-empty: rgba(124,155,166,.16);
+  --ocean-success: #176541;
+  --ocean-danger: #9b352f;
+  --ocean-warning: #825014;
+  --ocean-code: #d5e1e6;
+  --ocean-danger-soft: rgba(180,66,53,.10);
+}
+html.ocean-ui.dark {
+  --ocean-base: #061522;
+  --ocean-fallback: radial-gradient(ellipse at 75% 20%, #20697980, transparent 60%), linear-gradient(145deg, #062135, #0a3947 55%, #041423);
+  --ocean-glass: rgba(15,48,66,.34);
+  --ocean-surface: rgba(16,48,67,.38);
+  --ocean-reading: rgba(7,25,40,.90);
+  --ocean-solid: #102c3d;
+  --ocean-raised: rgba(13,39,56,.96);
+  --ocean-ink: #e4f4fa;
+  --ocean-soft: #b0d0dc;
+  --ocean-muted: #9cbdcb;
+  --ocean-edge: rgba(226,253,255,.33);
+  --ocean-line: rgba(192,239,246,.20);
+  --ocean-accent: #9ce0e8;
+  --ocean-accent-hover: #c2f0f4;
+  --ocean-accent-soft: rgba(101,188,206,.16);
+  --ocean-on-accent: #102e3e;
+  --ocean-hover: rgba(151,215,229,.10);
+  --ocean-active: rgba(151,215,229,.16);
+  --ocean-shadow: rgba(0,13,25,.22);
+  --ocean-gloss: rgba(227,252,255,.17);
+  --ocean-glow: rgba(87,181,201,.09);
+  --ocean-empty: rgba(23,61,79,.40);
+  --ocean-success: #8bdbb4;
+  --ocean-danger: #ffaba4;
+  --ocean-warning: #ebca93;
+  --ocean-code: #0c2232;
+  --ocean-danger-soft: rgba(216,100,89,.13);
+}
+html.ocean-ui {
+  --background: transparent;
+  --foreground: var(--ocean-ink);
+  --card: var(--ocean-surface);
+  --card-foreground: var(--ocean-ink);
+  --popover: var(--ocean-raised);
+  --popover-foreground: var(--ocean-ink);
+  --primary: var(--ocean-accent);
+  --primary-foreground: var(--ocean-on-accent);
+  --secondary: var(--ocean-surface);
+  --secondary-foreground: var(--ocean-ink);
+  --muted: var(--ocean-empty);
+  --muted-foreground: var(--ocean-muted);
+  --accent: var(--ocean-hover);
+  --accent-foreground: var(--ocean-ink);
+  --border: var(--ocean-line);
+  --border-strong: var(--ocean-edge);
+  --input: var(--ocean-reading);
+  --ring: var(--ocean-accent-soft);
+  --page-gradient: transparent;
+  --chat-bg: transparent;
+  --chat-nav: var(--ocean-glass);
+  --chat-panel: var(--ocean-glass);
+  --chat-panel-strong: var(--ocean-raised);
+  --chat-surface: var(--ocean-surface);
+  --chat-surface-soft: var(--ocean-empty);
+  --chat-surface-muted: var(--ocean-empty);
+  --chat-text: var(--ocean-ink);
+  --chat-text-soft: var(--ocean-soft);
+  --chat-text-muted: var(--ocean-muted);
+  --chat-border: var(--ocean-line);
+  --chat-border-strong: var(--ocean-edge);
+  --chat-divider: var(--ocean-line);
+  --chat-interactive-hover: var(--ocean-hover);
+  --chat-interactive-active: var(--ocean-active);
+  --color-bg: transparent;
+  --color-surface: var(--ocean-surface);
+  --color-surface-raised: var(--ocean-raised);
+  --color-surface-sunken: var(--ocean-empty);
+  --color-text: var(--ocean-ink);
+  --color-text-muted: var(--ocean-soft);
+  --color-text-faint: var(--ocean-muted);
+  --color-line: var(--ocean-line);
+  --color-line-strong: var(--ocean-edge);
+  --color-hover: var(--ocean-hover);
+  --color-accent: var(--ocean-accent);
+  --accent-primary: var(--ocean-accent);
+  --color-accent-hover: var(--ocean-accent-hover);
+  --color-accent-soft: var(--ocean-accent-soft);
+  --color-accent-bd: var(--ocean-line);
+  --color-text-on-accent: var(--ocean-on-accent);
+  --chat-accent: var(--ocean-accent);
+  --chat-accent-soft: var(--ocean-accent-soft);
+  --chat-accent-muted: var(--ocean-accent-hover);
+  --color-success: var(--ocean-success);
+  --color-danger: var(--ocean-danger);
+  --color-danger-soft: var(--ocean-danger-soft);
+  --color-warning: var(--ocean-warning);
+  --chat-user-bubble: var(--ocean-active);
+  --chat-user-bubble-border: var(--ocean-line);
+}
+html.ocean-ui body { background: var(--ocean-base); color: var(--ocean-ink); }
+html.ocean-ui #root { position: relative; z-index: 1; isolation: isolate; background: transparent; }
+.ocean-environment { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; background: var(--ocean-fallback); }
+.ocean-canvas { display: block; width: 100%; height: 100%; pointer-events: none; }
+.ocean-canvas[data-state="static"] { opacity: 0; }
+html.ocean-ui .ocean-workspace { background: transparent; }
+html.ocean-ui .ocean-sidebar {
+  background: linear-gradient(116deg, var(--ocean-gloss), transparent 43%), var(--ocean-glass);
+  backdrop-filter: blur(11px) saturate(130%);
+  -webkit-backdrop-filter: blur(11px) saturate(130%);
+  box-shadow: inset -1px 0 0 var(--ocean-edge), 8px 0 40px var(--ocean-shadow);
+}
+html.ocean-ui .ocean-nav-item { position: relative; color: var(--ocean-soft); }
+html.ocean-ui .ocean-nav-item:hover { background: var(--ocean-hover); color: var(--ocean-ink); }
+html.ocean-ui .ocean-nav-active {
+  color: var(--ocean-ink); background: linear-gradient(115deg, var(--ocean-active), var(--ocean-glow));
+  box-shadow: inset 0 1px 0 var(--ocean-edge), inset 0 0 0 1px var(--ocean-line), 0 3px 12px var(--ocean-shadow);
+  backdrop-filter: blur(5px);
+}
+html.ocean-ui .ocean-suggestion {
+  background: var(--ocean-surface); border-radius: 16px; color: var(--ocean-ink);
+  backdrop-filter: blur(7px) saturate(120%);
+  box-shadow: inset 0 1px 0 var(--ocean-edge), inset 0 0 0 1px var(--ocean-line), 0 3px 11px var(--ocean-shadow);
+  line-height: 1.5;
+}
+html.ocean-ui .ocean-suggestion:hover { background: var(--ocean-active); }
+html.ocean-ui .radar-sweep { background: radial-gradient(circle at 28% 18%, var(--ocean-gloss), var(--ocean-glow) 55%, transparent); border-color: var(--ocean-line); box-shadow: inset 0 1.5px 0 var(--ocean-edge), 0 8px 30px var(--ocean-shadow); backdrop-filter: blur(7px); }
+html.ocean-ui .radar-ring, html.ocean-ui .radar-axis { border-color: var(--ocean-line); }
+html.ocean-ui .radar-core, html.ocean-ui .radar-blip { background: var(--ocean-accent); }
+/* The existing composer has deliberate !important geometry. Override material only. */
+html.ocean-ui .research-input-flat, html.ocean-ui .mrag-composer {
+  position: relative;
+  background: radial-gradient(ellipse at 10% -40%, var(--ocean-gloss), transparent 75%), var(--ocean-glass) !important;
+  color: var(--ocean-ink); border-color: var(--ocean-edge) !important;
+  border-radius: 22px;
+  backdrop-filter: blur(10px) saturate(130%);
+  -webkit-backdrop-filter: blur(10px) saturate(130%);
+  box-shadow: inset 0 1.5px 0 var(--ocean-edge), inset 1px 0 0 var(--ocean-line), inset 0 -8px 19px var(--ocean-glow), 0 14px 36px var(--ocean-shadow) !important;
+}
+html.ocean-ui .research-input-flat:focus-within, html.ocean-ui .mrag-composer:focus-within { box-shadow: inset 0 1px 0 var(--ocean-edge), 0 0 0 2px var(--ocean-accent-soft), 0 14px 38px var(--ocean-shadow) !important; }
+html.ocean-ui .research-input-flat textarea.research-composer-textarea,
+html.ocean-ui .research-input-flat textarea.research-composer-textarea:not(:placeholder-shown) { color: var(--ocean-ink) !important; -webkit-text-fill-color: var(--ocean-ink) !important; caret-color: var(--ocean-ink) !important; }
+html.ocean-ui .research-input-flat textarea.research-composer-textarea::placeholder { color: var(--ocean-muted) !important; -webkit-text-fill-color: var(--ocean-muted) !important; }
+html.ocean-ui .research-composer-tool, html.ocean-ui .research-composer-icon-button { color: var(--ocean-soft) !important; }
+html.ocean-ui .research-composer-tool:hover:not(:disabled), html.ocean-ui .research-composer-icon-button:hover:not(:disabled) { background: var(--ocean-hover) !important; color: var(--ocean-ink) !important; }
+html.ocean-ui .research-send-btn { background: var(--ocean-accent) !important; color: var(--ocean-on-accent) !important; }
+html.ocean-ui .research-send-btn:disabled { background: var(--ocean-active) !important; color: var(--ocean-muted) !important; }
+html.ocean-ui [data-composer-dock], html.ocean-ui .mrag-composer-dock { background: transparent; }
+html.ocean-ui .research-workspace-panel { background: var(--ocean-glass); backdrop-filter: blur(12px) saturate(130%); box-shadow: inset 1px 0 0 var(--ocean-edge); }
+/* Do not apply filters to iframe/document content: only its surrounding workspace. */
+html.ocean-ui .chat-user-bubble { background: var(--ocean-active); color: var(--ocean-ink); backdrop-filter: blur(8px); box-shadow: inset 0 1px 0 var(--ocean-edge); }
+html.ocean-ui :is(.workspace-admin-shell, .image-studio, .usage-page) { background: transparent; color: var(--ocean-ink); }
+html.ocean-ui :is(.workspace-admin-header, .studio-header) { background: var(--ocean-glass); backdrop-filter: blur(10px); border-color: var(--ocean-line); }
+html.ocean-ui :is(.workspace-admin-rail, .workspace-admin-panel, .model-admin-rail, .model-admin-panel, .studio-control, .studio-output, .usage-panel, .usage-metric) { background: var(--ocean-glass); border-color: var(--ocean-line); box-shadow: inset 0 1px 0 var(--ocean-edge), 0 8px 28px var(--ocean-shadow); backdrop-filter: blur(10px); }
+html.ocean-ui :is(.workspace-admin-card, .model-admin-card, .model-admin-provider-group, .studio-history, .usage-range) { background: var(--ocean-surface); border-color: var(--ocean-line); }
+html.ocean-ui :is(.workspace-admin-panel-foot, .model-admin-panel-foot, .model-admin-panel-head, .studio-output-bar) { background: var(--ocean-surface); border-color: var(--ocean-line); }
+html.ocean-ui .model-admin-card[data-active="true"] { background: var(--ocean-active); }
+html.ocean-ui :is(.mrag-drawer, .mrag-full-content-panel) { background: var(--ocean-raised); backdrop-filter: blur(18px); border-color: var(--ocean-edge); }
+html.ocean-ui :is(.mrag-drawer-header, .mrag-drawer-footer, .mrag-drawer-section) { background: var(--ocean-surface); border-color: var(--ocean-line); }
+html.ocean-ui :is(.model-admin-field input, .model-admin-field textarea, .workspace-admin-input, .workspace-admin-textarea, .studio-prompt) { background: var(--ocean-reading); color: var(--ocean-ink); border-color: var(--ocean-line); }
+html.ocean-ui .studio-canvas { background: radial-gradient(ellipse at 50% 35%, var(--ocean-glow), transparent 70%), var(--ocean-empty); }
+html.ocean-ui .image-studio { --studio-paper: var(--ocean-surface); --studio-soft: var(--ocean-empty); }
+html.ocean-ui :is(.usage-header, .usage-panel-heading, .usage-metric, .usage-table td, .usage-table th) { border-color: var(--ocean-line); }
+html.ocean-ui :is(.usage-header h1, .usage-metric strong, .usage-panel-heading h2, .usage-table td, .usage-request-id, .usage-total) { color: var(--ocean-ink); }
+html.ocean-ui :is(.usage-kicker, .usage-header p, .usage-metric-top, .usage-metric small, .usage-muted, .usage-source, .usage-axis-label, .usage-table th) { color: var(--ocean-soft); fill: var(--ocean-soft); }
+html.ocean-ui .usage-table th { background: var(--ocean-surface); }
+html.ocean-ui .usage-table tbody tr:hover { background: var(--ocean-hover); }
+html.ocean-ui :is(.usage-range button, .usage-refresh) { color: var(--ocean-soft); border-color: var(--ocean-line); }
+html.ocean-ui .usage-range button[aria-pressed="true"] { background: var(--ocean-raised); color: var(--ocean-ink); }
+html.ocean-ui .usage-grid-line { stroke: var(--ocean-line); }
+html.ocean-ui .usage-point { fill: var(--ocean-solid); }
+/* Portal surfaces remain opaque enough to read over an animated background. */
+html.ocean-ui :is([data-slot="dialog-content"], [data-slot="select-content"], [data-slot="dropdown-menu-content"], [data-slot="popover-content"], .research-composer-menu, .ant-modal-content, .ant-dropdown-menu, .ant-select-dropdown, .ant-message-notice-content) { color: var(--ocean-ink); background: var(--ocean-raised) !important; border-color: var(--ocean-edge); box-shadow: inset 0 1px 0 var(--ocean-edge), 0 26px 70px var(--ocean-shadow); }
+html.ocean-ui .research-composer-menu :is([class*="text-[#1d1d1f]"], [class*="text-[#86868b]"], [class*="text-[#6b6b70]"]) { color: var(--ocean-soft); }
+/* Login keeps its current fields and submit flow; only the materials change. */
+html.ocean-ui :is(.research-login-page, .rl-help-dialog) { --paper: transparent; --white: var(--ocean-surface); --ink: var(--ocean-ink); --muted: var(--ocean-soft); --line: var(--ocean-line); --accent: var(--ocean-accent); color: var(--ocean-ink); color-scheme: inherit; }
+html.ocean-ui .research-login-page { background: transparent; }
+html.ocean-ui .rl-auth { background: var(--ocean-glass); border: 1px solid var(--ocean-edge); border-radius: 24px; padding: 32px; backdrop-filter: blur(12px); box-shadow: inset 0 1px 0 var(--ocean-edge), 0 16px 50px var(--ocean-shadow); }
+html.ocean-ui :is(.rl-field input, .rl-note) { background: var(--ocean-reading); color: var(--ocean-ink); border-color: var(--ocean-line); }
+html.ocean-ui :is(.rl-desk, .rl-folder-back, .rl-folder-back:before) { background: var(--ocean-empty); border-color: var(--ocean-line); }
+html.ocean-ui .rl-note-line em { background: var(--ocean-active); }
+html.ocean-ui .rl-submit { background: var(--ocean-accent); color: var(--ocean-on-accent); }
+html.ocean-ui .rl-help-dialog { background: var(--ocean-raised); }
+@media (max-width: 1023px) {
+  html.ocean-ui [role="dialog"] .ocean-sidebar { background: var(--ocean-raised); }
+}
+@media (max-width: 640px) {
+  html.ocean-ui .rl-auth { padding: 24px 20px; }
+}
+@media (prefers-reduced-transparency: reduce) {
+  html.ocean-ui :is(.ocean-sidebar, .research-input-flat, .ocean-suggestion, .workspace-admin-panel, .model-admin-panel, .studio-control, .usage-panel, .rl-auth) { background: var(--ocean-solid) !important; backdrop-filter: none; }
+}
+@supports not (backdrop-filter: blur(1px)) {
+  html.ocean-ui :is(.ocean-sidebar, .research-input-flat, .workspace-admin-panel, .model-admin-panel, .mrag-drawer, .rl-auth) { background: var(--ocean-solid) !important; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ocean-canvas { display: none; }
+}
+
+html.ocean-ui .ocean-sop :is(section, [class*="bg-white"]) { background: var(--ocean-glass); border-color: var(--ocean-line); }
+html.ocean-ui .ocean-sop :is(input, textarea, pre, [class*="bg-slate-50"]) { background: var(--ocean-reading); color: var(--ocean-ink); border-color: var(--ocean-line); }
+html.ocean-ui .ocean-sop :is([class*="text-slate-900"], [class*="text-slate-700"]) { color: var(--ocean-ink); }
+html.ocean-ui .ocean-sop :is([class*="text-slate-400"], [class*="text-slate-500"], [class*="text-slate-600"]) { color: var(--ocean-soft); }
+
+/* Reading zones transmit less light than navigational glass. */
+html.ocean-ui .research-chat-panel-left { background: var(--ocean-glass); }
+html.ocean-ui .mrag-session-item { background: var(--ocean-reading); border-color: var(--ocean-line); }
+html.ocean-ui :is(.usage-controls select, .usage-refresh) { background: var(--ocean-reading); color: var(--ocean-soft); border-color: var(--ocean-line); }
+html.ocean-ui .usage-range button.is-active { background: var(--ocean-active); color: var(--ocean-ink); }
+html.ocean-ui .usage-metrics { background: var(--ocean-line); border-color: var(--ocean-line); }
+html.ocean-ui .usage-controls label { color: var(--ocean-soft); }
+html.ocean-ui .usage-alert { background: var(--ocean-danger-soft); color: var(--ocean-danger); border-color: var(--ocean-line); }
+html.ocean-ui .usage-alert button { color: var(--ocean-danger); }
+html.ocean-ui .usage-empty { color: var(--ocean-soft); border-color: var(--ocean-line); }
+html.ocean-ui .usage-empty h2 { color: var(--ocean-ink); }
+html.ocean-ui .usage-empty p { color: var(--ocean-soft); }
+
+html.ocean-ui .ocean-account-menu { background: var(--ocean-raised); border-color: var(--ocean-edge); box-shadow: inset 0 1px 0 var(--ocean-edge), 0 16px 45px var(--ocean-shadow); }
+html.ocean-ui .reasoning-panel { --reasoning-accent: var(--ocean-accent); }

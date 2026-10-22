@@ -33,8 +33,10 @@ public class EmitUiPatchTool implements BaseTool {
 
     @Override
     public String getDescription() {
-        return "Apply incremental JSON-Patch updates (add/replace/remove) to an already-emitted gen UI tree. "
-                + "Args: {patches, optional seq, optional canvas_id}. Prefer over re-emitting full tree.";
+        return "Update a previously emitted Surface in the active session, including earlier conversation rounds. "
+                + "Args: patches, canvas_id (use surfaceId returned by emit_ui_tree), base_revision (latest revision). "
+                + "Omit canvas_id only when the session contains exactly one Surface. Use /root/... paths. "
+                + "Revision conflicts must reload the latest snapshot before retrying. Never claim success after an error.";
     }
 
     @Override
@@ -55,6 +57,7 @@ public class EmitUiPatchTool implements BaseTool {
         properties.put("patches", patches);
         properties.put("canvas_id", canvasId);
         properties.put("seq", seq);
+        properties.put("base_revision", Map.of("type","integer","minimum",1,"description","Latest confirmed Surface revision"));
 
         Map<String, Object> parameters = new HashMap<>();
         parameters.put("type", "object");
@@ -67,12 +70,37 @@ public class EmitUiPatchTool implements BaseTool {
     @SuppressWarnings("unchecked")
     public Object execute(Object input) {
         try {
+            org.wwz.ai.domain.agent.runtime.tool.common.canvas.planner.UiPresentationRuntime.ensureAvailable(agentContext);
             Map<String, Object> params = input instanceof Map<?, ?> map ? castMap(map) : Map.of();
             // 规范化同时过滤未知字段，并确保 remove 不携带无意义的 value。
             Map<String, Object> normalized = GenUiSchema.validateUiPatch(params);
 
+            Map<String,Object> surface = null;
+            Map<String,Object> snapshot = null;
+            UiSurfaceStore surfaceStore = UiSurfaceTools.store(agentContext);
+            if (surfaceStore != null) {
+                Object base = params.get("base_revision");
+                if (base != null && (!(base instanceof Number) || ((Number)base).longValue()<1
+                        || ((Number)base).doubleValue()!=((Number)base).longValue()))
+                    throw new IllegalArgumentException("base_revision must be a positive integer");
+                var quality=org.wwz.ai.domain.agent.runtime.tool.common.canvas.planner.UiPresentationRuntime.checkPatch(agentContext,stringVal(params.get("canvas_id")),base==null?null:((Number)base).longValue(),(List<Map<String,Object>>)normalized.get("patches"));
+                if(quality!=null)normalized.put("quality",org.wwz.ai.domain.agent.runtime.tool.common.canvas.planner.UiPresentationRuntime.qualityData(quality));
+                Map<String,Object> document = surfaceStore.patch(agentContext.getSessionId(),
+                        stringVal(params.get("canvas_id")), UiSurfaceTools.eventId(agentContext),
+                        base==null?null:((Number)base).longValue(), (List<Map<String,Object>>)normalized.get("patches"));
+                surface = UiSurfaceDocument.metadata(document);
+                snapshot = (Map<String,Object>)document.get("tree");
+                normalized.put("canvas_id",document.get("surfaceId"));
+                normalized.put("seq",((Number)document.get("revision")).intValue());
+                // Ordinary patches run only after a streamed generation becomes terminal (enforced by the store).
+            }
+
             Map<String, Object> streamPayload = new LinkedHashMap<>(normalized);
             streamPayload.put("isFinal", true);
+            if (surface != null) {
+                streamPayload.put("surface", surface);
+                streamPayload.put("snapshot", snapshot);
+            }
             ToolArtifactSource artifactSource = agentContext == null
                     ? null
                     : agentContext.getCurrentToolArtifactSource();
@@ -101,6 +129,8 @@ public class EmitUiPatchTool implements BaseTool {
             fields.put("canvasId", canvasId);
             fields.put("seq", seq);
             fields.put("patchCount", patches.size());
+            if(normalized.containsKey("quality"))fields.put("quality",normalized.get("quality"));
+            if (surface != null) fields.put("surface",surface);
             return ToolResultPayload.okData(
                     getName(),
                     fields,
@@ -108,14 +138,13 @@ public class EmitUiPatchTool implements BaseTool {
                             .patches(patches)
                             .canvasId(canvasId)
                             .seq(seq)
+                            .surface(surface)
+                            .snapshot(snapshot)
                             .build()
             );
         } catch (Exception e) {
             log.warn("emit_ui_patch failed: {}", e.getMessage());
-            return ToolResultPayload.failureFrom(
-                    "emit_ui_patch validation failed: " + e.getMessage(),
-                    null
-            );
+            return org.wwz.ai.domain.agent.runtime.tool.common.canvas.planner.UiPresentationRuntime.failure(agentContext,"emit_ui_patch validation failed: " + e.getMessage());
         }
     }
 

@@ -32,6 +32,9 @@ public interface IExecutionLedgerWriteRepository {
 
     void upsertSession(DialogueSessionUpsertRecord record);
 
+    /** Create without updating an existing session or resurrecting a deleted one. */
+    void insertSessionIfAbsent(DialogueSessionUpsertRecord record);
+
     List<org.wwz.ai.domain.agent.ledger.model.DialogueRunView> queryRunsBySessionId(String sessionId);
 
     void insertLlmInvocation(LlmInvocation invocation);

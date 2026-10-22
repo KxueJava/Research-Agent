@@ -27,6 +27,12 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class WorkspaceImageGenerationServiceTest {
+    @org.junit.Before public void bindOwner() {
+        org.wwz.ai.types.auth.AdminAuthContext.bind("image-owner", "owner");
+    }
+    @org.junit.After public void clearOwner() {
+        org.wwz.ai.types.auth.AdminAuthContext.clear();
+    }
 
     @Test
     public void test_generateUsesSharedKernelAndPersistsWorkspaceBatch() {
@@ -154,7 +160,7 @@ public class WorkspaceImageGenerationServiceTest {
         IToolOutputImageGenerationDao imageGenerationDao = Mockito.mock(IToolOutputImageGenerationDao.class);
         ToolOutputReader toolOutputReader = Mockito.mock(ToolOutputReader.class);
 
-        Mockito.when(imageGenerationDao.countByRequestSource(ExecutionLedgerConstants.REQUEST_SOURCE_WORKSPACE)).thenReturn(2);
+        Mockito.when(imageGenerationDao.countByRequestSource(ExecutionLedgerConstants.REQUEST_SOURCE_WORKSPACE, "image-owner")).thenReturn(2);
         Map<String, Object> newestRow = new LinkedHashMap<>();
         newestRow.put("request_id", "req-new");
         newestRow.put("request_source", ExecutionLedgerConstants.REQUEST_SOURCE_WORKSPACE);
@@ -168,7 +174,7 @@ public class WorkspaceImageGenerationServiceTest {
         newestRow.put("mask_image_count", 0);
         newestRow.put("used_fallback", 0);
         newestRow.put("created_at", LocalDateTime.of(2026, 4, 26, 10, 0, 0));
-        Mockito.when(imageGenerationDao.queryPageByRequestSource(ExecutionLedgerConstants.REQUEST_SOURCE_WORKSPACE, 0, 1))
+        Mockito.when(imageGenerationDao.queryPageByRequestSource(ExecutionLedgerConstants.REQUEST_SOURCE_WORKSPACE, "image-owner", 0, 1))
                 .thenReturn(List.of(newestRow));
         Map<String, Object> oldestRow = new LinkedHashMap<>();
         oldestRow.put("request_id", "req-old");
@@ -183,7 +189,7 @@ public class WorkspaceImageGenerationServiceTest {
         oldestRow.put("mask_image_count", 1);
         oldestRow.put("used_fallback", 1);
         oldestRow.put("created_at", LocalDateTime.of(2026, 4, 25, 9, 0, 0));
-        Mockito.when(imageGenerationDao.queryPageByRequestSource(ExecutionLedgerConstants.REQUEST_SOURCE_WORKSPACE, 1, 1))
+        Mockito.when(imageGenerationDao.queryPageByRequestSource(ExecutionLedgerConstants.REQUEST_SOURCE_WORKSPACE, "image-owner", 1, 1))
                 .thenReturn(List.of(oldestRow));
         Mockito.when(toolOutputReader.readDirect("req-new", ImageGenerationBatchPersistenceServiceImpl.buildWorkspaceToolCallId("req-new")))
                 .thenReturn(java.util.Optional.of(ToolOutputView.builder()

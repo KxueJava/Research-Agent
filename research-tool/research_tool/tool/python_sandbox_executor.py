@@ -152,14 +152,22 @@ class _LocalPythonSandboxExecutor:
                 if self._process.poll() is None:
                     self._request({"type": "close"}, allow_closed=True)
             finally:
-                if self._process.poll() is None:
-                    self._process.kill()
-                self._process.wait(timeout=5)
-                if self._process.stdin is not None:
-                    self._process.stdin.close()
-                if self._process.stdout is not None:
-                    self._process.stdout.close()
-                self._process = None
+                process = self._process
+                try:
+                    # The close acknowledgement precedes process exit. On Windows
+                    # killing the venv launcher here can leave its real interpreter
+                    # briefly alive and holding the workspace directory open.
+                    try:
+                        process.wait(timeout=5)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                        process.wait(timeout=5)
+                finally:
+                    if process.stdin is not None:
+                        process.stdin.close()
+                    if process.stdout is not None:
+                        process.stdout.close()
+                    self._process = None
 
     def _ensure_started(self) -> None:
         if self._process is not None and self._process.poll() is None:

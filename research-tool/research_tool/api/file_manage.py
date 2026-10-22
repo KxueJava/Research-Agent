@@ -6,11 +6,13 @@
 """
 
 import mimetypes
+import hashlib
 import os
 import re
 from urllib.parse import quote, unquote
 
-from fastapi import APIRouter, File, Form, UploadFile
+from fastapi import APIRouter, File, Form, UploadFile, Request, Depends, HTTPException
+from research_tool.api.file_access import authorize_file_scope, authorize_file_record, require_internal, require_file_reader
 from fastapi.responses import JSONResponse, Response, FileResponse
 
 from research_tool.model.protocal import (
@@ -77,6 +79,17 @@ def _build_html_preview_content(file_path: str, file_name: str) -> bytes | None:
     return preview.encode("utf-8") if preview != html else None
 
 
+def _verify_surface_snapshot(file_path: str, file_name: str):
+    if file_name.startswith(".ui-surfaces/"):
+        expected = os.path.basename(file_name).removesuffix(".html")
+        if not re.fullmatch(r"[a-f0-9]{64}", expected):
+            raise HTTPException(409, "Invalid Surface snapshot reference")
+        with open(file_path, "rb") as content:
+            actual = hashlib.file_digest(content, "sha256").hexdigest()
+        if actual != expected:
+            raise HTTPException(409, "Surface snapshot integrity failure")
+
+
 async def _get_file_info_by_request_and_name(request_id: str, raw_file_name: str):
     """优先命中相对路径 file_id，再回退 basename 与历史算法。"""
     relative_name = None
@@ -101,11 +114,13 @@ async def _get_file_info_by_request_and_name(request_id: str, raw_file_name: str
 
 
 @router.post("/get_file")
-async def get_file(body: FileRequest):
+async def get_file(body: FileRequest, request: Request):
     """按 file_id 查询单个文件的预览/下载地址。"""
     # 查询接口只返回稳定地址和元数据，不把文件内容再次放进 JSON 响应。
+    await require_file_reader(request)
     file_info = await FileInfoOp.get_by_file_id(file_id=body.file_id)
     if file_info:
+        await authorize_file_record(request, file_info)
         preview_url = get_file_preview_url(
             file_id=file_info.request_id, file_name=file_info.filename
         )
@@ -125,7 +140,7 @@ async def get_file(body: FileRequest):
         raise Exception("file not found")
 
 
-@router.post("/upload_file")
+@router.post("/upload_file", dependencies=[Depends(require_internal)])
 async def upload_file(body: FileUploadRequest):
     """JSON 方式上传文本内容并登记元数据。"""
     # 存储名必须先归一化，再参与 file_id 计算，保证同名文件在不同入口生成一致主键。
@@ -154,9 +169,10 @@ async def upload_file(body: FileUploadRequest):
     )
 
 
-@router.post("/upload_file_data")
+@router.post("/upload_file_data", dependencies=[Depends(require_internal)])
 async def upload_file_data(
-    file: UploadFile = File(...), request_id: str = Form(alias="requestId")
+    file: UploadFile = File(...), request_id: str = Form(alias="requestId"),
+    kb_id: str = Form(default="",alias="kbId"), document_id: str = Form(default="",alias="documentId")
 ):
     """multipart 二进制上传（工具产物、用户附件等）。"""
     # URL 解码后再清洗文件名，避免客户端编码差异导致落盘名和 file_id 不一致。
@@ -164,7 +180,9 @@ async def upload_file_data(
     file.filename = normalize_stored_file_name(file.filename)
     file_id = get_file_id(request_id, file.filename)
     file_info = await FileInfoOp.add_by_file(
-        file=file, file_id=file_id, request_id=request_id
+        file=file, file_id=file_id, request_id=request_id,
+        resource_kind="knowledge" if kb_id and document_id else "session",
+        description=__import__("json").dumps({"kbId":kb_id,"fileId":document_id}) if kb_id and document_id else ""
     )
     preview_url = get_file_preview_url(
         file_id=file_info.request_id, file_name=file_info.filename
@@ -181,7 +199,7 @@ async def upload_file_data(
     )
 
 
-@router.post("/register_file")
+@router.post("/register_file", dependencies=[Depends(require_internal)])
 async def register_file(body: FileRegisterRequest):
     """登记本地已有文件：不拷贝内容，只写元数据并返回预览/下载 URL。"""
     # register 只建立元数据指针，真实内容仍由 local_path 指向的文件提供。
@@ -213,9 +231,10 @@ async def register_file(body: FileRegisterRequest):
 
 
 @router.post("/get_file_list")
-async def get_file_list(body: FileListRequest):
+async def get_file_list(body: FileListRequest, request: Request):
     """列出会话下全部文件，或按 filters 中的 file_id 过滤。"""
     # 没有 filters 时按会话聚合；有 filters 时按精确 file_id 查询，分别对应历史两种调用方式。
+    await require_file_reader(request)
     if not body.filters:
         file_infos = await FileInfoOp.get_by_request_id(body.request_id)
     else:
@@ -224,6 +243,8 @@ async def get_file_list(body: FileListRequest):
         )
     if not file_infos:
         return JSONResponse(content={"results": [], "totalSize": 0})
+    for file_info in file_infos:
+        await authorize_file_record(request, file_info)
     total_size = sum([f.file_size for f in file_infos])
     results = []
     for file_info in file_infos:
@@ -246,22 +267,29 @@ async def get_file_list(body: FileListRequest):
 
 
 @router.get("/download/{file_id}/{file_name:path}")
-async def download_file(file_id: str, file_name: str):
+async def download_file(file_id: str, file_name: str, request: Request):
     """下载文件。TODO：路径 file_id 实际是 request_id，后续统一改名。"""
     # file_id 参数在协议上仍承载 request_id，查询函数负责兼容新旧文件名算法。
+    await require_file_reader(request)
     file_info, file_name = await _get_file_info_by_request_and_name(file_id, file_name)
     if not file_info or not os.path.exists(file_info.file_path):
         return Response(content="File not found", status_code=404)
-    return FileResponse(file_info.file_path, filename=os.path.basename(file_name))
+    await authorize_file_record(request, file_info)
+    _verify_surface_snapshot(file_info.file_path, file_name)
+    return FileResponse(file_info.file_path, filename=os.path.basename(file_name), headers={"Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff"})
 
 
 @router.get("/preview/{file_id}/{file_name:path}")
-async def preview_file(file_id: str, file_name: str):
+async def preview_file(file_id: str, file_name: str, request: Request):
     """浏览器内联预览；md 强制 text/markdown，未知类型走 attachment。"""
     # TODO 目前 file_id 实际上是 request_id，后续统一修改
+    await require_file_reader(request)
     file_info, file_name = await _get_file_info_by_request_and_name(file_id, file_name)
     if not file_info or not os.path.exists(file_info.file_path):
         return Response(content="File not found", status_code=404)
+
+    await authorize_file_record(request, file_info)
+    _verify_surface_snapshot(file_info.file_path, file_name)
 
     # 可识别类型以内联方式交给浏览器；未知类型改为附件，避免浏览器误把任意二进制当页面执行。
     disposition = "inline"
@@ -281,10 +309,18 @@ async def preview_file(file_id: str, file_name: str):
     encoded_file_name = quote(file_name)
 
     common_headers = {
+        "Cache-Control": "private, no-store",
+        # Isolate generated documents even when opened directly through the same-origin proxy.
+        "Content-Security-Policy": (
+            "sandbox allow-scripts; default-src 'none'; "
+            "script-src 'unsafe-inline' https://cdn.jsdelivr.net https://unpkg.com; "
+            "style-src 'unsafe-inline' https:; img-src https: data: blob:; "
+            "font-src https: data:; connect-src 'none'; object-src 'none'; "
+            "frame-src 'none'; base-uri 'none'; form-action 'none'"
+        ),
+        "X-Content-Type-Options": "nosniff",
+        "Referrer-Policy": "no-referrer",
         "Content-Disposition": f"{disposition}; filename=\"{encoded_file_name}\"; filename*=UTF-8''{encoded_file_name}",
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization",
     }
     injected_content = _build_html_preview_content(file_info.file_path, file_name)
     if injected_content is not None:

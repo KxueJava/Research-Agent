@@ -19,6 +19,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class CanvasPublishToolOutput implements ToolStructuredOutput {
+    private java.util.Map<String,Object> surface;
 
     private String title;
 

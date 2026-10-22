@@ -11,6 +11,7 @@ public interface IAdminAuthSessionDao {
     int insert(AdminAuthSession session);
     AdminAuthSession queryActiveById(@Param("sessionId") String sessionId);
     int rotate(@Param("sessionId") String sessionId,
+               @Param("expectedRefreshTokenHash") String expectedRefreshTokenHash,
                @Param("refreshTokenHash") String refreshTokenHash,
                @Param("lastSeenAt") LocalDateTime lastSeenAt,
                @Param("expiresAt") LocalDateTime expiresAt);

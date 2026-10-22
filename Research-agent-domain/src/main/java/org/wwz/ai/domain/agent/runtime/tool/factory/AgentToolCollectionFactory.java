@@ -273,6 +273,8 @@ public class AgentToolCollectionFactory {
 
                 EmitUiPatchTool emitUiPatchTool = new EmitUiPatchTool();
                 addTool(toolCollection, emitUiPatchTool, agentContext, EmitUiPatchTool::setAgentContext);
+                for(String name:List.of("search_places","geocode_places","plan_route","get_map","modify_itinerary"))
+                    toolCollection.addTool(new org.wwz.ai.domain.agent.runtime.tool.common.canvas.maps.MapAgentTool(name,agentContext,request.getVisitorId()));
             }
             if (agentToolList.contains("search")) {
                 DeepSearchTool deepSearchTool = new DeepSearchTool();

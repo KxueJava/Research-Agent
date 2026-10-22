@@ -2,6 +2,14 @@ import { applyUiPatches } from "@/components/genui/applyUiPatch";
 
 type PatchOp = { op: string; path: string; value?: unknown };
 
+export function getUiStreamFromTask(task: CHAT.Task | MESSAGE.Task): unknown {
+  let value: any = task.resultMap;
+  for (let depth = 0; depth < 4 && value && typeof value === "object"; depth++, value = value.resultMap) {
+    if (value.protocol === "rui-stream/1") return value;
+  }
+  return undefined;
+}
+
 function readNestedResultMap(task?: CHAT.Task | MESSAGE.Task | null): any {
   if (!task) return {};
   const rm: any = task.resultMap || {};
@@ -40,7 +48,11 @@ export function ensureOriginalTree(task?: CHAT.Task | MESSAGE.Task | null): any 
   if (!tree) return null;
   try {
     const frozen = JSON.parse(JSON.stringify(tree));
-    writeNestedField(task, { originalTree: frozen });
+    const surface = nested?.surface || tree?._surface;
+    writeNestedField(task, {
+      originalTree: frozen,
+      ...(surface ? {originalSurface: JSON.parse(JSON.stringify(surface))} : {}),
+    });
     return frozen;
   } catch {
     return tree;
@@ -109,7 +121,16 @@ export function mergeUiPatchIntoTaskGroup(
   taskGroup: Array<CHAT.Task | MESSAGE.Task>,
   patchTask: CHAT.Task | MESSAGE.Task
 ): boolean {
-  const treeIndex = findLatestGenUiTreeIndex(taskGroup);
+  const patchPayload=readNestedResultMap(patchTask);
+  const targetId=patchPayload.surface?.surfaceId||patchPayload.canvas_id||patchPayload.canvasId;
+  let treeIndex=-1;
+  for(let i=taskGroup.length-1;i>=0;i--) {
+    const task=taskGroup[i];
+    if(task?.messageType!=="ui_tree"||!getGenUiTreeFromTask(task))continue;
+    const rm=readNestedResultMap(task);
+    const id=rm.surface?.surfaceId||rm.tree?._surface?.surfaceId||rm.canvas_id||rm.canvasId;
+    if(!targetId||targetId===id){treeIndex=i;break;}
+  }
   if (treeIndex < 0) return false;
 
   const treeTask = taskGroup[treeIndex] as CHAT.Task;
@@ -119,17 +140,25 @@ export function mergeUiPatchIntoTaskGroup(
   if (!baseTree || !patches.length) return false;
 
   const prevNested = readNestedResultMap(treeTask);
+  const eventId=patchPayload.surface?.eventId||patchTask.messageId||patchTask.id;
+  const eventIds: string[]=Array.isArray(prevNested.appliedEventIds)?prevNested.appliedEventIds:[];
+  if(eventId&&eventIds.includes(eventId))return true;
+  const previousRevision=Number(prevNested.surface?.revision||prevNested.tree?._surface?.revision||0);
+  if(patchPayload.surface && Number(patchPayload.surface.revision)<=previousRevision)return true;
+  if(patchPayload.surface && !patchPayload.snapshot && Number(patchPayload.surface.baseRevision)!==previousRevision)return false;
   const applied = Array.isArray(prevNested.appliedPatches)
     ? [...prevNested.appliedPatches]
     : [];
   applied.push(...patches);
-  const nextTree = applyUiPatches(baseTree, patches);
+  const nextTree = patchPayload.snapshot || applyUiPatches(baseTree, patches);
   writeNestedField(treeTask, {
     tree: nextTree,
     appliedPatches: applied,
     patchCount: applied.length,
     lastPatchedAt: patchTask.messageTime || String(Date.now()),
     isFinal: true,
+    ...(eventId?{appliedEventIds:[...eventIds,eventId]}:{}),
+    ...(patchPayload.surface?{surface:patchPayload.surface}:{}),
   });
   markPatchMerged(patchTask, patches);
   return true;
@@ -177,7 +206,7 @@ function collectToolsDepthFirst(
   return out;
 }
 
-function collectFromTaskMatrix(
+export function collectFromTaskMatrix(
   tasks?: Array<Array<CHAT.Task | MESSAGE.Task>> | null
 ): Array<CHAT.Task | MESSAGE.Task> {
   const flat: Array<CHAT.Task | MESSAGE.Task> = [];
@@ -207,6 +236,9 @@ function rebuildFeaturedFromFlat(
   if (!tree) return null;
 
   const allPatches: PatchOp[] = [];
+  const seenEvents=new Set<string>();
+  const treePayload=readNestedResultMap(treeTask);
+  const treeId=treePayload.surface?.surfaceId||treePayload.tree?._surface?.surfaceId||treePayload.canvas_id||treePayload.canvasId;
   for (let i = treeIndex + 1; i < flat.length; i++) {
     const task = flat[i];
     if (task?.messageType === "ui_tree" && getGenUiTreeFromTask(task)) {
@@ -216,20 +248,20 @@ function rebuildFeaturedFromFlat(
       continue;
     }
     if (task?.messageType !== "ui_patch") continue;
+    const patchPayload=readNestedResultMap(task);
+    const target=patchPayload.surface?.surfaceId||patchPayload.canvas_id||patchPayload.canvasId;
+    if(target&&target!==treeId)continue;
+    const event=patchPayload.surface?.eventId||task.messageId||task.id;
+    if(event&&seenEvents.has(event))continue;
+    if(event)seenEvents.add(event);
     const patches = getGenUiPatchesFromTask(task);
     if (!patches.length) continue;
     // 展示层始终重放全部 patch 事件（相对 originalTree，不会双计）
     allPatches.push(...patches);
   }
 
-  const deduped: PatchOp[] = [];
-  const seen = new Set<string>();
-  for (const p of allPatches) {
-    const key = JSON.stringify(p);
-    if (seen.has(key)) continue;
-    seen.add(key);
-    deduped.push(p);
-  }
+  // Different events may intentionally carry identical operations (e.g. append twice).
+  const deduped = allPatches;
 
   if (deduped.length) {
     tree = applyUiPatches(tree, deduped);

@@ -39,6 +39,23 @@ public class ConversationSessionOwnershipApplicationService {
         return ensureSessionAccessible(visitorId, sessionId, null, false);
     }
 
+    /** Supports pre-message capability selection without overwriting another owner's session. */
+    public DialogueSession ensureCapabilitySessionAccessible(String visitorId, String sessionId) {
+        if (StringUtils.isAnyBlank(visitorId, sessionId)) {
+            throw new IllegalArgumentException("visitorId 和 sessionId 不能为空");
+        }
+        if (executionLedgerReadRepository.querySessionEntity(sessionId) == null) {
+            LocalDateTime now = LocalDateTime.now();
+            executionLedgerWriteRepository.insertSessionIfAbsent(DialogueSessionUpsertRecord.builder()
+                    .sessionId(sessionId).visitorId(visitorId).title("新对话")
+                    .status(ExecutionLedgerConstants.STATUS_RUNNING)
+                    .runCount(0).finishedRunCount(0).failedRunCount(0)
+                    .startedAt(now).lastActiveAt(now).build());
+        }
+        // A concurrent first writer may own this ID. Always re-read and verify.
+        return ensureExistingSessionAccessible(visitorId, sessionId);
+    }
+
     private DialogueSession ensureSessionAccessible(String visitorId,
                                                    String sessionId,
                                                    String queryText,
@@ -68,6 +85,9 @@ public class ConversationSessionOwnershipApplicationService {
             return executionLedgerWriteRepository.querySessionBySessionId(sessionId);
         }
         if (StringUtils.isBlank(existing.getVisitorId())) {
+            if (!allowBindWhenMissing) {
+                throw new SessionOwnershipDeniedException("当前会话缺少可验证的归属");
+            }
             executionLedgerWriteRepository.upsertSession(DialogueSessionUpsertRecord.builder()
                     .sessionId(existing.getSessionId())
                     .visitorId(visitorId)

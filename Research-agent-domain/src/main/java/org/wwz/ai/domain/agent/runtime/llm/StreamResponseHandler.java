@@ -10,6 +10,8 @@ import org.springframework.ai.chat.model.Generation;
 import org.springframework.stereotype.Component;
 import org.wwz.ai.domain.agent.runtime.agent.AgentContext;
 import org.wwz.ai.domain.agent.runtime.dto.tool.ToolCall;
+import org.wwz.ai.domain.agent.runtime.tool.common.canvas.UiStreamGeneration;
+import org.wwz.ai.domain.agent.runtime.tool.common.canvas.CanvasToolNames;
 import org.wwz.ai.domain.agent.runtime.util.StringUtil;
 import org.wwz.ai.domain.agent.research.config.ResearchConfig;
 import reactor.core.publisher.Flux;
@@ -187,7 +189,7 @@ public class StreamResponseHandler {
                                                                         boolean pushToClient,
                                                                         int timeoutSeconds) {
         // tool-call 流同时维护 content、reasoning 和 tool-call delta 三条累积线；
-        // 中间帧只聚合，只有 onComplete 才能确认参数完整并交给执行层。
+        // 普通工具在 onComplete 后执行；原生 UI 可单独提交已闭合且通过校验的子树。
         // 异步结果容器
         CompletableFuture<LLM.ToolCallResponse> future = new CompletableFuture<>();
 
@@ -206,6 +208,12 @@ public class StreamResponseHandler {
         // 无 tool 的终答仍会走 result；前端会对与 conclusion 同文案的过程回复去重。
 
         Map<String, ToolCallAccumulator> toolCallAccumulators = new LinkedHashMap<>();
+        Map<String,UiStreamGeneration> uiGenerations = new java.util.concurrent.ConcurrentHashMap<>();
+        future.whenComplete((result,error)->{
+            if(error!=null)for(var preview:uiGenerations.values())try {
+                preview.stop(context!=null&&context.isRunCancelled()||error instanceof CancellationException?"cancelled":"failed");
+            } catch(RuntimeException failure) {log.warn("Unable to close UI generation: {}",failure.getClass().getSimpleName());}
+        });
 
         String[] finishReason = new String[1];
         LlmUsageSnapshot[] usageHolder = new LlmUsageSnapshot[]{LlmUsageSnapshot.empty()};
@@ -230,6 +238,7 @@ public class StreamResponseHandler {
                     if (output != null && output.getToolCalls() != null) {
                         toolDeltaCount[0] += output.getToolCalls().size();
                         mergeToolCalls(output.getToolCalls(), toolCallAccumulators);
+                        previewUiArguments(context,pushToClient,toolCallAccumulators,uiGenerations,future,false);
                     }
 
                     // 流式 delta：禁止 trim（token 常带 leading space）
@@ -298,6 +307,7 @@ public class StreamResponseHandler {
                     }
                     // 完成时再次拆分隐藏思考并冲刷尾部增量，再构造完整 toolCalls；
                     // 这是唯一允许把聚合参数交给后续工具调度的边界。
+                    previewUiArguments(context,pushToClient,toolCallAccumulators,uiGenerations,future,true);
                     List<ToolCall> toolCalls = buildToolCalls(toolCallAccumulators);
                     // 整轮再 split 一次，兜底 <think> 跨 chunk 或仅 final metadata
                     ReasoningContentExtractor.SplitResult finalSplit =
@@ -528,6 +538,23 @@ public class StreamResponseHandler {
         }
         return toolCalls;
     }
+    private void previewUiArguments(AgentContext context,boolean push,Map<String,ToolCallAccumulator> calls,Map<String,UiStreamGeneration> generations,CompletableFuture<?> future,boolean flush) {
+        if(!push || context==null || context.isSubAgent() || context.getPrinter()==null || !Boolean.TRUE.equals(context.getIsStream())
+            || !Boolean.TRUE.equals(researchConfig.getUiStreamingEnabled()) || context.getToolCollection()==null
+            || context.getToolCollection().getTool(CanvasToolNames.EMIT_UI_TREE)==null || context.getRuntimeDependencies()==null
+            || context.getRuntimeDependencies().getUiSurfaceStore()==null || !context.getRuntimeDependencies().getUiSurfaceStore().supportsStreaming())return;
+        if(context.isTurnClosed() || context.getToolDispatchWhitelist()!=null && !context.getToolDispatchWhitelist().contains(CanvasToolNames.EMIT_UI_TREE)
+            || org.wwz.ai.domain.agent.runtime.planmode.PlanModeToolPolicy.denyReason(context,CanvasToolNames.EMIT_UI_TREE,Map.of())!=null)return;
+        for(var call:calls.values()) {
+            if(!CanvasToolNames.EMIT_UI_TREE.equals(call.name)||StringUtils.isBlank(call.id))continue;
+            UiStreamGeneration generation=generations.computeIfAbsent(call.id,id->{
+                var created=new UiStreamGeneration(context,System::currentTimeMillis);context.getUiStreamGenerations().put(id,created);return created;
+            });
+            // Cancellation may win after onNext's initial guard but before generation registration.
+            if(future.isDone()){generation.stop(future.isCancelled()||context.isRunCancelled()?"cancelled":"failed");continue;}
+            generation.offer(call.arguments,flush);
+        }
+    }
 
     /**
      * 聚合流式 tool call 片段，兼容累计返回和增量返回两种模式。
@@ -564,7 +591,7 @@ public class StreamResponseHandler {
                 return;
             }
             this.arguments = this.arguments + incomingArguments;
-            this.arguments = responseMapper.normalizeToolArguments(this.arguments);
+            // Preserve incomplete raw JSON. Normalization before the final boundary loses earlier fragments.
         }
 
         ToolCall toToolCall() {

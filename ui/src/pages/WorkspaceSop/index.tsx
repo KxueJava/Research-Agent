@@ -252,7 +252,7 @@ const WorkspaceSop: ResearchType.FC<WorkspaceSopProps> = ({ embedded }) => {
   return (
     <div
       className={classNames(
-        "flex h-full min-h-0 flex-col bg-[var(--chat-bg)]",
+        "ocean-sop flex h-full min-h-0 flex-col bg-[var(--chat-bg)]",
         embedded ? "" : "px-4 py-4 sm:px-6"
       )}
     >

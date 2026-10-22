@@ -445,10 +445,34 @@ public final class ExecutionLedgerFixtureFactory {
     }
 
     static final class InMemoryDialogueSessionLedgerDao implements IDialogueSessionLedgerDao {
+        @Override public int countKnownFileScope(String scope) {
+            return store.sessions.values().stream().anyMatch(s->scope.equals(s.getSessionId())) ? 1 : 0;
+        }
         private final InMemoryLedgerStore store;
+        private final Map<String, Integer> pinnedBySession = new LinkedHashMap<>();
 
         private InMemoryDialogueSessionLedgerDao(InMemoryLedgerStore store) {
             this.store = store;
+        }
+
+        @Override
+        public int insertSessionIfAbsent(DialogueSessionUpsertRecord record) {
+            if (store.sessions.values().stream().anyMatch(s -> record.getSessionId().equals(s.getSessionId()))) {
+                return 0;
+            }
+            return upsertSession(record);
+        }
+
+        @Override
+        public int updatePinned(String sessionId, String visitorId, int pinned) {
+            for (DialogueSession session : store.sessions.values()) {
+                if (session.getDeleted() == 0 && sessionId.equals(session.getSessionId())
+                        && equalsNullable(visitorId, session.getVisitorId())) {
+                    pinnedBySession.put(sessionId, pinned);
+                    return 1;
+                }
+            }
+            return 0;
         }
 
         @Override

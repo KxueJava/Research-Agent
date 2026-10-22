@@ -74,4 +74,23 @@ public class ConversationSessionOwnershipApplicationServiceTest {
             Assert.assertEquals("当前会话不存在", exception.getMessage());
         }
     }
+
+    @Test(expected = SessionOwnershipDeniedException.class)
+    public void existingUnownedSessionCannotBeClaimedByCapabilityRead() {
+        var ctx = ExecutionLedgerFixtureFactory.newLedgerTestContext();
+        ctx.writeRepository.upsertSession(org.wwz.ai.domain.agent.ledger.model.DialogueSessionUpsertRecord.builder()
+                .sessionId("legacy-unowned").visitorId("").title("legacy").build());
+        newService(ctx).ensureExistingSessionAccessible("visitor-b", "legacy-unowned");
+    }
+
+    @Test(expected = SessionOwnershipDeniedException.class)
+    public void concurrentCreatorCannotGiveCapabilitiesToTheLosingOwner() {
+        var read = Mockito.mock(org.wwz.ai.domain.agent.ledger.IExecutionLedgerReadRepository.class);
+        var write = Mockito.mock(org.wwz.ai.domain.agent.ledger.IExecutionLedgerWriteRepository.class);
+        Mockito.when(read.querySessionEntity("raced-session")).thenReturn(null,
+                DialogueSession.builder().sessionId("raced-session").visitorId("winner-a").build());
+        @SuppressWarnings("unchecked") ObjectProvider<LtmManager> ltm = Mockito.mock(ObjectProvider.class);
+        new ConversationSessionOwnershipApplicationService(read, write, ltm)
+                .ensureCapabilitySessionAccessible("loser-b", "raced-session");
+    }
 }

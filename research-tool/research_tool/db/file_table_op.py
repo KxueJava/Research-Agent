@@ -134,7 +134,8 @@ class FileInfoOp(object):
     @staticmethod
     @timer()
     async def add_by_file(
-        file: UploadFile, file_id: str, request_id: str = None
+        file: UploadFile, file_id: str, request_id: str = None,
+        resource_kind: str = "session", description: str = ""
     ) -> FileInfo:
         """multipart 上传流落盘 + 写元数据。"""
         file.filename = normalize_stored_file_name(file.filename)
@@ -144,7 +145,8 @@ class FileInfoOp(object):
             file_id=file_id,
             filename=file.filename,
             file_path=file_path,
-            description="",
+            description=description,
+            resource_kind=resource_kind,
             file_size=os.path.getsize(file_path),
             status=1,
             request_id=request_id,
@@ -192,6 +194,7 @@ class FileInfoOp(object):
                 f.file_path = file_info.file_path
                 f.filename = file_info.filename
                 f.description = file_info.description
+                f.resource_kind = file_info.resource_kind
                 f.request_id = file_info.request_id
                 session.add(f)
             else:

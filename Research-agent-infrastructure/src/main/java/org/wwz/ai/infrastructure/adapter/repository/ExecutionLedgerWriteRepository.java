@@ -74,6 +74,11 @@ public class ExecutionLedgerWriteRepository implements IExecutionLedgerWriteRepo
     }
 
     @Override
+    public void insertSessionIfAbsent(DialogueSessionUpsertRecord record) {
+        dialogueSessionLedgerDao.insertSessionIfAbsent(record);
+    }
+
+    @Override
     public List<DialogueRunView> queryRunsBySessionId(String sessionId) {
         return dialogueRunLedgerDao.queryBySessionId(sessionId);
     }

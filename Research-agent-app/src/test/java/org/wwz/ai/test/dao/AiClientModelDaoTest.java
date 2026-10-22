@@ -5,7 +5,6 @@ import org.wwz.ai.infrastructure.dao.po.AiClientModel;
 import lombok.extern.slf4j.Slf4j;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.junit4.SpringRunner;
 
 import jakarta.annotation.Resource;
@@ -19,8 +18,7 @@ import java.util.List;
  */
 @Slf4j
 @RunWith(SpringRunner.class)
-@SpringBootTest
-public class AiClientModelDaoTest {
+public class AiClientModelDaoTest extends IsolatedDaoSupport {
 
     @Resource
     private IAiClientModelDao aiClientModelDao;
@@ -41,12 +39,16 @@ public class AiClientModelDaoTest {
                 .modelName("gpt-4o-mini")
                 .modelType("openai")
                 .modelUsage("chat")
+                .supportsThinking(0)
                 .status(1)
                 .createTime(LocalDateTime.now())
                 .updateTime(LocalDateTime.now())
                 .build();
 
         int result = aiClientModelDao.insert(aiClientModel);
+        org.junit.Assert.assertEquals(1, result);
+        org.junit.Assert.assertNotNull(aiClientModel.getId());
+        org.junit.Assert.assertNotNull(aiClientModelDao.queryById(aiClientModel.getId()));
         log.info("插入结果: {}, 生成ID: {}", result, aiClientModel.getId());
     }
 
@@ -59,6 +61,7 @@ public class AiClientModelDaoTest {
                 .modelName("gpt-4o-mini-updated")
                 .modelType("openai")
                 .modelUsage("chat")
+                .supportsThinking(0)
                 .status(1)
                 .updateTime(LocalDateTime.now())
                 .build();
@@ -75,6 +78,7 @@ public class AiClientModelDaoTest {
                 .modelName("根据模型ID更新的模型")
                 .modelType("openai")
                 .modelUsage("chat")
+                .supportsThinking(0)
                 .status(1)
                 .updateTime(LocalDateTime.now())
                 .build();

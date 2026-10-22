@@ -25,11 +25,11 @@
     <insert id="insert" parameterType="map">
         INSERT INTO ai_agent_tool_output_canvas_publish (
             tool_invocation_id, run_id, request_id, session_id, tool_call_id, status, error_msg,
-            title, mode, primary_file_name, preview_url, download_url, open_in_panel, salvaged, created_at, updated_at
+            title, mode, primary_file_name, preview_url, download_url, open_in_panel, salvaged, surface_json, created_at, updated_at
         )
         SELECT
             #{row.toolInvocationId}, #{row.runId}, #{row.requestId}, #{row.sessionId}, #{row.toolCallId}, #{row.status}, #{row.errorMsg},
-            #{row.title}, #{row.mode}, #{row.primaryFileName}, #{row.previewUrl}, #{row.downloadUrl}, #{row.openInPanel}, #{row.salvaged}, NOW(), NOW()
+            #{row.title}, #{row.mode}, #{row.primaryFileName}, #{row.previewUrl}, #{row.downloadUrl}, #{row.openInPanel}, #{row.salvaged}, #{row.surfaceJson}, NOW(), NOW()
         FROM DUAL
         WHERE NOT EXISTS (
             SELECT 1
@@ -41,7 +41,7 @@
 
     <select id="queryByToolInvocationId" resultType="map">
         SELECT id, tool_invocation_id, run_id, request_id, session_id, tool_call_id, status, error_msg,
-               title, mode, primary_file_name, preview_url, download_url, open_in_panel, salvaged, created_at, updated_at
+               title, mode, primary_file_name, preview_url, download_url, open_in_panel, salvaged, surface_json, created_at, updated_at
         FROM ai_agent_tool_output_canvas_publish
         WHERE tool_invocation_id = #{toolInvocationId}
         LIMIT 1
@@ -49,7 +49,7 @@
 
     <select id="queryByRequestToolCall" resultType="map">
         SELECT id, tool_invocation_id, run_id, request_id, session_id, tool_call_id, status, error_msg,
-               title, mode, primary_file_name, preview_url, download_url, open_in_panel, salvaged, created_at, updated_at
+               title, mode, primary_file_name, preview_url, download_url, open_in_panel, salvaged, surface_json, created_at, updated_at
         FROM ai_agent_tool_output_canvas_publish
         WHERE request_id = #{requestId}
           AND tool_call_id = #{toolCallId}

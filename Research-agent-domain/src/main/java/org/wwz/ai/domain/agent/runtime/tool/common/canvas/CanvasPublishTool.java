@@ -84,6 +84,7 @@ public class CanvasPublishTool implements BaseTool {
     public Object execute(Object input) {
         String title = "Canvas";
         try {
+            org.wwz.ai.domain.agent.runtime.tool.common.canvas.planner.UiPresentationRuntime.checkArtifact(agentContext);
             Map<String, Object> params = input instanceof Map<?, ?> map
                     ? castMap(map)
                     : Map.of();
@@ -105,6 +106,7 @@ public class CanvasPublishTool implements BaseTool {
             if (relativePath == null) {
                 return failure(title, "html_path not found or outside the active workspace: " + htmlPath);
             }
+            org.wwz.ai.domain.agent.runtime.tool.common.canvas.planner.UiPresentationRuntime.checkArtifactPath(agentContext,relativePath);
 
             ResearchConfig researchConfig = agentContext.getRuntimeDependencies().requireResearchConfig();
             if (researchConfig == null || StringUtils.isBlank(researchConfig.getCodeInterpreterUrl())) {
@@ -116,9 +118,46 @@ public class CanvasPublishTool implements BaseTool {
                     .resolve(relativePath)
                     .normalize();
             int fileSize = (int) Math.min(Files.size(filePath), Integer.MAX_VALUE);
+            org.wwz.ai.domain.agent.runtime.tool.common.canvas.planner.UiPresentationRuntime.checkArtifactContent(agentContext,filePath);
             String fileName = Path.of(relativePath).getFileName().toString();
             String previewUrl = buildFileUrl(researchConfig, "preview", relativePath);
             String downloadUrl = buildFileUrl(researchConfig, "download", relativePath);
+
+            Map<String,Object> surface=null;
+            UiSurfaceStore store=UiSurfaceTools.store(agentContext);
+            if(store!=null) {
+                if(Files.size(filePath)>2*1024*1024) return failure(title,"HTML Surface exceeds the 2 MiB publication limit");
+                byte[] content=Files.readAllBytes(filePath);
+                String digest=sha256(content);
+                String surfaceId="html-"+sha256(relativePath.getBytes(StandardCharsets.UTF_8));
+                String snapshotPath=".ui-surfaces/"+surfaceId+"/"+digest+".html";
+                Path root=WorkspacePaths.resolveSandboxRoot(agentContext.getWorkspaceRoot(),agentContext.getSessionId()).toRealPath();
+                Path snapshot=root.resolve(snapshotPath);
+                Path parent=root;
+                for(Path segment:root.relativize(snapshot.getParent())) {
+                    parent=parent.resolve(segment);
+                    if(!Files.exists(parent,java.nio.file.LinkOption.NOFOLLOW_LINKS))Files.createDirectory(parent);
+                    if(!parent.toRealPath().startsWith(root))throw new SecurityException("Invalid snapshot directory");
+                }
+                // CREATE_NEW prevents silent overwrite, and digest verification detects altered snapshots.
+                try {Files.write(snapshot,content,java.nio.file.StandardOpenOption.CREATE_NEW);}
+                catch(java.nio.file.FileAlreadyExistsException exists) {
+                    if(!Files.isRegularFile(snapshot,java.nio.file.LinkOption.NOFOLLOW_LINKS)
+                            || !digest.equals(sha256(Files.readAllBytes(snapshot))))throw new SecurityException("HTML snapshot integrity failure");
+                }
+                previewUrl=buildFileUrl(researchConfig,"preview",snapshotPath);
+                downloadUrl=buildFileUrl(researchConfig,"download",snapshotPath);
+                agentContext.getRuntimeDependencies().requireFileArtifactPort().register(researchConfig.getCodeInterpreterUrl(),
+                    org.wwz.ai.domain.agent.runtime.dto.FileRequest.builder().requestId(agentContext.getSessionId())
+                        .fileName(snapshotPath).localPath(snapshot.toString()).description("Immutable HTML Surface snapshot").build());
+                Map<String,Object> artifact=new LinkedHashMap<>();
+                artifact.put("surfaceId",surfaceId);artifact.put("relativePath",relativePath);artifact.put("snapshotPath",snapshotPath);
+                artifact.put("sha256",digest);artifact.put("title",title);artifact.put("previewUrl",previewUrl);artifact.put("downloadUrl",downloadUrl);
+                surface=store.publishArtifact(agentContext.getSessionId(),agentContext.getRequestId(),UiSurfaceTools.eventId(agentContext),artifact);
+                // A duplicate event returns its previously acknowledged revision and URLs.
+                Map<?,?> acknowledged=(Map<?,?>)surface.get("artifact");
+                previewUrl=String.valueOf(acknowledged.get("previewUrl"));downloadUrl=String.valueOf(acknowledged.get("downloadUrl"));
+            }
 
             List<CodeInterpreterResponse.FileInfo> fileInfo = new ArrayList<>();
             fileInfo.add(CodeInterpreterResponse.FileInfo.builder()
@@ -133,6 +172,7 @@ public class CanvasPublishTool implements BaseTool {
             if (openInPanel && agentContext.getPrinter() != null) {
                 String toolCallId = artifactSource == null ? null : artifactSource.getToolCallId();
                 CodeInterpreterResponse htmlResponse = CodeInterpreterResponse.builder()
+                        .surface(surface)
                         .isFinal(true)
                         .toolCallId(toolCallId)
                         .fileInfo(fileInfo)
@@ -146,6 +186,7 @@ public class CanvasPublishTool implements BaseTool {
             }
 
             CanvasPublishToolOutput structuredOutput = CanvasPublishToolOutput.builder()
+                    .surface(surface)
                     .title(title)
                     .mode(HTML_MODE)
                     .primaryFileName(fileName)
@@ -163,11 +204,18 @@ public class CanvasPublishTool implements BaseTool {
             fields.put("relativePath", relativePath);
             fields.put("openInPanel", openInPanel);
             fields.put("salvaged", salvaged);
+            if(org.wwz.ai.domain.agent.runtime.tool.common.canvas.planner.UiPresentationRuntime.enabled(agentContext))
+                fields.put("quality",Map.of("necessity","justified","information_organization","artifact_document","interaction_correctness","runtime_unverified","content_completeness","file_structurally_checked","task_completion","unverified"));
+            if(surface!=null)fields.put("surface",surface);
             return ToolResultPayload.okData(getName(), fields, structuredOutput);
         } catch (Exception e) {
             log.error("{} canvas_publish error", agentContext == null ? "-" : agentContext.getRequestId(), e);
             return failure(title, "canvas_publish failed: " + e.getMessage());
         }
+    }
+
+    private static String sha256(byte[] bytes) throws java.security.NoSuchAlgorithmException {
+        return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(bytes));
     }
 
     private String resolveWorkspaceRelativePath(String htmlPath) {
@@ -233,6 +281,8 @@ public class CanvasPublishTool implements BaseTool {
     }
 
     private ToolResultPayload failure(String title, String message) {
+        if(org.wwz.ai.domain.agent.runtime.tool.common.canvas.planner.UiPresentationRuntime.enabled(agentContext))
+            return org.wwz.ai.domain.agent.runtime.tool.common.canvas.planner.UiPresentationRuntime.failure(agentContext,message);
         return ToolResultPayload.failure(
                 message,
                 message,

@@ -18,6 +18,7 @@ public class LegacyVectorCompatTest {
         QdrantConfig qdrantConfig = new QdrantConfig();
         qdrantConfig.setHost("10.0.0.1");
         qdrantConfig.setPort(6334);
+        qdrantConfig.setPreferGrpc(true);
         qdrantConfig.setApiKey("legacy-key");
         DataAgentConfig dataAgentConfig = new DataAgentConfig();
         dataAgentConfig.setQdrantConfig(qdrantConfig);
@@ -50,6 +51,7 @@ public class LegacyVectorCompatTest {
         qdrantConfig.setUrl("https://shared-qdrant.example.com");
         qdrantConfig.setHost("10.0.0.1");
         qdrantConfig.setPort(6334);
+        qdrantConfig.setPreferGrpc(true);
         qdrantConfig.setApiKey("shared-key");
         DataAgentConfig dataAgentConfig = new DataAgentConfig();
         dataAgentConfig.setQdrantConfig(qdrantConfig);

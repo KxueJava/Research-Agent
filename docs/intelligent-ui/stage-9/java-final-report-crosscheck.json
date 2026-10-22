@@ -1,0 +1,33 @@
+{
+  "verified": true,
+  "totals": {
+    "tests": 826,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 1,
+    "classes": 195
+  },
+  "modules": {
+    "Research-agent-app": {
+      "tests": 608,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 1,
+      "classes": 145
+    },
+    "Research-agent-case": {
+      "tests": 2,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "classes": 2
+    },
+    "Research-agent-domain": {
+      "tests": 216,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "classes": 48
+    }
+  }
+}

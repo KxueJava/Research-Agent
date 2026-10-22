@@ -153,6 +153,7 @@ public class ResearchFileGateway {
                 .build();
         Request request = new Request.Builder()
                 .url(uploadUrl)
+                .headers(okhttp3.Headers.of(FileServiceCredentials.headers()))
                 .post(requestBody)
                 .build();
         try (Response response = uploadClient.newCall(request).execute()) {

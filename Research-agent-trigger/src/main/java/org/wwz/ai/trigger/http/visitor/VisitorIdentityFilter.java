@@ -35,10 +35,12 @@ public class VisitorIdentityFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = resolvePath(request);
+        if("/api/agent/file/scope-kind".equals(path))return true;
         return !(StringUtils.startsWith(path, "/web/api/v1/gpt/queryAgentStreamIncr")
                 || StringUtils.startsWith(path, "/1/web/api/v1/gpt/queryAgentStreamIncr")
                 || StringUtils.startsWith(path, "/api/agent/visitor")
                 || StringUtils.startsWith(path, "/api/agent/conversation/sessions")
+                || StringUtils.startsWith(path, "/api/agent/session/")
                 || StringUtils.startsWith(path, "/api/agent/usage")
                 || StringUtils.startsWith(path, "/api/agent/file")
                 // 工作区 zip 下载需要访客身份做会话归属校验

@@ -25,7 +25,7 @@ import { adminUserApi, clearAuthSession, getStoredAdminUser } from "@/services/a
 import type { ConversationSessionItem } from "@/services/agentConversation";
 import type { PanelItemType } from "@/components/ActionPanel";
 import TaskFileSidebar, { type WorkspaceFileItem } from "@/components/ActionView/TaskFileSidebar";
-import { ThemeToggle } from "@/components/ThemeProvider";
+import { AppearanceMenuOptions, ThemeToggle } from "@/components/ThemeProvider";
 
 import ConversationSessionActionMenu from "./ConversationSessionActionMenu";
 import type { SidebarView } from "./viewRoutes";
@@ -142,18 +142,18 @@ const ConversationSidebar = memo(function ConversationSidebar(
   const accountName = getStoredAdminUser()?.username || visitorUsername || "研究用户";
 
   const handleAccountClick = () => {
-    navigate("/");
     setAccountOpen((open) => !open);
   };
 
   const accountBlock = (
     <div className="relative mt-1 border-t border-[var(--chat-border)]/50 px-2 pt-2">
       {accountOpen ? (
-        <div className="absolute bottom-[calc(100%+6px)] left-2 right-2 z-20 rounded-xl border border-[var(--chat-border)] bg-[var(--chat-surface)] p-1.5 shadow-xl">
+        <div className="ocean-account-menu absolute bottom-[calc(100%+6px)] left-2 right-2 z-20 rounded-xl border border-[var(--chat-border)] bg-[var(--chat-panel-strong)] p-1.5 shadow-xl">
           <button type="button" onClick={() => navigate("/profile")} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13px] text-[var(--chat-text)] hover:bg-black/[0.05]">
             <UserRound className="h-4 w-4 text-[var(--chat-text-muted)]" />
             账号设置
           </button>
+          <AppearanceMenuOptions />
           <button type="button" onClick={() => { void adminUserApi.logout().catch(() => undefined); clearAuthSession(); navigate("/login", { replace: true }); }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13px] text-[#b42318] hover:bg-[#fff1f0]">
             <LogOut className="h-4 w-4" />
             退出登录
@@ -221,7 +221,7 @@ const ConversationSidebar = memo(function ConversationSidebar(
   const isTaskFilesPanel = sidebarPanel === "task-files";
 
   return (
-    <div className="flex h-full w-full min-w-0 flex-col border-r border-[var(--chat-border)] bg-[var(--chat-nav)]">
+    <div className="ocean-sidebar flex h-full w-full min-w-0 flex-col border-r border-[var(--chat-border)] bg-[var(--chat-nav)]">
       {/* 顶部操作区 — Manus 侧栏风格 */}
       <div className="flex h-14 shrink-0 items-center justify-between px-3.5">
         <div className="text-[16px] font-semibold text-[var(--chat-text)]">
@@ -342,7 +342,8 @@ const ConversationSidebar = memo(function ConversationSidebar(
                   type="button"
                   onClick={() => onChangeView(item.key)}
                   className={classNames(
-                    "flex h-9 w-full items-center gap-2.5 rounded-[10px] px-2.5 text-[14px] font-medium transition-colors",
+                    "ocean-nav-item flex h-9 w-full items-center gap-2.5 rounded-[10px] px-2.5 text-[14px] font-medium transition-colors",
+                    isActive && "ocean-nav-active",
                     isActive
                       ? "bg-black/[0.08] text-[var(--chat-text)]"
                       : "text-[var(--chat-text)] hover:bg-black/[0.04]"

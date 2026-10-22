@@ -79,6 +79,8 @@ class _FakeSandbox:
         orig_write_bytes = PathCls.write_bytes
         orig_read_text = PathCls.read_text
         orig_read_bytes = PathCls.read_bytes
+        orig_mkdir = PathCls.mkdir
+        orig_chdir = os.chdir
 
         def _norm_remote(path_obj: Path) -> str:
             text = str(path_obj).replace("\\", "/")
@@ -139,6 +141,9 @@ class _FakeSandbox:
         PathCls.write_bytes = _write_bytes  # type: ignore[method-assign]
         PathCls.read_text = _read_text  # type: ignore[method-assign]
         PathCls.read_bytes = _read_bytes  # type: ignore[method-assign]
+        # The fake kernel is in-memory, not the host's Linux /home directory.
+        PathCls.mkdir = lambda *args, **kwargs: None
+        os.chdir = lambda *args, **kwargs: None
         stdout_buf = io.StringIO()
         stderr_buf = io.StringIO()
         try:
@@ -175,6 +180,8 @@ class _FakeSandbox:
             PathCls.write_bytes = orig_write_bytes  # type: ignore[method-assign]
             PathCls.read_text = orig_read_text  # type: ignore[method-assign]
             PathCls.read_bytes = orig_read_bytes  # type: ignore[method-assign]
+            PathCls.mkdir = orig_mkdir
+            os.chdir = orig_chdir
 
     def kill(self):
         self.killed = True

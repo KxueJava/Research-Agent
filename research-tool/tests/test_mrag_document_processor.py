@@ -89,6 +89,7 @@ class DocumentProcessorPersistenceTest(unittest.TestCase):
             processor = DocumentProcessor.__new__(DocumentProcessor)
             processor._uid = "file-1"
             processor._image_urls = {}
+            processor._kb_id = "kb-1"
             processor._parser = SimpleNamespace(
                 parse=lambda: None,
                 parsed_images=lambda: [str(nested_image)],
@@ -122,8 +123,8 @@ class DocumentProcessorPersistenceTest(unittest.TestCase):
         )
         upload_mock.assert_has_calls(
             [
-                call(str(nested_image), file_id="file-1"),
-                call(str(page_image), file_id="file-1"),
+                call(str(nested_image), file_id="file-1", kb_id="kb-1"),
+                call(str(page_image), file_id="file-1", kb_id="kb-1"),
             ]
         )
 

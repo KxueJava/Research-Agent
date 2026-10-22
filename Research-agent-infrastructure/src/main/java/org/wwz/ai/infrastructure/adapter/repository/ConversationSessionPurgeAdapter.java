@@ -26,6 +26,9 @@ public class ConversationSessionPurgeAdapter implements ConversationSessionPurge
 
     @Override
     public void purge(String sessionId, String visitorId) {
+        sessionPurgeDao.rememberFileScopesBySessionId(sessionId);
+        sessionPurgeDao.deleteUiSurfaceEventsBySessionId(sessionId);
+        sessionPurgeDao.deleteUiSurfacesBySessionId(sessionId);
         // 1) 仅按 run_id 关联：必须最先删
         sessionPurgeDao.deleteLlmInvocationsBySessionId(sessionId);
         sessionPurgeDao.deleteToolInvocationsBySessionId(sessionId);

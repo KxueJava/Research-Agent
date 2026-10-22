@@ -1,0 +1,22 @@
+{
+  "startedAt": "2026-10-21T21:40:12+0800",
+  "finishedAt": "2026-10-21T21:50:23+0800",
+  "database": "rui_stage9_test_152b8d5610da417b92f343b0ff0e26ac",
+  "schemaOnly": true,
+  "businessDataCopied": false,
+  "selectedClasses": 195,
+  "deferredClasses": 11,
+  "mavenExitCode": 0,
+  "exitCode": 0,
+  "results": {
+    "tests": 826,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 1,
+    "classes": 195
+  },
+  "temporaryDatabaseRemoved": true,
+  "temporaryUserRemoved": true,
+  "cleanupReconnectVerified": true,
+  "note": "Maven succeeded. Initial cleanup hit an expired admin connection; exact schema/account verified by grants, metadata and creation time, then cleaned via reconnected session. Fresh XML counted independently; no stale reports included."
+}

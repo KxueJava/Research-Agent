@@ -10,6 +10,7 @@ import org.wwz.ai.domain.agent.ledger.model.tooloutput.GenUiTreeToolOutput;
 import org.wwz.ai.domain.agent.research.model.multi.EventResult;
 import org.wwz.ai.domain.agent.runtime.tool.common.canvas.CanvasToolNames;
 import org.wwz.ai.domain.agent.runtime.tool.common.canvas.GenUiSchema;
+import org.wwz.ai.domain.agent.runtime.tool.common.canvas.UiSurfaceDocument;
 
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -44,6 +45,7 @@ public class GenUiTreeToolInvocationProjector extends AbstractToolInvocationProj
         }
 
         Map<String, Object> resultMap = new LinkedHashMap<>();
+        if (tree != null && tree.get("_surface") instanceof Map<?,?> meta) resultMap.put("surface",UiSurfaceDocument.metadata((Map<String,Object>)meta));
         resultMap.put("isFinal", true);
         if (tree != null) {
             resultMap.put("tree", tree);

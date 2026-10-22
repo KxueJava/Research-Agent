@@ -16,6 +16,7 @@ import java.util.List;
  * 仅暴露查询服务当前需要的聚合读能力。
  */
 public interface IExecutionLedgerReadRepository {
+    default boolean isKnownFileScope(String scope) {return querySessionEntity(scope)!=null||queryRunByRequestId(scope)!=null;}
 
     DialogueRun queryRunByRequestId(String requestId);
 

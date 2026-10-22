@@ -43,12 +43,14 @@ public class EmitUiTreeTool implements BaseTool {
                 + "Do NOT use canvas_publish for simple charts/3D shapes — use Chart / ThreeJsFrame instead. "
                 + "Before non-trivial trees: get_genui_guide then list_ui_components. "
                 + "Args: {tree, optional canvas_id}. tree may be object or JSON string. "
+                + "Prefer an object tree: emit root kind and complete props first, then children as independently complete nodes; these can render while remaining arguments generate. JSON strings wait for completion. "
+                + "Streaming generations receive a dedicated server Surface id; use emit_ui_patch for continuity with an existing Surface. "
                 + "Prefer emit_ui_patch for small updates. "
                 + "Interactive actions: set props.action to {type, payload} with snake_case type — "
                 + "e.g. {type:'send_message', payload:{content:'Summarize this'}}, "
                 + "{type:'open_url', payload:{url:'https://…'}}, "
                 + "{type:'submit_form', payload:{formId:'f1'}} (collects named Form fields). "
-                + "Legacy bare actionId string is treated as send_message content. "
+                + "Bare actionId strings do not dispatch actions. "
                 + "Form fields need name + enclosing Form; Button/InteractiveButton fire actions on click."
                 + "Prioritize building interactive components to allow users active participation and operation."
                 + "Add lightweight 2D animation elements to visualize logic and lower comprehension cost."
@@ -79,6 +81,7 @@ public class EmitUiTreeTool implements BaseTool {
     @SuppressWarnings("unchecked")
     public Object execute(Object input) {
         try {
+            org.wwz.ai.domain.agent.runtime.tool.common.canvas.planner.UiPresentationRuntime.ensureAvailable(agentContext);
             Map<String, Object> params = input instanceof Map<?, ?> map ? castMap(map) : Map.of();
             boolean salvaged = Boolean.TRUE.equals(params.get("__salvaged"));
             Object treeRaw = params.get("tree");
@@ -96,10 +99,24 @@ public class EmitUiTreeTool implements BaseTool {
             // 先解析可能以字符串传入的树，再统一走 schema 规范化，保证两种输入形态行为一致。
             Map<String, Object> normalized = GenUiSchema.validateUiTree(treeRaw);
             String canvasId = stringVal(params.get("canvas_id"));
+            var quality=org.wwz.ai.domain.agent.runtime.tool.common.canvas.planner.UiPresentationRuntime.checkTree(agentContext,normalized,false,canvasId);
+
+            Map<String,Object> surface = null;
+            UiSurfaceStore surfaceStore = UiSurfaceTools.store(agentContext);
+            if (surfaceStore != null) {
+                UiStreamGeneration generation=agentContext.getUiStreamGenerations().get(UiSurfaceTools.eventId(agentContext));
+                Map<String,Object> document = generation==null?surfaceStore.publish(agentContext.getSessionId(),
+                        agentContext.getRequestId(), canvasId, UiSurfaceTools.eventId(agentContext), treeRaw):generation.complete(treeRaw);
+                normalized = new LinkedHashMap<>((Map<String,Object>)document.get("tree"));
+                surface = UiSurfaceDocument.metadata(document);
+                canvasId = String.valueOf(document.get("surfaceId"));
+                normalized.put("_surface", surface);
+            }
 
             Map<String, Object> streamPayload = new LinkedHashMap<>();
             streamPayload.put("tree", normalized);
             streamPayload.put("isFinal", true);
+            if (surface != null) streamPayload.put("surface", surface);
             if (canvasId != null) {
                 streamPayload.put("canvas_id", canvasId);
             }
@@ -130,6 +147,8 @@ public class EmitUiTreeTool implements BaseTool {
             fields.put("canvasId", canvasId);
             fields.put("salvaged", salvaged);
             fields.put("tree", normalized);
+            if(quality!=null)fields.put("quality",org.wwz.ai.domain.agent.runtime.tool.common.canvas.planner.UiPresentationRuntime.qualityData(quality));
+            if (surface != null) fields.put("surface", surface);
             return ToolResultPayload.okData(
                     getName(),
                     fields,
@@ -140,13 +159,17 @@ public class EmitUiTreeTool implements BaseTool {
                             .build()
             );
         } catch (Exception e) {
+            if(agentContext!=null) {
+                var generation=agentContext.getUiStreamGenerations().get(UiSurfaceTools.eventId(agentContext));
+                if(generation!=null)generation.stop(agentContext.isRunCancelled()?"cancelled":"failed");
+            }
             log.warn("emit_ui_tree failed: {}", e.getMessage());
             return failure("emit_ui_tree validation failed: " + e.getMessage());
         }
     }
 
     private ToolResultPayload failure(String message) {
-        return ToolResultPayload.failureFrom(message, null);
+        return org.wwz.ai.domain.agent.runtime.tool.common.canvas.planner.UiPresentationRuntime.failure(agentContext,message);
     }
 
     private Map<String, Object> castMap(Map<?, ?> map) {

@@ -19,9 +19,11 @@ public interface IToolOutputImageGenerationDao {
     Map<String, Object> queryByRequestToolCall(@Param("requestId") String requestId,
                                                @Param("toolCallId") String toolCallId);
 
-    int countByRequestSource(@Param("requestSource") String requestSource);
+    int countByRequestSource(@Param("requestSource") String requestSource,
+                             @Param("ownerUserId") String ownerUserId);
 
     List<Map<String, Object>> queryPageByRequestSource(@Param("requestSource") String requestSource,
+                                                       @Param("ownerUserId") String ownerUserId,
                                                        @Param("offset") int offset,
                                                        @Param("limit") int limit);
 }

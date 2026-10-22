@@ -1,10 +1,11 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useId, useState, type ReactNode } from "react";
 import { ConfigProvider, theme as antdTheme } from "antd";
-import { Moon, Sun } from "lucide-react";
-import { readTheme, THEME_STORAGE_KEY, type Theme } from "@/utils/theme";
+import { Check, Moon, Sun } from "lucide-react";
+import { readAppearance, readTheme, APPEARANCE_STORAGE_KEY, THEME_STORAGE_KEY, type Appearance, type Theme } from "@/utils/theme";
 import "@/styles/theme-toggle.css";
+import OceanBackground from "./OceanBackground";
 
-const ThemeContext = createContext<{ theme: Theme; toggle: () => void } | null>(null);
+const ThemeContext = createContext<{ theme: Theme; toggle:() => void; appearance: Appearance; setAppearance: (value: Appearance) => void } | null>(null);
 
 export function ThemeToggle() {
   const context = useContext(ThemeContext);
@@ -21,13 +22,34 @@ export function ThemeToggle() {
   );
 }
 
+/** Native radio inputs provide arrow-key navigation without changing sidebar routes. */
+export function AppearanceMenuOptions() {
+  const context = useContext(ThemeContext);
+  const name = useId();
+  if (!context) return null;
+  return <fieldset className="appearance-menu-options">
+    <legend>外观风格</legend>
+    {([ ["ocean", "深海玻璃"], ["native", "原生简洁"] ] as const).map(([value, label]) => (
+      <label key={value} className="appearance-menu-option">
+        <input type="radio" name={name} value={value} checked={context.appearance === value}
+          onChange={() => context.setAppearance(value)} />
+        <span>{label}</span>
+        <Check className="appearance-menu-check" aria-hidden="true" />
+      </label>
+    ))}
+  </fieldset>;
+}
+
 export default function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setTheme] = useState<Theme>(() => readTheme());
+  const [appearance, setAppearanceState] = useState<Appearance>(() => readAppearance());
 
   useEffect(() => {
+    document.documentElement.classList.toggle("ocean-ui", appearance === "ocean");
+    document.documentElement.dataset.appearance = appearance;
     document.documentElement.classList.toggle("dark", theme === "dark");
     document.documentElement.style.colorScheme = theme;
-  }, [theme]);
+  }, [theme, appearance]);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
@@ -37,6 +59,7 @@ export default function ThemeProvider({ children }: { children: ReactNode }) {
     };
     const onStorage = (event: StorageEvent) => {
       if (event.key === THEME_STORAGE_KEY || event.key === null) setTheme(readTheme());
+      if (event.key === APPEARANCE_STORAGE_KEY || event.key === null) setAppearanceState(readAppearance());
     };
     media.addEventListener("change", onSystemChange);
     window.addEventListener("storage", onStorage);
@@ -51,9 +74,19 @@ export default function ThemeProvider({ children }: { children: ReactNode }) {
     try { localStorage.setItem(THEME_STORAGE_KEY, next); } catch { /* Still switch for this session. */ }
     setTheme(next);
   };
+  const setAppearance = (value: Appearance) => {
+    try { localStorage.setItem(APPEARANCE_STORAGE_KEY, value); } catch { /* Still switch for this session. */ }
+    setAppearanceState(value);
+  };
   return (
     <ConfigProvider theme={{ algorithm: theme === "dark" ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm }}>
-      <ThemeContext.Provider value={{ theme, toggle }}>
+      <ThemeContext.Provider value={{
+        theme,
+        toggle,
+        appearance,
+        setAppearance
+      }}>
+        {appearance === "ocean" ? <OceanBackground /> : null}
         {children}
       </ThemeContext.Provider>
     </ConfigProvider>

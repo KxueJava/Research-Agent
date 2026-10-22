@@ -13,6 +13,7 @@ import {
 import { getTaskFiles, isFileListOnlyTask } from "@/utils/taskArtifacts";
 import { isValidJSON } from "@/utils";
 import type { ActiveRunState } from "./chatView.types";
+import { hasManagedHtmlSurface } from "@/utils/chat/htmlSurfaces";
 
 export type RunPhase =
   | "idle"
@@ -49,6 +50,7 @@ const WORKSPACE_HIDDEN_MESSAGE_TYPES = new Set([
   "ui_patch",
   // GenUI 只在对话主回复区展示，不进工作区
   "ui_tree",
+  "ui_stream",
   // 上下文占用仅驱动 ContextRing
   "context_usage",
 ]);
@@ -120,6 +122,7 @@ export function isCanvasPublishPreviewTask(
   if (!task) {
     return false;
   }
+  if (hasManagedHtmlSurface(task)) return false;
   if (task.messageType === "html") {
     return true;
   }
@@ -154,7 +157,7 @@ export function isWorkspaceRenderableTask(
 export function isWorkspaceAttentionTask(
   task?: Partial<CHAT.Task> | Partial<MESSAGE.Task>
 ) {
-  if (!isWorkspaceRenderableTask(task)) {
+  if (hasManagedHtmlSurface(task) || !isWorkspaceRenderableTask(task)) {
     return false;
   }
 

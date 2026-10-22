@@ -67,7 +67,7 @@ public class DeepSearchBuilderCompatibilityTest {
         Object payload = buildPayload.invoke(builder, "fallback");
 
         Method getStructuredOutput = payload.getClass().getMethod("getStructuredOutput");
-        Method getLlmObservation = payload.getClass().getMethod("getLlmObservation");
+        Method getLlmObservation = payload.getClass().getMethod("getLlmData");
 
         Assert.assertNotNull(getStructuredOutput.invoke(payload));
         Assert.assertTrue(String.valueOf(getLlmObservation.invoke(payload)).contains("中国新能源车出口数据"));

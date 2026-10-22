@@ -53,7 +53,9 @@ class CodeInterpreterRuntimeGuardTest(unittest.TestCase):
         with activate_runtime_io_guard(self.policy):
             Path("分析结果.txt").write_text("ok", encoding="utf-8")
 
-        self.assertTrue(Path(self.output_dir).joinpath("分析结果.txt").exists())
+        # Current policy resolves relative writes under the workspace root;
+        # output/ is selected explicitly through build_output_path().
+        self.assertTrue(Path(self.workspace_root).joinpath("分析结果.txt").exists())
 
     def test_guard_should_normalize_relative_input_read_for_pandas(self):
         with activate_runtime_io_guard(self.policy):

@@ -101,12 +101,12 @@ class DocumentProcessor:
         self._parser.parse()
         # 解析器产生的图片先上传并建立相对路径映射，再改写 Markdown 引用，保证后续切块保存的是稳定资源 URL。
         for image_path in self._parser.parsed_images():
-            image_url = self._write(lambda: oss_utils.upload_local_storage(image_path, file_id=self._uid))
+            image_url = self._write(lambda: oss_utils.upload_local_storage(image_path, file_id=self._uid, kb_id=self._kb_id))
             asset_key = self._build_asset_key(image_path, self._parser.images_dir)
             self._image_urls[asset_key] = image_url
 
         for path_path in self._parser.parsed_pages():
-            image_url = self._write(lambda: oss_utils.upload_local_storage(path_path, file_id=self._uid))
+            image_url = self._write(lambda: oss_utils.upload_local_storage(path_path, file_id=self._uid, kb_id=self._kb_id))
             asset_key = self._build_asset_key(path_path, self._parser.pages_dir)
             self._image_urls[asset_key] = image_url
 
@@ -328,7 +328,8 @@ class DocumentProcessor:
                         "created": time.time(),
                         "image_url": self._get_uploaded_asset_url(image_path, self._parser.images_dir),
                     })
-                self._write(lambda: self._vector_store.add_image_chunks(chunk_data))
+                if self._write(lambda: self._vector_store.add_image_chunks(chunk_data)) is not True:
+                    raise RuntimeError("MRAG image vector write failed")
         else:
             logger.info(f"MRAG 图片向量已关闭，当前以文本代理模式处理图片，file_id={self._uid}")
 
@@ -375,7 +376,8 @@ class DocumentProcessor:
                         "created": time.time(),
                         "image_url": self._get_uploaded_asset_url(image_path, self._parser.pages_dir),
                     })
-                self._write(lambda: self._vector_store.add_page_chunks(chunk_data))
+                if self._write(lambda: self._vector_store.add_page_chunks(chunk_data)) is not True:
+                    raise RuntimeError("MRAG page vector write failed")
         else:
             # text_proxy 模式下，页面截图只作为预览/回链资源保留，不再重复做整页 OCR/caption。
             logger.info(f"MRAG 页面向量已关闭，跳过 page OCR/caption 文本代理，file_id={self._uid}")

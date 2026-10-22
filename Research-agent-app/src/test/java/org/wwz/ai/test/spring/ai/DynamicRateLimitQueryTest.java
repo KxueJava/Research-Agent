@@ -43,7 +43,7 @@ public class DynamicRateLimitQueryTest {
     public void init() {
         OpenAiApi openAiApi = OpenAiApi.builder()
                 .baseUrl("https://apis.itedus.cn")
-                .apiKey(System.getenv("OPENAI_API_KEY"))
+                .apiKey(System.getenv("RESEARCH_TEST_MODEL_API_KEY"))
                 .completionsPath("v1/chat/completions")
                 .embeddingsPath("v1/embeddings")
                 .build();

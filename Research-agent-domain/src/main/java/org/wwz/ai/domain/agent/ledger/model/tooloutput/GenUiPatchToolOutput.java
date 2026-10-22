@@ -28,6 +28,10 @@ public class GenUiPatchToolOutput implements ToolStructuredOutput {
 
     private Integer seq;
 
+    private Map<String,Object> surface;
+
+    private Map<String,Object> snapshot;
+
     @Override
     public String getToolName() {
         return ToolOutputNames.EMIT_UI_PATCH;

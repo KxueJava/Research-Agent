@@ -214,6 +214,7 @@ public class AgentSessionPrinter implements Printer {
                 case "data_analysis":
                 case "ui_tree":
                 case "ui_patch":
+                case "ui_stream":
                     // 结构化事件统一转为 resultMap；extraResultMap 用于补充父子 Agent
                     // 关联信息，必须在序列化后再合并，防止被 message 内容覆盖。
                     response.setResultMap(JSON.parseObject(JSON.toJSONString(message)));

@@ -4,10 +4,9 @@ import { Loading } from "@/components";
 import {
   adminUserApi,
   getAccessToken,
-  getRefreshToken,
   storeAdminUser,
-  storeAuthSession,
 } from "@/services/adminUser";
+import { refreshAccessToken } from "@/utils/request";
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const location = useLocation();
@@ -34,12 +33,14 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
           // Access Token 可能已撤销；下面尝试用 Refresh Token 恢复会话。
         }
       }
-      const refreshToken = getRefreshToken();
-      if (refreshToken) {
+      if (active) {
         try {
-          const session = await adminUserApi.refresh(refreshToken);
-          storeAuthSession(session);
-          if (active && session?.user && session?.accessToken) setAuthenticated(true);
+          const token = await refreshAccessToken();
+          const user = token ? await adminUserApi.me() : null;
+          if (active && user) {
+            storeAdminUser(user);
+            setAuthenticated(true);
+          }
         } catch {
           if (active) setAuthenticated(false);
         }

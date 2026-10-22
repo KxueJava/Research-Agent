@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { uiStreamEventSchema } from "./chat/uiStreamReducer";
 
 /**
  * 前端 SSE 协议边界校验。
@@ -11,7 +12,8 @@ const answerEnvelopeSchema = z.object({
   packageType: z.string(),
   finished: z.boolean(),
   errorMsg: z.string().nullable().optional().transform((value) => value ?? ""),
-  resultMap: z.object({ eventData: z.unknown().optional() }).passthrough().optional().default({}),
+  resultMap: z.object({ eventData: z.unknown().optional() }).passthrough()
+    .nullish().transform((value) => value ?? {}),
 }).passthrough();
 
 const eventDataSchema = z.object({
@@ -56,7 +58,13 @@ export function parseAgentAnswer(raw: unknown): MESSAGE.Answer {
  * 后续 combineData 只处理结构合法的事件。
  */
 export function parseEventData(raw: unknown): MESSAGE.EventData {
-  return eventDataSchema.parse(raw) as unknown as MESSAGE.EventData;
+  const event = eventDataSchema.parse(raw);
+  if (event.messageType === "ui_stream" || event.resultMap.messageType === "ui_stream") {
+    let payload: any = event.resultMap;
+    for (let depth = 0; depth < 4 && payload?.protocol !== "rui-stream/1"; depth++) payload = payload?.resultMap;
+    uiStreamEventSchema.parse(payload);
+  }
+  return event as unknown as MESSAGE.EventData;
 }
 
 export function parseDataChatEvent(raw: unknown): CHAT.DataChatEvent {

@@ -21,6 +21,20 @@ import java.util.concurrent.atomic.AtomicReference;
 public class VisitorIdentityFilterTest {
 
     @Test
+    public void shouldBindVisitorForSessionCapabilities() throws Exception {
+        AnonymousVisitorApplicationService service = Mockito.mock(AnonymousVisitorApplicationService.class);
+        Mockito.when(service.resolveOrCreate(Mockito.any(), Mockito.any(), Mockito.any()))
+                .thenReturn(AnonymousVisitorIdentity.builder().visitorId("cap-owner").newlyCreated(false).build());
+        VisitorIdentityFilter filter = new VisitorIdentityFilter(service, buildCookieProperties(false, "Lax"));
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/research/api/agent/session/s/capabilities");
+        request.setContextPath("/research");
+        AtomicReference<String> seen = new AtomicReference<>();
+        filter.doFilter(request, new MockHttpServletResponse(), captureVisitorChain(seen));
+        Assert.assertEquals("cap-owner", seen.get());
+        Assert.assertNull(VisitorRequestContext.currentVisitorId());
+    }
+
+    @Test
     public void shouldIssueCookieAndBindContextForFirstVisitorRequest() throws Exception {
         AnonymousVisitorApplicationService service = Mockito.mock(AnonymousVisitorApplicationService.class);
         Mockito.when(service.resolveOrCreate(Mockito.isNull(), Mockito.any(), Mockito.any()))

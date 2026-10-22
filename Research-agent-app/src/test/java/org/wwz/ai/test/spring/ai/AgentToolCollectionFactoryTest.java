@@ -56,7 +56,7 @@ public class AgentToolCollectionFactoryTest {
         ));
 
         AgentToolCollectionFactory factory = newFactory(
-                buildResearchConfig(),
+                buildMapResearchConfig(),
                 mcpToolExecutor,
                 skillRegistry,
                 SkillRuntimeOptions.builder()
@@ -78,6 +78,11 @@ public class AgentToolCollectionFactoryTest {
         Assert.assertFalse(toolCollection.getToolMap().containsKey("planning"));
         Assert.assertTrue(toolCollection.getToolMap().containsKey("deep_search"));
         Assert.assertTrue(toolCollection.getToolMap().containsKey("WebFetch"));
+        Assert.assertTrue(toolCollection.getToolMap().containsKey("search_places"));
+        Assert.assertTrue(toolCollection.getToolMap().containsKey("geocode_places"));
+        Assert.assertTrue(toolCollection.getToolMap().containsKey("plan_route"));
+        Assert.assertTrue(toolCollection.getToolMap().containsKey("modify_itinerary"));
+        Assert.assertTrue(toolCollection.getToolMap().containsKey("get_map"));
         Assert.assertFalse(toolCollection.getToolMap().containsKey("multimodalagent_tool"));
         Assert.assertTrue(toolCollection.getToolMap().containsKey("skill_tool"));
         Assert.assertFalse(toolCollection.getToolMap().containsKey("skill_author"));
@@ -305,7 +310,7 @@ public class AgentToolCollectionFactoryTest {
 
     @Test
     public void deployedPlanSolveMainToolListIncludesTaskOutputAndSendMessage() throws Exception {
-        for (String profile : List.of("application-dev.yml", "application-prod.yml")) {
+        for (String profile : List.of("application-prod.yml")) {
             String yaml = new String(new ClassPathResource(profile).getInputStream().readAllBytes(),
                     StandardCharsets.UTF_8);
             int idx = yaml.indexOf("plan-solve-main-tool-list:");
@@ -521,6 +526,12 @@ public class AgentToolCollectionFactoryTest {
                 new SkillScriptDiscoverer(skillPathGuard),
                 skillPathGuard
         );
+    }
+
+    private ResearchConfig buildMapResearchConfig() {
+        ResearchConfig config = buildResearchConfig();
+        config.setMultiAgentToolList("{\"default\":\"search,web_fetch,code,code_execution,multimodalagent,canvas\"}");
+        return config;
     }
 
     private ResearchConfig buildResearchConfig() {

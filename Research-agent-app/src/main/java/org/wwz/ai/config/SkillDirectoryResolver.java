@@ -38,13 +38,13 @@ public class SkillDirectoryResolver {
     public SkillDirectoryResolver(Path workingDirectory, List<Path> anchorDirectories) {
         this.workingDirectory = workingDirectory.toAbsolutePath().normalize();
         LinkedHashSet<Path> anchors = new LinkedHashSet<>();
-        anchors.add(this.workingDirectory);
         if (anchorDirectories != null) {
             anchorDirectories.stream()
                     .filter(path -> path != null)
                     .map(path -> path.toAbsolutePath().normalize())
                     .forEach(anchors::add);
         }
+        anchors.add(this.workingDirectory);
         this.anchorDirectories = List.copyOf(anchors);
     }
 

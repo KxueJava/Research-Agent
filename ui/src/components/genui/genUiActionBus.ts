@@ -11,6 +11,8 @@ export type GenUiActionType =
   | "open_url"
   | "navigate"
   | "patch_ui"
+  | "set_state"
+  | "remote_action"
   | "submit_form";
 
 export type SendMessageActionPayload = {
@@ -31,11 +33,14 @@ export type PatchUiActionPayload = {
 };
 
 export type SubmitFormActionPayload = {
+  actionId?:string;
   formId?: string;
   values: Record<string, unknown>;
 };
 
 export type GenUiAction =
+  | {type:"remote_action";payload:{actionId:string;values:Record<string,unknown>}}
+  | { type:"set_state";payload:{nodeId:string;value:unknown} }
   | { type: "send_message"; payload: SendMessageActionPayload }
   | { type: "open_url"; payload: OpenUrlActionPayload }
   | { type: "navigate"; payload: NavigateActionPayload }
@@ -43,6 +48,9 @@ export type GenUiAction =
   | { type: "submit_form"; payload: SubmitFormActionPayload };
 
 export type GenUiActionContext = {
+  nodeId?: string;
+  baseRevision?:number;
+  surfaceId?: string;
   sessionId?: string;
   requestId?: string;
   messageId?: string;
@@ -53,6 +61,8 @@ export type GenUiActionContext = {
 };
 
 export type GenUiActionAdapters = {
+  remoteAction?:(payload:{actionId:string;values:Record<string,unknown>},ctx:GenUiActionContext)=>Promise<{status:string}>;
+  setState?: (p:{nodeId:string;value:unknown},ctx:GenUiActionContext)=>void;
   sendMessage?: (
     p: SendMessageActionPayload,
     ctx: GenUiActionContext
@@ -67,22 +77,24 @@ export type GenUiActionAdapters = {
 };
 
 let adapters: GenUiActionAdapters = {};
+const registrations:GenUiActionAdapters[]=[];
 
-export function registerGenUiActionAdapters(next: GenUiActionAdapters): void {
-  adapters = { ...adapters, ...next };
+export function registerGenUiActionAdapters(next: GenUiActionAdapters): ()=>void {
+  registrations.push(next);adapters=Object.assign({},...registrations);
+  return ()=>{const index=registrations.indexOf(next);if(index>=0)registrations.splice(index,1);adapters=Object.assign({},...registrations);};
 }
 
 export function resetGenUiActionAdapters(): void {
+  registrations.length=0;
   adapters = {};
 }
 
-function isSafeHref(url: string): boolean {
-  const t = url.trim().toLowerCase();
-  if (!t) return false;
-  if (t.startsWith("javascript:") || t.startsWith("data:") || t.startsWith("vbscript:")) {
-    return false;
-  }
-  return true;
+export function isSafeHref(url: string): boolean {
+  if(!url.trim()||/[\u0000-\u0020\u007f]/.test(url))return false;
+  try {
+    const parsed=new URL(url,"https://app.invalid");
+    return ["http:","https:"].includes(parsed.protocol)&&!parsed.username&&!parsed.password;
+  } catch {return false;}
 }
 
 function isUiPatchArray(
@@ -115,6 +127,10 @@ export function normalizeAction(
     const type = obj.type;
     const payload = (obj.payload ?? {}) as Record<string, unknown>;
     switch (type) {
+      case "remote_action":{
+        if(typeof payload.actionId!=="string"||!payload.actionId.trim()||payload.actionId.length>128)return null;
+        return {type:"remote_action",payload:{actionId:payload.actionId,values:mergeFormValues(payload.values,ctx)}};
+      }
       case "send_message": {
         const content =
           typeof payload.content === "string"
@@ -135,7 +151,7 @@ export function normalizeAction(
       }
       case "navigate": {
         const route = typeof payload.route === "string" ? payload.route : "";
-        if (!route) return null;
+        if (!route.startsWith("/") || route.startsWith("//") || route.includes("\\") || !isSafeHref(route)) return null;
         return { type: "navigate", payload: { route } };
       }
       case "patch_ui": {
@@ -143,12 +159,19 @@ export function normalizeAction(
         if (!patches.length) return null;
         return { type: "patch_ui", payload: { patches } };
       }
+      case "set_state": {
+        const {nodeId,value}=payload;
+        if(typeof nodeId!=="string"||!nodeId.trim()||nodeId.length>128||["__proto__","constructor","prototype"].includes(nodeId)
+          ||!(value===null||typeof value==="string"&&value.length<=65536||typeof value==="number"&&Number.isFinite(value)||typeof value==="boolean"||Array.isArray(value)&&value.length<=1000&&value.every(v=>typeof v==="string")))return null;
+        return {type:"set_state",payload:{nodeId,value}};
+      }
       case "submit_form": {
         return {
           type: "submit_form",
           payload: {
             formId:
               typeof payload.formId === "string" ? payload.formId : ctx.formId,
+            actionId:typeof payload.actionId==="string"?payload.actionId:undefined,
             values: mergeFormValues(payload.values, ctx),
           },
         };
@@ -162,6 +185,7 @@ export function normalizeAction(
 }
 
 export type GenUiDispatchResult = {
+  status?:string;
   ok: boolean;
   type?: GenUiActionType;
   reason?: "invalid" | "error";
@@ -179,6 +203,10 @@ export async function dispatchGenUiAction(
 
   try {
     switch (action.type) {
+      case "remote_action":{
+        if(!adapters.remoteAction)return {ok:false,reason:"invalid"};
+        const execution=await adapters.remoteAction(action.payload,ctx);return {ok:execution.status!=="failed"&&execution.status!=="cancelled",type:action.type,status:execution.status,reason:execution.status==="failed"?"error":undefined};
+      }
       case "send_message":
         await adapters.sendMessage?.(action.payload, ctx);
         break;
@@ -200,7 +228,15 @@ export async function dispatchGenUiAction(
       case "patch_ui":
         adapters.patchUi?.(action.payload, ctx);
         break;
+      case "set_state":
+        if(!adapters.setState)return {ok:false,type:action.type,reason:"invalid"};
+        adapters.setState(action.payload,ctx);break;
       case "submit_form":
+        if(action.payload.actionId){
+          if(!adapters.remoteAction)return {ok:false,reason:"invalid"};
+          const execution=await adapters.remoteAction({actionId:action.payload.actionId,values:action.payload.values},ctx);
+          return {ok:!["failed","cancelled"].includes(execution.status),type:action.type,status:execution.status,reason:execution.status==="failed"?"error":undefined};
+        }
         await adapters.submitForm?.(action.payload, ctx);
         break;
     }

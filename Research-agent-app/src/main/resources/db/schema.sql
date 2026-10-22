@@ -25,14 +25,16 @@
 CREATE TABLE IF NOT EXISTS admin_user (
     id          BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键ID',
     user_id     VARCHAR(64)  NOT NULL COMMENT '用户ID（唯一标识）',
-    username    TEXT        NOT NULL COMMENT '用户名（登录账号）',
+    username    VARCHAR(255) NOT NULL COMMENT '用户名（登录账号）',
     password    VARCHAR(128) NOT NULL COMMENT '密码（加密存储）',
     avatar_url  TEXT        NULL COMMENT '头像地址或数据地址',
+    role        VARCHAR(16) NOT NULL DEFAULT 'USER' COMMENT 'USER 或 ADMIN，服务端管理',
     status      TINYINT(1)   NULL DEFAULT 1 COMMENT '状态(0:禁用,1:启用,2:锁定)',
     create_time DATETIME     NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     update_time DATETIME     NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (id),
     UNIQUE KEY uk_user_id (user_id),
+    UNIQUE KEY uk_admin_username (username),
     KEY idx_create_time (create_time),
     KEY idx_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='管理员用户表';
@@ -474,6 +476,7 @@ CREATE TABLE IF NOT EXISTS ai_agent_tool_output_multimodal_agent (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='multimodal_agent 输出表';
 
 CREATE TABLE IF NOT EXISTS ai_agent_tool_output_image_generation (
+    owner_user_id      VARCHAR(64)    NULL COMMENT '独立工作台生成者，历史未知归属保持 NULL',
     id                 BIGINT         NOT NULL AUTO_INCREMENT COMMENT '主键ID',
     tool_invocation_id BIGINT         NULL COMMENT '所属 tool invocation ID',
     run_id             BIGINT         NULL COMMENT '所属 run ID',
@@ -497,6 +500,7 @@ CREATE TABLE IF NOT EXISTS ai_agent_tool_output_image_generation (
     UNIQUE KEY uk_tool_invocation (tool_invocation_id),
     UNIQUE KEY uk_request_tool_call (request_id, tool_call_id),
     KEY idx_request_source_created (request_source, created_at DESC),
+    KEY idx_owner_source_created (owner_user_id, request_source, created_at),
     KEY idx_run_created (run_id, created_at DESC),
     KEY idx_status_created (status, created_at DESC)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='image_generation_tool 输出表';
@@ -513,6 +517,7 @@ CREATE TABLE IF NOT EXISTS ai_agent_tool_output_canvas_publish (
     title                VARCHAR(500)   NULL COMMENT '画布标题',
     mode                 VARCHAR(32)    NULL COMMENT '发布模式',
     primary_file_name    VARCHAR(256)   NULL COMMENT '主文件名',
+    surface_json         LONGTEXT       NULL COMMENT 'HTML Surface version snapshot',
     preview_url          VARCHAR(1024)  NULL COMMENT '预览地址',
     download_url         VARCHAR(1024)  NULL COMMENT '下载地址',
     open_in_panel        TINYINT        NULL COMMENT '是否打开面板',
@@ -800,3 +805,35 @@ CREATE TABLE IF NOT EXISTS ai_agent_background_task (
     KEY idx_session_bg_session (session_id, deleted, update_time DESC),
     KEY idx_session_bg_status (session_id, status, deleted)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='后台运行任务（Agent run_in_background / TaskOutput）';
+
+
+-- GitHub login: provider IDs, not usernames/emails, are the identity key.
+CREATE TABLE IF NOT EXISTS user_oauth_identity (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  provider VARCHAR(32) NOT NULL,
+  provider_user_id VARCHAR(64) NOT NULL,
+  user_id VARCHAR(64) NOT NULL,
+  provider_login VARCHAR(255) NOT NULL,
+  create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT uk_oauth_identity UNIQUE (provider, provider_user_id),
+  CONSTRAINT uk_oauth_user UNIQUE (provider, user_id)
+);
+
+CREATE TABLE IF NOT EXISTS ai_agent_ui_surface (
+  session_id VARCHAR(128) NOT NULL,
+  surface_id VARCHAR(128) NOT NULL,
+  owner_id VARCHAR(128) NOT NULL,
+  document_json LONGTEXT NOT NULL,
+  PRIMARY KEY(session_id,surface_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS ai_agent_ui_surface_event (
+  session_id VARCHAR(128) NOT NULL,
+  event_id VARCHAR(128) NOT NULL,
+  command_json LONGTEXT NOT NULL,
+  document_json LONGTEXT NOT NULL,
+  PRIMARY KEY(session_id,event_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+CREATE TABLE IF NOT EXISTS ai_agent_file_scope_tombstone (
+  scope_id VARCHAR(128) NOT NULL PRIMARY KEY,
+  deleted_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -141,6 +141,7 @@ public class ToolOutputWriterImpl implements ToolOutputWriter {
 
     private Map<String, Object> buildImageGenerationRow(ToolOutputPersistCommand command, ImageGenerationToolOutput output) {
         Map<String, Object> row = baseRow(command);
+        row.put("ownerUserId", command.getOwnerUserId());
         row.put("prompt", output.getPrompt());
         row.put("mode", output.getMode());
         row.put("summary", output.getSummary());
@@ -154,6 +155,7 @@ public class ToolOutputWriterImpl implements ToolOutputWriter {
 
     private Map<String, Object> buildCanvasPublishRow(ToolOutputPersistCommand command, CanvasPublishToolOutput output) {
         Map<String, Object> row = baseRow(command);
+        row.put("surfaceJson",toJson(output.getSurface()));
         row.put("title", output.getTitle());
         row.put("mode", output.getMode());
         row.put("primaryFileName", output.getPrimaryFileName());
@@ -176,7 +178,9 @@ public class ToolOutputWriterImpl implements ToolOutputWriter {
         Map<String, Object> row = baseRow(command);
         row.put("canvasId", output.getCanvasId());
         row.put("seq", output.getSeq());
-        row.put("patchesJson", toJson(output.getPatches()));
+        if (output.getSurface() != null && output.getSnapshot() != null) {
+            row.put("patchesJson",toJson(Map.of("patches",output.getPatches(),"surface",output.getSurface(),"snapshot",output.getSnapshot())));
+        } else row.put("patchesJson", toJson(output.getPatches()));
         return row;
     }
 

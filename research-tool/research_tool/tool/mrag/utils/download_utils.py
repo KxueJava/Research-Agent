@@ -9,14 +9,18 @@ def download_file(
         url: str,
         filename: str
 ):
-    """流式下载 url 到 filename；非 200 仅打日志不抛异常。"""
+    """流式下载到调用方拥有的路径；HTTP 失败必须中止解析。"""
     logger.info(f"Downloading {url} -> {filename}")
-    response = requests.get(url, stream=True, verify=False, timeout=300)
-    if response.status_code == 200:
+    from research_tool.api.knowledge_download import knowledge_download_headers
+    headers=knowledge_download_headers(url)
+    response = requests.get(url, stream=True, verify=True, timeout=300, headers=headers, allow_redirects=not bool(headers))
+    try:
+        if response.status_code != 200:
+            raise RuntimeError(f"File download failed: HTTP {response.status_code}")
         with open(filename, 'wb') as f:
             for chunk in response.iter_content(chunk_size=8192):
                 if chunk:
                     f.write(chunk)
         logger.info(f"Downloaded {filename}")
-    else:
-        logger.warning(f"Failed to download {filename}: HTTP {response.status_code}")
+    finally:
+        response.close()

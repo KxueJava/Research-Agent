@@ -43,6 +43,8 @@ public class GetGenuiGuideTool implements BaseTool {
 
     @Override
     public Object execute(Object input) {
-        return ToolResultPayload.fromData(GenUiGuidePayload.payload());
+        var guide=new java.util.LinkedHashMap<>(GenUiGuidePayload.payload());
+        guide.put("presentation",org.wwz.ai.domain.agent.runtime.tool.common.canvas.planner.UiPresentationRuntime.guidance(agentContext));
+        return ToolResultPayload.fromData(guide);
     }
 }

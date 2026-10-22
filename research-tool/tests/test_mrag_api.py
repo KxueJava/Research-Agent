@@ -242,8 +242,15 @@ class MragApiTest(unittest.TestCase):
         events = [line.removeprefix("data: ") for line in lines if line.startswith("data: ")]
         self.assertEqual("[DONE]", events[-1])
         error_chunk = json.loads(events[0])
-        self.assertEqual("stop", error_chunk["choices"][0]["finishReason"])
-        self.assertIn("MRAG 检索失败", error_chunk["choices"][0]["delta"]["content"])
+        self.assertEqual(3, len(events))
+        self.assertEqual("error", error_chunk["stage"])
+        self.assertTrue(error_chunk["isFinal"])
+        self.assertIn("MRAG 检索失败", error_chunk["data"])
+        self.assertIn("mock upstream unavailable", error_chunk["data"])
+        self.assertEqual("", error_chunk["requestId"])  # Legacy sessionless request has no ledger ID.
+        legacy_chunk = json.loads(events[1])
+        self.assertEqual("stop", legacy_chunk["choices"][0]["finishReason"])
+        self.assertEqual(error_chunk["data"], legacy_chunk["choices"][0]["delta"]["content"])
 
     def test_should_build_mrag_qdrant_client_from_shared_config(self):
         with patch.dict(
@@ -273,3 +280,4 @@ class MragApiTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

@@ -1,0 +1,14 @@
+{
+  "sessionId":"map-fixture-stage6",
+  "catalog":{
+    "xm-1":{"placeId":"xm-1","name":"厦门站","coordinates":[118.116,24.468],"coordinateSystem":"GCJ-02","address":"厦门 · 合成测试起点","source":"mock"},
+    "xm-2":{"placeId":"xm-2","name":"金榜公园","coordinates":[118.108,24.461],"coordinateSystem":"GCJ-02","address":"厦门 · 合成测试地点","source":"mock"},
+    "xm-3":{"placeId":"xm-3","name":"南湖公园南门","coordinates":[118.111,24.482],"coordinateSystem":"GCJ-02","address":"厦门 · 合成测试地点","source":"mock"},
+    "xm-4":{"placeId":"xm-4","name":"白鹭洲公园","coordinates":[118.091,24.479],"coordinateSystem":"GCJ-02","address":"厦门 · 合成测试地点","source":"mock"},
+    "xm-5":{"placeId":"xm-5","name":"中山公园","coordinates":[118.085,24.463],"coordinateSystem":"GCJ-02","address":"厦门 · 合成测试候选","source":"mock"},
+    "hz-1":{"placeId":"hz-1","name":"龙翔桥","coordinates":[120.165,30.254],"coordinateSystem":"GCJ-02","address":"杭州 · 合成测试起点","source":"mock"},
+    "hz-2":{"placeId":"hz-2","name":"湖滨公园","coordinates":[120.16,30.252],"coordinateSystem":"GCJ-02","address":"杭州 · 合成测试地点","source":"mock"},
+    "hz-3":{"placeId":"hz-3","name":"柳浪闻莺","coordinates":[120.154,30.235],"coordinateSystem":"GCJ-02","address":"杭州 · 合成测试地点","source":"mock"}
+  },
+  "trips":[{"surfaceId":"map-xm","title":"厦门合成地图测试","ids":["xm-1","xm-2","xm-3","xm-4"]},{"surfaceId":"map-hz","title":"杭州合成地图测试","ids":["hz-1","hz-2","hz-3"]}]
+}

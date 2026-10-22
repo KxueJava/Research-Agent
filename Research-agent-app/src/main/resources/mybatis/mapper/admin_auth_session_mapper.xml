@@ -31,6 +31,8 @@
         UPDATE admin_auth_session
         SET refresh_token_hash = #{refreshTokenHash}, last_seen_at = #{lastSeenAt}, expires_at = #{expiresAt}
         WHERE session_id = #{sessionId} AND revoked_at IS NULL
+          AND refresh_token_hash = #{expectedRefreshTokenHash}
+          AND expires_at &gt; CURRENT_TIMESTAMP
     </update>
 
     <update id="revokeById">

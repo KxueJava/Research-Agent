@@ -34,6 +34,10 @@ public class AdminUser {
 
     private String avatarUrl;
 
+    /** Server-managed permission; legacy and public accounts default to USER. */
+    @Builder.Default
+    private String role = "USER";
+
     /**
      * 密码（加密存储）
      */

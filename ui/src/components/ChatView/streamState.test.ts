@@ -15,6 +15,11 @@ import {
 } from "./streamState";
 
 describe("streamState presence & attention", () => {
+  it("managed HTML renders inline without opening a second running preview", () => {
+    const task = { messageType: "html", resultMap: { surface: { kind: "html", schemaVersion: "rui/1", surfaceId: "a" }, fileInfo: [{ fileName: "game.html", domainUrl: "http://localhost/preview/game.html" }] } } as any;
+    expect(isWorkspaceAttentionTask(task)).toBe(false);
+    expect(resolveActionPanelVisibility({ taskList: [task] })).toBe(false);
+  });
   it("plan 单独存在时不自动打开右侧工作区", () => {
     expect(
       resolveActionPanelVisibility({

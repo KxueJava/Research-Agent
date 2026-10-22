@@ -1,0 +1,8 @@
+{
+  "mcpId": "browser_playwright",
+  "mcpName": "browser",
+  "transportType": "sse",
+  "transportConfig": "{\"baseUri\":\"http://127.0.0.1:8931\",\"sseEndpoint\":\"/sse\"}",
+  "requestTimeout": 2,
+  "status": 1
+}
