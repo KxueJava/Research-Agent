@@ -143,11 +143,11 @@ Intelligent UI 让 Agent 根据任务生成可以操作的结果：旅行规划�
 
 <img src="assets/readme/intelligent-ui-place-introduction.png" alt="景点图片与 AI 生成简介" width="420" />
 
-**HTML 小游戏 · Canvas 交互验收示例**
+**HTML 小游戏 · 贪吃蛇 Neon Circuit**
 
-这是早期基线验收保存的可玩小游戏截图，展示方向控制、命中目标与重新开始；不代表当前容器的最终视觉样式。游戏运行内存默认不跨刷新恢复，只有实现并验证版本化存档协议后才支持保存进度。
+下图为本项目生成的单文件 HTML 贪吃蛇产物，在浏览器中独立运行的实拍截图，支持方向键 / WASD、计分、暂停和重置。本次截图前已检查开始、暂停、重置与再次开始；截图不代表工作台沙箱完整验收。游戏运行内存默认不跨刷新恢复，只有实现并验证版本化存档协议后才支持保存进度。
 
-<img src="assets/readme/intelligent-ui-html-game.jpg" alt="HTML Canvas 小游戏基线验收截图" width="720" />
+<img src="assets/readme/intelligent-ui-snake-game.png" alt="贪吃蛇 Neon Circuit HTML 小游戏运行截图" width="800" />
 
 </details>
 
